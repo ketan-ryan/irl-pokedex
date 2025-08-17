@@ -1,12 +1,12 @@
-from typing import List
-from pokemontcgsdk import Card, RestClient
-from PIL import Image
-import requests
 from io import BytesIO
 import json
 from pathlib import Path
-from tqdm import tqdm
+import requests
+from typing import List
 
+from PIL import Image
+from pokemontcgsdk import Card, RestClient
+from tqdm import tqdm
 
 names = []
 with open('classes.json', 'r') as fp:
