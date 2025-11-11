@@ -70,7 +70,7 @@ for poke_url in tqdm(pokemon):
                 games = [game.get_text() for game in game_spans]
 
                 game_str = '/'.join(games)
-                dex_dict['game_str'] = td.get_text()
+                dex_dict[f'{game_str}'] = td.get_text()
     
     data['dex_entries'] = dex_dict
     
