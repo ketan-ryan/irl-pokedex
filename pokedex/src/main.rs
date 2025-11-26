@@ -1,3 +1,7 @@
+mod io;
+
 fn main() {
-    println!("Hello, world!");
+    let pokedex = io::load_dex_entries("../pokedex.json");
+    let hydreigon = &pokedex.unwrap()["hydreigon"];
+    println!("{:?}", hydreigon.dex_entries);
 }
