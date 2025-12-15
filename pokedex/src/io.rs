@@ -1,4 +1,3 @@
-use serde_json::Result;
 use serde::Deserialize;
 
 use std::{collections::HashMap, fs, path::Path};
@@ -13,8 +12,10 @@ pub struct PokemonInfo {
     pub dex_entries: HashMap<String, String>
 }
 
-pub fn load_dex_entries<P: AsRef<Path>>(path: P) -> Result<HashMap<String, PokemonInfo>> {
-    let json = fs::read_to_string(path).unwrap();
-    let pokedex: HashMap<String, PokemonInfo> = serde_json::from_str(&json)?;
-    Ok(pokedex)
+pub fn load_dex_entries<P: AsRef<Path>>(path: P) -> HashMap<String, PokemonInfo> {
+    let json = fs::read_to_string(path).expect("Couldn't open the pokedex JSON");
+
+    // If the JSON is unparsable, that probably indicates some upstream error with
+    // its generation, and we should panic so it can be fixed.
+    serde_json::from_str(&json).expect("Couldn't parse pokedex JSON")
 } 
