@@ -1,7 +1,8 @@
 mod io;
+mod screen;
 
 use iced::widget::{
-    center, center_x, column, container, scrollable, space, text,
+    button, column, space, 
 };
 use iced::window::{self};
 use iced::{
@@ -9,6 +10,9 @@ use iced::{
 };
 
 use std::collections::BTreeMap;
+
+use crate::screen::Screen;
+use crate::screen::home;
 
 fn main() -> iced::Result {
     let pokedex: std::collections::HashMap<String, io::PokemonInfo> = io::load_dex_entries("../pokedex.json");
@@ -20,7 +24,8 @@ fn main() -> iced::Result {
 }
 
 struct App {
-    windows: BTreeMap<window::Id, Window>,
+    windows: BTreeMap<window::Id, WindowType>,
+    screen: Screen,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -29,15 +34,11 @@ enum WindowType {
     BottomScreen
 }
 
-#[derive(Debug)]
-struct Window {
-    title: String,
-    window: WindowType,
-}
-
 #[derive(Debug, Clone)]
 enum Message {
     WindowOpened(window::Id),
+    Home(home::Message),
+    OpenHome,
 }
 
 impl App {
@@ -60,9 +61,10 @@ impl App {
 
         (
             Self {
+                screen: Screen::Loading,
                 windows: BTreeMap::from([
-                    (top_id, Window::new(WindowType::TopScreen)),
-                    (bottom_id, Window::new(WindowType::BottomScreen))
+                    (top_id, WindowType::TopScreen),
+                    (bottom_id, WindowType::BottomScreen)
                 ]),
             },
             Task::batch([
@@ -77,37 +79,70 @@ impl App {
             Message::WindowOpened(_) => {
                 return Task::none();
             }
+            Message::Home(message) => {
+                let Screen::Home(home) = &mut self.screen else {
+                    return Task::none();
+                };
+
+                match home.update(message) {
+                    home::Action::None => Task::none(),
+                    home::Action::GoHome => Task::none(),
+                    home::Action::Run(task) => task.map(Message::Home),
+                }
+            }
+            Message::OpenHome => {
+                self.open_home()
+            }
         }
+    }
+
+    fn open_home(&mut self) -> Task<Message> {
+        let (home, task) = screen::Home::new();
+        self.screen = Screen::Home(home);
+        println!("Set screen to {:?}", self.screen);
+        task.map(Message::Home)
     }
 
     fn view(&self, window_id: window::Id) -> Element<'_, Message> {
         if let Some(window) = self.windows.get(&window_id) {
-            center(window.view()).into()
+            match window {
+                WindowType::TopScreen => {
+                    self.top_view()
+                }
+                WindowType::BottomScreen => {
+                    self.bottom_view()
+                }
+            }
         } else {
             space().into()
         }
     }
 
-}
+    fn top_view(&self) -> Element<'_, Message> {
+        match &self.screen {
+            Screen::Home(home) => home.top_view().map(Message::Home),
+            Screen::Loading =>  {
+                let new_window_button =
+                    button("Go home").on_press(Message::OpenHome);
 
-impl Window {
-    fn new(window_type: WindowType) -> Self {
-        Self {
-            title: format!("{:?}", window_type),
-            window: window_type,
+                let content = column![new_window_button]
+                    .spacing(50)
+                    .width(Fill)
+                    .align_x(Center)
+                    .width(200);
+
+                content.into()
+            },
         }
     }
 
-    fn view(&self) -> Element<'_, Message> {
-        let new_window_button =
-            text(format!("{:?}", self.window));
-
-        let content = column![new_window_button]
-            .spacing(50)
-            .width(Fill)
-            .align_x(Center)
-            .width(200);
-
-        container(scrollable(center_x(content))).padding(10).into()
+    fn bottom_view(&self) -> Element<'_, Message> {
+        match &self.screen {
+            Screen::Home(home) => home.bottom_view().map(Message::Home),
+            Screen::Loading =>  {
+                space().into()
+            },
+        }
     }
+
 }
