@@ -1,12 +1,13 @@
 mod io;
 mod screen;
+mod grid;
 
 use iced::widget::{
-    button, column, space, 
+    button, column, space
 };
 use iced::window::{self};
 use iced::{
-    Center, Element, Fill, Task,
+    Center, Element, Fill, Subscription, Task, Theme
 };
 
 use std::collections::BTreeMap;
@@ -20,6 +21,7 @@ fn main() -> iced::Result {
     println!("{:?}", hydreigon.dex_entries);
 
     iced::daemon(App::new, App::update, App::view)
+        .subscription(App::subscription)
         .run()
 }
 
@@ -88,12 +90,22 @@ impl App {
                     home::Action::None => Task::none(),
                     home::Action::GoHome => Task::none(),
                     home::Action::Run(task) => task.map(Message::Home),
+                    home::Action::RedrawWindows => Task::none(),
                 }
             }
             Message::OpenHome => {
                 self.open_home()
             }
         }
+    }
+
+    fn subscription(&self) -> Subscription<Message> {
+        match &self.screen {
+        Screen::Home(home) =>
+            home.subscription().map(Message::Home),
+
+        _ => Subscription::none(),
+    }
     }
 
     fn open_home(&mut self) -> Task<Message> {
