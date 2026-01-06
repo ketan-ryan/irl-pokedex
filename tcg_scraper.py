@@ -137,25 +137,28 @@ for pokemon in pbar:
     pokemon_dir.mkdir(parents=True, exist_ok=True)
     json_path = pokemon_dir / f"{pokemon}.json"
 
-    if json_path.exists():
-        try:
-            with open(json_path, "r") as fp:
-                data = json.load(fp)
+    if pokemon not in failed_pokemon:
+        continue
 
-            entries = data.get(pokemon, {})
+    # if json_path.exists():
+    #     try:
+    #         with open(json_path, "r") as fp:
+    #             data = json.load(fp)
 
-            if len(entries) >= 1: # or pokemon in failed_pokemon:
-                print(f"Skipping {pokemon} (already done)")
-                continue
-            else:
-                print(f"Retrying {pokemon} (empty JSON)")
-                failed_pokemon.add(pokemon)
+    #         entries = data.get(pokemon, {})
 
-        except json.JSONDecodeError:
-            print(f"Corrupt JSON for {pokemon}, retrying")
-            failed_pokemon.add(pokemon)
-    else:
-        print(f"WARNING: missing JSON for {pokemon}")
+    #         if len(entries) >= 1: # or pokemon in failed_pokemon:
+    #             print(f"Skipping {pokemon} (already done)")
+    #             continue
+    #         else:
+    #             print(f"Retrying {pokemon} (empty JSON)")
+    #             failed_pokemon.add(pokemon)
+
+    #     except json.JSONDecodeError:
+    #         print(f"Corrupt JSON for {pokemon}, retrying")
+    #         failed_pokemon.add(pokemon)
+    # else:
+    #     print(f"WARNING: missing JSON for {pokemon}")
 
     pbar.set_description(pokemon)
     cards = safe_card_query(pokemon)
