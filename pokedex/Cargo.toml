@@ -4,10 +4,12 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-iced = { version = "0.14.0", features = ["canvas", "tokio"] }
-iced_video_player = "0.6.0"
+gstreamer = "0.24.4"
+gstreamer-app = "0.24.4"
+iced = { version = "0.14.0", features = ["advanced", "canvas", "tokio"] }
 image = { version = "0.25.9", features = ["default-formats"] }
-nokhwa = { version = "0.10.10", features = ["camera-sync-impl", "input-native", "output-threaded"] }
+include_assets = "1.0.0"
+nokhwa = { version = "0.10.10", default-features = false, features = ["camera-sync-impl", "input-v4l", "output-threaded"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
 tokio = "1.48.0"
