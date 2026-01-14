@@ -7,14 +7,33 @@ from pathlib import Path
 import random
 import re
 import requests
+import json
+import os
 from tqdm import tqdm
+
+
+script_dir = os.path.dirname(os.path.abspath(__file__))
 
 plushie_url = "https://myfigurecollection.net/?tab=search&rootId=1&status=-1&categoryId=-1&contentLevel=-1&excludeContentLevel=0&orEntries%5B%5D=241&domainId=-1&noReleaseDate=0&releaseTypeId=0&ratingId=0&isCastoff=0&hasBootleg=0&tagId=0&noBarcode=0&clubId=0&excludeClubId=0&listId=0&isDraft=0&year=2025&month=1&separator=0&sort=popularity&order=asc&output=2&current=categoryId&page=2&_tb=item"
 mapping = {}
-with open('pokemon to japanese names.csv', 'r', encoding='utf-8') as fp:
+with open(os.path.join(script_dir, 'pokemon to japanese names.csv'), 'r', encoding='utf-8') as fp:
     for line in fp.readlines():
         items = line.split(',')
         mapping[items[-1].strip().lower()] = items[2]
+
+# load pokedex-safe names
+with open(os.path.abspath(os.path.join(script_dir, '..', '..', '..', 'all_pokemon_safe.json')), "r", encoding="utf-8") as fp:
+    all_pokemon = json.load(fp)
+
+# normalize to list of names
+if isinstance(all_pokemon[0], dict):
+    all_pokemon = [p["name"] for p in all_pokemon]
+
+# build lookup: name -> padded folder
+pokedex_folder = {
+    name.lower(): f"{str(i+1).zfill(4)}{name}"
+    for i, name in enumerate(all_pokemon)
+}
 
 # regex to find partial matches
 # example: searching for "alolan vulpix" (not in dict) will hit on "vulpix" (in dict)
@@ -54,10 +73,21 @@ async def download_page(playwright, page: Page = None, browser: Browser = None, 
         src = img.get('src')
         src_full = src.replace('/items/0/', '/items/1/')
         src_filename = src.split('/')[-1]
-        out_path = Path(f'plushies/{val}-{src_filename}')
+        # out_path = Path(f'plushies/{val}-{src_filename}')
+
+        # get pokedex folder name
+        folder_name = pokedex_folder.get(val.lower())
+        if not folder_name:
+            continue  # safety check
+
+        pokemon_dir = Path(r"G:\My Drive\IRL Pokedex\myfigurecollection plushies") / folder_name
+        pokemon_dir.mkdir(parents=True, exist_ok=True)
+
+        out_path = pokemon_dir / f"{val}-{src_filename}"
 
         # no need to re-download
         if out_path.exists(): continue
+
         response = requests.get(src_full)
         
         if response.status_code == 200:
