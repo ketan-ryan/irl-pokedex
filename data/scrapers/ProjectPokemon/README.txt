@@ -1,5 +1,7 @@
 SCRAPES POKEMON HOME SPRITES (3D MODELS)
 
+source: https://projectpokemon.org/home/docs/spriteindex_148/home-sprites-gen-{X}-r{Y} WHERE X AND Y ARE 1-8 (GENERATION) AND 128-135 (ID)
+
 run pokemondb_scraper.py
 run projectpokemon_scraper.py
 run combiner.py
