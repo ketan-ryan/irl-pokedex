@@ -1,5 +1,7 @@
 SCRAPES POKEMON PLUSHIES
 
+source: https://pokeshopper.net/rotomplushdex/
+
 captures miscellaneous pokemon "hqfitpckalos" with random pokemon plushies (in folder misc)
 
 plusher_scraper.py
