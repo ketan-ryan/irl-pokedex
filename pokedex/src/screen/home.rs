@@ -1,10 +1,9 @@
 use iced::{
-    Color, Element, Task, Center, Fill, Subscription, time
+    Center, Color, Element, Fill, Subscription, Task, Theme, time
 };
 use iced::widget::{
     column, container, text, stack, canvas::Canvas
 };
-use iced_video_player::{Video, VideoPlayer};
 use nokhwa::{
     nokhwa_initialize,
     pixel_format::{RgbAFormat, RgbFormat},
@@ -14,10 +13,12 @@ use nokhwa::{
 };
 
 use std::fmt;
+use std::ops::Sub;
 use std::time::Duration;
-use std::sync::Arc;
+use std::sync::{mpsc};
 
 use crate::grid::Grid;
+use crate::pipeline;
 
 struct DebugCC(CallbackCamera);
 
@@ -32,18 +33,17 @@ pub struct Home {
     title: String,
     processing: bool,
     grid: Grid,
-    video: Option<Video>,
     camera: Option<DebugCC>,
+    rx: Option<mpsc::Receiver<Vec<u8>>>,
+    last_frame: Option<Vec<u8>>,
 }
 
 #[derive(Debug, Clone)]
 pub enum Message {
     HomeToggled,
     Refresh,
-    InitVideo,
-    VideoInitialized(Arc<Video>),
     InitCamera,
-    CameraInitialized(Arc<DebugCC>),
+    CameraInitialized,
     Tick,
 }
 
@@ -58,15 +58,21 @@ impl Home {
     pub fn new() -> (Self, Task<Message>) {
         
         println!("New home created");
+        let (mut tx, rx) = mpsc::channel();
+
+        std::thread::spawn(move || {
+            pipeline::init_pipeline(tx);
+        });
+
         (
             Self { 
                 title: String::from("Home page"),
                 processing: false,
                 grid: Grid { offset: crate::grid::Vector { x: 0.0, y: 0.0 } },
-                video: None,
                 camera: None,
+                rx: rx,
             },
-            Task::done(Message::InitVideo)
+            Task::done(Message::InitCamera)
         )
     }
 
@@ -85,95 +91,76 @@ impl Home {
 
                 Action::RedrawWindows
             }
-            Message::InitVideo => Action::Run(Task::perform(
-                Home::init_video(),
-             Message::VideoInitialized
-            )),
-            Message::VideoInitialized(video) => {
-                self.video = match Arc::try_unwrap(video) {
-                    Ok(vid) => Some(vid),
-                    Err(_) => {
-                        println!("Could not unwrap, ref count is > 1");
-                        None
-                    }
-                };
-                Action::None
-            }
             Message::InitCamera => Action::Run(Task::perform(
                 Home::init_camera(),
-                |arg0: std::option::Option<DebugCC>| {
-                    let cam = arg0.expect("Failed to open camera!");
-                    Message::CameraInitialized(Arc::from(cam))
+                |_| {
+                    Message::CameraInitialized
                 }
             )),
-            Message::CameraInitialized(camera) => {
-                self.camera = match Arc::try_unwrap(camera) {
-                    Ok(cam) => Some(cam),
-                    Err(_) => {
-                        println!("Couldn't unwrap camera ref");
-                        None
-                    }
-                };
-
+            Message::CameraInitialized => {
                 Action::None
             }
         }
     }
 
-    async fn init_video() -> Arc<Video> {
-        let uri = match url::Url::parse("file:///C:/Users/kyure/Videos/Easter Egg/mowzies easter egg.mp4") {
-            Ok(success) => success,
-            Err(error) => {
-                println!("{}", error);
-                panic!("Failed to parse url");
-            }
-        };
-        Arc::new(Video::new(&uri).unwrap())
-    }
+    async fn init_camera()  {
+        // let (tx, rx) = channel();
+        // std::thread::spawn(move || {
+        //     pipeline::init_pipeline(tx);
+        // });
+        
 
-    async fn init_camera() -> Option<DebugCC> {
-        let cameras = match query(ApiBackend::Auto) { 
-            Ok(cams) => cams,
-            Err(err) => {
-                println!("Failed to query backend {}", err);
-                return None;
-            }
-        };
+        // let cameras = match query(ApiBackend::Video4Linux) { 
+        //     Ok(cams) => cams,
+        //     Err(err) => {
+        //         println!("Failed to query backend {}", err);
+        //         return None;
+        //     }
+        // };
 
-        let format = RequestedFormat::new::<RgbFormat>(RequestedFormatType::AbsoluteHighestFrameRate);
+        // let format = RequestedFormat::new::<RgbFormat>(RequestedFormatType::AbsoluteHighestFrameRate);
+        // println!("Format selected {:?}", format);
 
-        let first_camera = match cameras.first() {
-            Some(cam) => cam,
-            None => {
-                println!("No cameras found");
-                return None;
-            }
-        };
+        // let first_camera = match cameras.first() {
+        //     Some(cam) => cam,
+        //     None => {
+        //         println!("No cameras found");
+        //         return None;
+        //     }
+        // };
 
-        let mut threaded = match CallbackCamera::new(first_camera.index().clone(), format, |buffer| {
-            let image = buffer.decode_image::<RgbFormat>().unwrap();
-            println!("{}x{} {}", image.width(), image.height(), image.len());
-        }) {
-            Ok(cam) => cam,
-            Err(err) => {
-                println!("Failed to create callback camera {}", err);
-                return None;
-            }
-        };
+        // println!("Selected first camera as {:?}", first_camera);
 
-        Some(DebugCC(threaded))
+        // let mut threaded = match CallbackCamera::new(first_camera.index().clone(), format, |buffer| {
+        //     let image = buffer.decode_image::<RgbFormat>().unwrap();
+        //     println!("{}x{} {}", image.width(), image.height(), image.len());
+        // }) {
+        //     Ok(cam) => cam,
+        //     Err(err) => {
+        //         println!("Failed to create callback camera {}", err);
+        //         return None;
+        //     }
+        // };
+
+        // Some(DebugCC(threaded))
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        time::every(Duration::from_millis(16))
-            .map(|_| Message::Tick)
+        Subscription::batch([
+            // tick screen for updates
+            time::every(Duration::from_millis(16))
+                .map(|_| Message::Tick),
+
+            // get video frames
+            Subscription::from(value)
+        ])
+        
     }
 
     pub fn top_view(&self) -> Element<'_, Message> {
-        // let window_text:  = text("Top screen text from home");
-        if self.video.is_some() {
-            let vid = VideoPlayer::new(&self.video.as_ref().unwrap());
-            column![vid]
+        let window_text  = text("Top screen text from home");
+        if self.camera.is_some() {
+            column![window_text]
                 .width(Fill)
                 .height(Fill)
                 .align_x(Center)
@@ -204,7 +191,7 @@ impl Home {
                 .width(Fill)
                 .height(Fill),
 
-            main
+            main,
         ];
 
         container(stack)

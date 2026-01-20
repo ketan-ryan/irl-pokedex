@@ -1,6 +1,11 @@
 mod io;
 mod screen;
-mod grid;
+mod elements;
+mod pipeline;
+
+use screen::Screen;
+use screen::home;
+use elements::grid;
 
 use iced::widget::{
     button, column, space
@@ -12,11 +17,8 @@ use iced::{
 
 use std::collections::BTreeMap;
 
-use crate::screen::Screen;
-use crate::screen::home;
-
 fn main() -> iced::Result {
-    let pokedex: std::collections::HashMap<String, io::PokemonInfo> = io::load_dex_entries("../pokedex.json");
+    let pokedex: std::collections::HashMap<String, io::PokemonInfo> = io::load_dex_entries("pokedex.json");
     let hydreigon = &pokedex["hydreigon"];
     println!("{:?}", hydreigon.dex_entries);
 
@@ -79,7 +81,7 @@ impl App {
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::WindowOpened(_) => {
-                return Task::none();
+                self.open_home()
             }
             Message::Home(message) => {
                 let Screen::Home(home) = &mut self.screen else {
@@ -101,11 +103,11 @@ impl App {
 
     fn subscription(&self) -> Subscription<Message> {
         match &self.screen {
-        Screen::Home(home) =>
-            home.subscription().map(Message::Home),
+            Screen::Home(home) =>
+                home.subscription().map(Message::Home),
 
-        _ => Subscription::none(),
-    }
+            _ => Subscription::none(),
+        }
     }
 
     fn open_home(&mut self) -> Task<Message> {
