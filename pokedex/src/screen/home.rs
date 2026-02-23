@@ -4,47 +4,29 @@ use iced::{
 use iced::widget::{
     column, container, text, stack, canvas::Canvas
 };
-use nokhwa::{
-    nokhwa_initialize,
-    pixel_format::{RgbAFormat, RgbFormat},
-    query,
-    utils::{ApiBackend, RequestedFormat, RequestedFormatType},
-    CallbackCamera,
-};
 
 use std::fmt;
-use std::ops::Sub;
 use std::time::Duration;
-use std::sync::{mpsc};
 
+use crate::elements::gstreamer_recipe::{VideoFrame, gstreamer_stream};
 use crate::grid::Grid;
 use crate::pipeline;
 
-struct DebugCC(CallbackCamera);
-
-impl fmt::Debug for DebugCC {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Debug called for CallbackCamera")
-    }
-}
 
 #[derive(Debug)]
 pub struct Home {
     title: String,
     processing: bool,
     grid: Grid,
-    camera: Option<DebugCC>,
-    rx: Option<mpsc::Receiver<Vec<u8>>>,
-    last_frame: Option<Vec<u8>>,
+    last_frame: Option<VideoFrame>,
 }
 
 #[derive(Debug, Clone)]
 pub enum Message {
     HomeToggled,
     Refresh,
-    InitCamera,
-    CameraInitialized,
     Tick,
+    FrameReceived(VideoFrame)
 }
 
 pub enum Action {
@@ -58,21 +40,14 @@ impl Home {
     pub fn new() -> (Self, Task<Message>) {
         
         println!("New home created");
-        let (mut tx, rx) = mpsc::channel();
-
-        std::thread::spawn(move || {
-            pipeline::init_pipeline(tx);
-        });
-
         (
             Self { 
                 title: String::from("Home page"),
                 processing: false,
                 grid: Grid { offset: crate::grid::Vector { x: 0.0, y: 0.0 } },
-                camera: None,
-                rx: rx,
+                last_frame: None
             },
-            Task::done(Message::InitCamera)
+            Task::done(Message::Tick)
         )
     }
 
@@ -91,58 +66,12 @@ impl Home {
 
                 Action::RedrawWindows
             }
-            Message::InitCamera => Action::Run(Task::perform(
-                Home::init_camera(),
-                |_| {
-                    Message::CameraInitialized
-                }
-            )),
-            Message::CameraInitialized => {
+            Message::FrameReceived(frame) => {
+                self.last_frame = Some(frame);
+
                 Action::None
             }
         }
-    }
-
-    async fn init_camera()  {
-        // let (tx, rx) = channel();
-        // std::thread::spawn(move || {
-        //     pipeline::init_pipeline(tx);
-        // });
-        
-
-        // let cameras = match query(ApiBackend::Video4Linux) { 
-        //     Ok(cams) => cams,
-        //     Err(err) => {
-        //         println!("Failed to query backend {}", err);
-        //         return None;
-        //     }
-        // };
-
-        // let format = RequestedFormat::new::<RgbFormat>(RequestedFormatType::AbsoluteHighestFrameRate);
-        // println!("Format selected {:?}", format);
-
-        // let first_camera = match cameras.first() {
-        //     Some(cam) => cam,
-        //     None => {
-        //         println!("No cameras found");
-        //         return None;
-        //     }
-        // };
-
-        // println!("Selected first camera as {:?}", first_camera);
-
-        // let mut threaded = match CallbackCamera::new(first_camera.index().clone(), format, |buffer| {
-        //     let image = buffer.decode_image::<RgbFormat>().unwrap();
-        //     println!("{}x{} {}", image.width(), image.height(), image.len());
-        // }) {
-        //     Ok(cam) => cam,
-        //     Err(err) => {
-        //         println!("Failed to create callback camera {}", err);
-        //         return None;
-        //     }
-        // };
-
-        // Some(DebugCC(threaded))
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
@@ -151,15 +80,14 @@ impl Home {
             time::every(Duration::from_millis(16))
                 .map(|_| Message::Tick),
 
-            // get video frames
-            Subscription::from(value)
+            Subscription::run(gstreamer_stream).map(Message::FrameReceived)
         ])
         
     }
 
     pub fn top_view(&self) -> Element<'_, Message> {
         let window_text  = text("Top screen text from home");
-        if self.camera.is_some() {
+        if self.last_frame.is_some() {
             column![window_text]
                 .width(Fill)
                 .height(Fill)
