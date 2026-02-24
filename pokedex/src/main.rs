@@ -1,7 +1,6 @@
 mod io;
 mod screen;
 mod elements;
-mod pipeline;
 
 use screen::Screen;
 use screen::home;
@@ -12,7 +11,7 @@ use iced::widget::{
 };
 use iced::window::{self};
 use iced::{
-    Center, Element, Fill, Subscription, Task, Theme
+    Center, Element, Fill, Subscription, Task
 };
 
 use std::collections::BTreeMap;

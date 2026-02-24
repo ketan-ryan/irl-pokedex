@@ -1,16 +1,14 @@
 use iced::{
-    Center, Color, Element, Fill, Subscription, Task, Theme, time
+    Center, Color, Element, Fill, Subscription, Task, time
 };
 use iced::widget::{
     column, container, text, stack, canvas::Canvas
 };
 
-use std::fmt;
 use std::time::Duration;
 
 use crate::elements::gstreamer_recipe::{VideoFrame, gstreamer_stream};
 use crate::grid::Grid;
-use crate::pipeline;
 
 
 #[derive(Debug)]
@@ -80,19 +78,20 @@ impl Home {
             time::every(Duration::from_millis(16))
                 .map(|_| Message::Tick),
 
+            // pull frames from camera
             Subscription::run(gstreamer_stream).map(Message::FrameReceived)
         ])
         
     }
 
     pub fn top_view(&self) -> Element<'_, Message> {
-        let window_text  = text("Top screen text from home");
-        if self.last_frame.is_some() {
-            column![window_text]
-                .width(Fill)
-                .height(Fill)
-                .align_x(Center)
-                .into()     
+        if let Some(frame) = &self.last_frame {
+            let handle = iced::widget::image::Handle::from_rgba(
+                frame.width,
+                frame.height,
+                frame.data.clone(),
+            );
+            iced::widget::image(handle).into()
         } else {
             let new_window_button =
                 text(format!("Loading video..."));
