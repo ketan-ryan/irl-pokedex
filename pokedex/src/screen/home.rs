@@ -7,7 +7,7 @@ use iced::widget::{
 
 use std::time::Duration;
 
-use crate::elements::gstreamer_recipe::{VideoFrame, gstreamer_stream};
+use crate::elements::gstreamer_stream::{VideoFrame, gstreamer_stream};
 use crate::elements::loading_screen::{QuadCanvas, QuadState};
 use crate::grid::Grid;
 
@@ -74,10 +74,12 @@ impl Home {
 
                 if self.quad_state.is_loading() || self.quad_state.is_finishing() || !self.quad_state.finished_spinning() {
                     self.quad_state.tick(duration.as_secs_f32());
+                } else {
+                    self.loading = false;
                 }
                 
                 self.time += duration.as_secs_f32();
-                if self.time > 3.0 && !self.quad_state.is_finishing() {
+                if self.time > 3.0 && !self.quad_state.is_finishing() && self.quad_state.is_loading() {
                     self.quad_state.set_loaded();
                 }
 
@@ -107,24 +109,18 @@ impl Home {
     }
 
     pub fn top_view(&self) -> Element<'_, Message> {
-        if self.loading {
-            QuadCanvas::new(&self.quad_state)
-        }
-        else if let Some(frame) = &self.last_frame {
+        if let Some(frame) = &self.last_frame {
             let handle = iced::widget::image::Handle::from_rgba(
                 frame.width,
                 frame.height,
                 frame.data.clone(),
             );
-            iced::widget::image(handle).into()
+            stack![
+                iced::widget::image(handle),
+                QuadCanvas::new(&self.quad_state),
+            ].into()
         } else {
-            let new_window_button =
-                text(format!("Loading video..."));
-            column![new_window_button]
-                .width(Fill)
-                .height(Fill)
-                .align_x(Center)
-                .into()     
+            QuadCanvas::new(&self.quad_state)
         }
     }
 

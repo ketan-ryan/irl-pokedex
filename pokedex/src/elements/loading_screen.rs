@@ -12,8 +12,8 @@ use crate::screen::home::Message;
 #[derive(Debug)]
 pub struct SpinnerState {
     rotation: Animation<f32>,
-    finishing: bool,
-    finished: bool,
+    finishing: bool, // true when playing transition out animation
+    finished: bool, // true when finished spinning animation
 }
 
 impl SpinnerState {
@@ -85,10 +85,12 @@ impl QuadState {
         self.time += dt;
         self.cache.clear(); // invalidate so canvas redraws
 
-        if self.spinner.finishing {
-            if !self.spinner.is_animating() {
-                self.spinner.finished = true;
-            }
+        if self.spinner.finishing && !self.spinner.is_animating() {
+            self.spinner.finished = true;
+        }
+
+        if self.time - self.loaded_time > 0.25 {
+            self.spinner.finishing = false;
         }
     }
 
@@ -138,10 +140,9 @@ impl<'a> Program<Message> for QuadCanvasProgram<'a> {
         renderer: &Renderer,
         _theme: &Theme,
         bounds: Rectangle,
-        cursor: iced::mouse::Cursor,
+        _: iced::mouse::Cursor,
     ) -> Vec<Geometry> {
         let geometry = self.state.cache.draw(renderer, bounds.size(), |frame| {
-            // draw_quads(frame, bounds, self.state.time);
             draw_img(frame, 80.0, 0.0, self.state, bounds);
         });
 
@@ -188,10 +189,10 @@ fn draw_img(
     else if state.spinner.finished {
         let time_offset = time - state.loaded_time;
 
-        draw_animate_pokeball(frame, 325.0 - time_offset.min(0.25) * 3200.0, cy, state, Radians(7.0 * PI / 4.0));
-        draw_animate_pokeball(frame, -275.0 + time_offset.min(0.25) * 4500.0, cy, state, Radians(3.0 * PI / 4.0));
+        draw_animate_pokeball(frame, 325.0 - time_offset.min(0.25) * 3200.0, cy, state, Radians(-PI / 3.0));
+        draw_animate_pokeball(frame, -275.0 + time_offset.min(0.25) * 4500.0, cy, state, Radians(90.0));
 
-        draw_quads(frame, bounds, time_offset.min(0.25) * 3000.0, -1.0, 185.0);
+        draw_quads(frame, bounds, time_offset.min(0.25) * 3000.0, -1.0, 180.0);
     }
 }
 
