@@ -52,7 +52,7 @@ impl SpinnerState {
 // The state that lives inside the canvas
 #[derive(Debug)]
 pub struct QuadState { 
-    pub time: f32, // seconds, drives animation
+    pub time: Instant, // seconds, drives animation
     cache: canvas::Cache,
     half_ball_handle: image::Handle,
     ball_handle: image::Handle,
@@ -67,7 +67,7 @@ impl QuadState {
         spinner.start();
 
         Self {
-            time: 0.0,
+            time: Instant::now(),
             cache: canvas::Cache::new(),
             half_ball_handle: image::Handle::from_bytes(
                 include_bytes!("../../assets/pokeball_half.png").as_slice()
@@ -82,14 +82,14 @@ impl QuadState {
     }
 
     pub fn tick(&mut self, dt: f32) {
-        self.time += dt;
+        let time = self.time.elapsed().as_secs_f32();
         self.cache.clear(); // invalidate so canvas redraws
 
         if self.spinner.finishing && !self.spinner.is_animating() {
             self.spinner.finished = true;
         }
 
-        if self.time - self.loaded_time > 0.25 {
+        if time - self.loaded_time > 0.25 {
             self.spinner.finishing = false;
         }
     }
@@ -100,7 +100,7 @@ impl QuadState {
 
     pub fn set_loaded(&mut self) {
         self.loading = false;
-        self.loaded_time = self.time;
+        self.loaded_time = self.time.elapsed().as_secs_f32();
         self.spinner.go_to_baseline();
     }
 
@@ -158,7 +158,7 @@ fn draw_img(
     bounds: Rectangle
 ) {
     // Magic numbers established via trial and error
-    let time = state.time;
+    let time = state.time.elapsed().as_secs_f32();
 
     if time <= 0.25 {
         draw_animate_pokeball(frame, -600.0 + time.min(0.25) * 2700.0, cy, state, Radians(7.0 * PI / 4.0));
