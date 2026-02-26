@@ -8,6 +8,7 @@ use iced::widget::{
 use std::time::Duration;
 
 use crate::elements::gstreamer_recipe::{VideoFrame, gstreamer_stream};
+use crate::elements::loading_screen::{QuadCanvas, QuadState};
 use crate::grid::Grid;
 
 
@@ -17,13 +18,17 @@ pub struct Home {
     processing: bool,
     grid: Grid,
     last_frame: Option<VideoFrame>,
+    loading: bool,
+    quad_state: QuadState,
+    time: f32
 }
 
 #[derive(Debug, Clone)]
 pub enum Message {
     HomeToggled,
     Refresh,
-    Tick,
+    Load,
+    Tick(Duration),
     FrameReceived(VideoFrame)
 }
 
@@ -36,16 +41,18 @@ pub enum Action {
 
 impl Home {
     pub fn new() -> (Self, Task<Message>) {
-        
         println!("New home created");
         (
             Self { 
                 title: String::from("Home page"),
                 processing: false,
                 grid: Grid { offset: crate::grid::Vector { x: 0.0, y: 0.0 } },
-                last_frame: None
+                last_frame: None,
+                loading: true,
+                quad_state: QuadState::new(),
+                time: 0.0
             },
-            Task::done(Message::Tick)
+            Task::done(Message::Load)
         )
     }
 
@@ -58,15 +65,31 @@ impl Home {
             Message::Refresh => {
                 Action::GoHome
             }
-            Message::Tick => {
+            Message::Load => {
+                Action::None
+            }
+            Message::Tick(duration) => {
                 self.grid.offset.x += 0.5;
                 self.grid.offset.y += 0.5;
+
+                if self.quad_state.is_loading() || self.quad_state.is_finishing() && !self.quad_state.finished_spinning() {
+                    self.quad_state.tick(duration.as_secs_f32());
+                }
+                
+                self.time += duration.as_secs_f32();
+                if self.time > 3.0 && !self.quad_state.is_finishing() {
+                    self.quad_state.set_loaded();
+                }
 
                 Action::RedrawWindows
             }
             Message::FrameReceived(frame) => {
                 self.last_frame = Some(frame);
-
+                
+                if self.quad_state.is_loading() {
+                    self.quad_state.set_loaded();
+                }
+                
                 Action::None
             }
         }
@@ -74,18 +97,20 @@ impl Home {
 
     pub fn subscription(&self) -> Subscription<Message> {
         Subscription::batch([
-            // tick screen for updates
-            time::every(Duration::from_millis(16))
-                .map(|_| Message::Tick),
+            // tick screen for updates ~120fps
+            time::every(Duration::from_millis(8))
+                .map(|arg0: std::time::Instant| Message::Tick(arg0.elapsed())),
 
             // pull frames from camera
             Subscription::run(gstreamer_stream).map(Message::FrameReceived)
-        ])
-        
+        ])        
     }
 
     pub fn top_view(&self) -> Element<'_, Message> {
-        if let Some(frame) = &self.last_frame {
+        if self.loading {
+            QuadCanvas::new(&self.quad_state)
+        }
+        else if let Some(frame) = &self.last_frame {
             let handle = iced::widget::image::Handle::from_rgba(
                 frame.width,
                 frame.height,
