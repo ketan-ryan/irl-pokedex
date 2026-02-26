@@ -72,7 +72,7 @@ impl Home {
                 self.grid.offset.x += 0.5;
                 self.grid.offset.y += 0.5;
 
-                if self.quad_state.is_loading() || self.quad_state.is_finishing() && !self.quad_state.finished_spinning() {
+                if self.quad_state.is_loading() || self.quad_state.is_finishing() || !self.quad_state.finished_spinning() {
                     self.quad_state.tick(duration.as_secs_f32());
                 }
                 

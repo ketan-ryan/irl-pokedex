@@ -41,7 +41,7 @@ impl SpinnerState {
         self.finishing = true;
         let angle = self.angle();
         self.rotation = Animation::new(angle);
-        self.rotation.go_mut(PI / 4.0, Instant::now())
+        self.rotation.go_mut(3.0 * PI / 4.0, Instant::now())
     }
 
     pub fn is_animating(&self) -> bool {
@@ -88,7 +88,6 @@ impl QuadState {
         if self.spinner.finishing {
             if !self.spinner.is_animating() {
                 self.spinner.finished = true;
-                println!("Finished spinning");
             }
         }
     }
@@ -143,7 +142,7 @@ impl<'a> Program<Message> for QuadCanvasProgram<'a> {
     ) -> Vec<Geometry> {
         let geometry = self.state.cache.draw(renderer, bounds.size(), |frame| {
             // draw_quads(frame, bounds, self.state.time);
-            draw_img(frame, 80.0, 0.0, self.state);
+            draw_img(frame, 80.0, 0.0, self.state, bounds);
         });
 
         vec![geometry]
@@ -154,43 +153,22 @@ fn draw_img(
     frame: &mut Frame,
     cx: f32,
     cy: f32,
-    state: &QuadState
+    state: &QuadState,
+    bounds: Rectangle
 ) {
+    // Magic numbers established via trial and error
     let time = state.time;
+
     if time <= 0.25 {
-        let handle = &state.half_ball_handle;
-        frame.draw_image(
-        Rectangle::new(
-            Point::new(-600.0 + time.min(0.25) * 2700.0, cy),
-                iced::Size::new(480.0, 480.0),
-            ),
-            canvas::Image {
-                handle: handle.clone(),
-                rotation: Radians(7.0 * PI / 4.0),
-                opacity: 1.0,
-                filter_method: iced::advanced::image::FilterMethod::Linear,
-                snap: false,
-                border_radius: border::radius(0)
-            },
-        );
-        frame.draw_image(
-        Rectangle::new(
-            Point::new(1200.0 - time.min(0.25) * 4500.0, cy),
-                iced::Size::new(480.0, 480.0),
-            ),
-            canvas::Image {
-                handle: handle.clone(),
-                rotation: Radians(3.0 * PI / 4.0),
-                opacity: 1.0,
-                filter_method: iced::advanced::image::FilterMethod::Linear,
-                snap: false,
-                border_radius: border::radius(0)
-            },
-        );
+        draw_animate_pokeball(frame, -600.0 + time.min(0.25) * 2700.0, cy, state, Radians(7.0 * PI / 4.0));
+        draw_animate_pokeball(frame, 1200.0 - time.min(0.25) * 4500.0, cy, state, Radians(3.0 * PI / 4.0));
+    
+        draw_quads(frame, bounds, time.min(0.25) * 3000.0, 1.0, 1200.0);
     } 
-    if time >= 0.24 {
+    if time >= 0.24 && !state.spinner.finished {
         let ball_handle = &state.ball_handle;
         let angle = state.spinner.angle();
+        draw_quads(frame, bounds, time.min(0.25) * 3000.0, 1.0, 1200.0);
 
         frame.draw_image(
         Rectangle::new(
@@ -206,16 +184,48 @@ fn draw_img(
                 border_radius: border::radius(0)
             },
         );
+    } 
+    else if state.spinner.finished {
+        let time_offset = time - state.loaded_time;
+
+        draw_animate_pokeball(frame, 325.0 - time_offset.min(0.25) * 3200.0, cy, state, Radians(7.0 * PI / 4.0));
+        draw_animate_pokeball(frame, -275.0 + time_offset.min(0.25) * 4500.0, cy, state, Radians(3.0 * PI / 4.0));
+
+        draw_quads(frame, bounds, time_offset.min(0.25) * 3000.0, -1.0, 185.0);
     }
 }
 
-fn draw_quads(frame: &mut Frame, bounds: Rectangle, time: f32) {
+fn draw_animate_pokeball(
+    frame: &mut Frame,
+    cx: f32,
+    cy: f32,
+    state: &QuadState,
+    rot: Radians
+) {
+    let handle = &state.half_ball_handle;
+        frame.draw_image(
+        Rectangle::new(
+            Point::new(cx, cy),
+                iced::Size::new(480.0, 480.0),
+            ),
+            canvas::Image {
+                handle: handle.clone(),
+                rotation: rot,
+                opacity: 1.0,
+                filter_method: iced::advanced::image::FilterMethod::Linear,
+                snap: false,
+                border_radius: border::radius(0)
+            },
+        );
+}
+
+fn draw_quads(frame: &mut Frame, bounds: Rectangle, time: f32, inwards: f32, offset: f32) {
     let cx = bounds.width / 2.0;
     let cy = bounds.height / 2.0;
 
     let quads = [
-        (cx - 480.0, cy, 10000.0, 80.0 + (time.min(0.25) * 3000.0), -45.0, Color::from_rgb(1.0, 0.0, 0.0)),
-        (cx + 480.0, cy, 10000.0, 80.0 + (time.min(0.25) * 3000.0), -45.0, Color::from_rgb(0.0, 0.0, 0.0)),
+        (cx - offset + (time * inwards), cy, 10000.0, 775.0, 90.0, Color::from_rgb(1.0, 0.0, 0.0)),
+        (cx + offset - (time * inwards), cy, 10000.0, 775.0, 90.0, Color::from_rgb(0.1, 0.1, 0.1)),
     ];
 
     for (x, y, w, h, angle, color) in quads {
