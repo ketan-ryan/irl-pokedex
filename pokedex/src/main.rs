@@ -16,10 +16,20 @@ use iced::{
 
 use std::collections::BTreeMap;
 
+use crate::io::get_local_path;
+
 fn main() -> iced::Result {
     let pokedex: std::collections::HashMap<String, io::PokemonInfo> = io::load_dex_entries("pokedex.json");
     let hydreigon = &pokedex["hydreigon"];
-    println!("{:?}", hydreigon.dex_entries);
+    // println!("{:?}", hydreigon.dex_entries);
+    match get_local_path() {
+        Ok(path) => {
+            println!("Found local path to be {:?}", path)
+        },
+        Err(err) => {
+            eprintln!("Error getting local path: {:?}", err)
+        },
+    }
 
     iced::daemon(App::new, App::update, App::view)
         .subscription(App::subscription)
@@ -112,7 +122,6 @@ impl App {
     fn open_home(&mut self) -> Task<Message> {
         let (home, task) = screen::Home::new();
         self.screen = Screen::Home(home);
-        println!("Set screen to {:?}", self.screen);
         task.map(Message::Home)
     }
 

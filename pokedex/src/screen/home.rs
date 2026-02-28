@@ -2,12 +2,12 @@ use iced::{
     Center, Color, Element, Fill, Subscription, Task, time
 };
 use iced::widget::{
-    column, container, text, stack, canvas::Canvas
+    column, container, text, stack, canvas::Canvas, image
 };
 
 use std::time::Duration;
 
-use crate::elements::gstreamer_stream::{VideoFrame, gstreamer_stream};
+use crate::elements::gstreamer_stream::{VideoError, VideoFrame, gstreamer_stream};
 use crate::elements::loading_screen::{QuadCanvas, QuadState};
 use crate::grid::Grid;
 
@@ -17,10 +17,11 @@ pub struct Home {
     title: String,
     processing: bool,
     grid: Grid,
-    last_frame: Option<VideoFrame>,
+    last_frame: Option<image::Handle>,
     loading: bool,
     quad_state: QuadState,
-    time: f32
+    time: f32,
+    gstreamer_error: Option<String>
 }
 
 #[derive(Debug, Clone)]
@@ -29,7 +30,8 @@ pub enum Message {
     Refresh,
     Load,
     Tick(Duration),
-    FrameReceived(VideoFrame)
+    FrameReceived(VideoFrame),
+    GSTError(VideoError)
 }
 
 pub enum Action {
@@ -50,7 +52,8 @@ impl Home {
                 last_frame: None,
                 loading: true,
                 quad_state: QuadState::new(),
-                time: 0.0
+                time: 0.0,
+                gstreamer_error: None
             },
             Task::done(Message::Load)
         )
@@ -72,7 +75,11 @@ impl Home {
                 self.grid.offset.x += 0.5;
                 self.grid.offset.y += 0.5;
 
-                if self.quad_state.is_loading() || self.quad_state.is_finishing() || !self.quad_state.finished_spinning() {
+                if self.quad_state.is_loading() 
+                    || self.quad_state.is_finishing() 
+                    || !self.quad_state.finished_spinning() 
+                    && self.gstreamer_error.is_none()
+                {
                     self.quad_state.tick(duration.as_secs_f32());
                 } else {
                     self.loading = false;
@@ -86,7 +93,11 @@ impl Home {
                 Action::RedrawWindows
             }
             Message::FrameReceived(frame) => {
-                self.last_frame = Some(frame);
+                self.last_frame = Some(image::Handle::from_rgba(
+                    frame.width,
+                    frame.height,
+                    frame.data
+                ));
                 
                 if self.quad_state.is_loading() {
                     self.quad_state.set_loaded();
@@ -94,27 +105,48 @@ impl Home {
                 
                 Action::None
             }
+            Message::GSTError(error) => {
+                match error {
+                    VideoError::Eos => {
+                        eprintln!("stream ended");
+                        // restart pipeline, show placeholder, etc
+                        self.gstreamer_error = Some("EOS".to_string());
+                    }
+                    VideoError::PipelineError(msg) => {
+                        eprintln!("gstreamer error: {}", msg);
+                        // show error state in UI
+                        self.gstreamer_error = Some(msg);
+                    }
+                }
+                Action::None
+            }
         }
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
+        let camera_subscription = if self.gstreamer_error.is_none() {
+            Subscription::run(gstreamer_stream).map(|result| match result {
+                Ok(frame) => Message::FrameReceived(frame),
+                Err(e) => Message::GSTError(e)
+            })
+        } else {
+            Subscription::none()
+        };
+
         Subscription::batch([
             // tick screen for updates ~120fps
             time::every(Duration::from_millis(8))
                 .map(|arg0: std::time::Instant| Message::Tick(arg0.elapsed())),
 
-            // pull frames from camera
-            Subscription::run(gstreamer_stream).map(Message::FrameReceived)
-        ])        
+            camera_subscription            
+        ])
     }
 
     pub fn top_view(&self) -> Element<'_, Message> {
-        if let Some(frame) = &self.last_frame {
-            let handle = iced::widget::image::Handle::from_rgba(
-                frame.width,
-                frame.height,
-                frame.data.clone(),
-            );
+        if self.gstreamer_error.is_some() {
+            text(format!("Error opening camera! Try rebooting or check with a developer.")).into()
+        }
+        else if let Some(handle) = &self.last_frame {
             stack![
                 iced::widget::image(handle),
                 QuadCanvas::new(&self.quad_state),
