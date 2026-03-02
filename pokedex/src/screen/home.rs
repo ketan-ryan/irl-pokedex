@@ -1,37 +1,46 @@
 use iced::{
-    Center, Color, Element, Fill, Subscription, Task, time
+    Center, Color, Element, Event, Fill, Subscription, Task, time,
+    event::{self, Status},
+    keyboard::{Event::KeyPressed, Key, key::Named}
 };
 use iced::widget::{
-    column, container, text, stack, canvas::Canvas, image
+    column, container, text, stack, canvas::Canvas
 };
+
+use image;
 
 use std::time::Duration;
 
-use crate::elements::gstreamer_stream::{VideoError, VideoFrame, gstreamer_stream};
+use crate::{elements::gstreamer_stream::{VideoError, VideoFrame, gstreamer_stream}};
 use crate::elements::loading_screen::{QuadCanvas, QuadState};
 use crate::grid::Grid;
+use crate::io;
 
 
 #[derive(Debug)]
 pub struct Home {
-    title: String,
     processing: bool,
     grid: Grid,
-    last_frame: Option<image::Handle>,
+    last_frame_handle: Option<iced::widget::image::Handle>,
+    last_frame: Option<VideoFrame>,
     loading: bool,
     quad_state: QuadState,
     time: f32,
-    gstreamer_error: Option<String>
+    gstreamer_error: Option<String>,
+    captured_frame: Option<iced::widget::image::Handle>,
+    frame_save_error: Option<String>
 }
 
 #[derive(Debug, Clone)]
 pub enum Message {
     HomeToggled,
-    Refresh,
-    Load,
+    Refresh, // TODO: use this to try restarting camera if error
     Tick(Duration),
     FrameReceived(VideoFrame),
-    GSTError(VideoError)
+    GSTError(VideoError),
+    IOInput(IOAction),
+    FrameSaveError(Option<String>),
+    Classify,
 }
 
 pub enum Action {
@@ -41,21 +50,28 @@ pub enum Action {
     Run(Task<Message>),
 }
 
+#[derive(Debug, Clone)]
+pub enum IOAction {
+    TakePicture
+}
+
 impl Home {
     pub fn new() -> (Self, Task<Message>) {
         println!("New home created");
         (
-            Self { 
-                title: String::from("Home page"),
+            Self {
                 processing: false,
                 grid: Grid { offset: crate::grid::Vector { x: 0.0, y: 0.0 } },
+                last_frame_handle: None,
                 last_frame: None,
                 loading: true,
                 quad_state: QuadState::new(),
                 time: 0.0,
-                gstreamer_error: None
+                gstreamer_error: None,
+                captured_frame: None,
+                frame_save_error: None,
             },
-            Task::done(Message::Load)
+            Task::none()
         )
     }
 
@@ -68,9 +84,6 @@ impl Home {
             Message::Refresh => {
                 Action::GoHome
             }
-            Message::Load => {
-                Action::None
-            }
             Message::Tick(duration) => {
                 self.grid.offset.x += 0.5;
                 self.grid.offset.y += 0.5;
@@ -80,7 +93,7 @@ impl Home {
                     || !self.quad_state.finished_spinning() 
                     && self.gstreamer_error.is_none()
                 {
-                    self.quad_state.tick(duration.as_secs_f32());
+                    self.quad_state.tick();
                 } else {
                     self.loading = false;
                 }
@@ -93,7 +106,9 @@ impl Home {
                 Action::RedrawWindows
             }
             Message::FrameReceived(frame) => {
-                self.last_frame = Some(image::Handle::from_rgba(
+                self.last_frame = Some(frame.clone());
+
+                self.last_frame_handle = Some(iced::widget::image::Handle::from_rgba(
                     frame.width,
                     frame.height,
                     frame.data
@@ -109,15 +124,55 @@ impl Home {
                 match error {
                     VideoError::Eos => {
                         eprintln!("stream ended");
-                        // restart pipeline, show placeholder, etc
+                        // TODO: restart pipeline, show placeholder, etc
                         self.gstreamer_error = Some("EOS".to_string());
                     }
                     VideoError::PipelineError(msg) => {
                         eprintln!("gstreamer error: {}", msg);
-                        // show error state in UI
+                        // TODO: show error state in UI
                         self.gstreamer_error = Some(msg);
                     }
                 }
+                Action::None
+            },
+            Message::IOInput(action) => {
+                match action {
+                    IOAction::TakePicture => {
+                        if let Some(frame) = self.last_frame.clone() {
+                            self.captured_frame = Some(iced::widget::image::Handle::from_rgba(
+                                frame.width,
+                                frame.height,
+                                frame.data.clone())
+                            );
+                            
+                            return Action::Run(Task::perform(
+                                async move {
+                                    // Save image to a temp staging area while we classify it
+                                    // If classification succeeds: move to appropriate folder
+                                    // Else: Do nothing, staging area will be recreated on next capture
+                                    io::save_frame(&frame)
+                                        .map_err(|e| e.to_string())
+                                },
+                                |result| match result {
+                                    Ok(()) => Message::Classify,
+                                    Err(e) => Message::FrameSaveError(Some(e))
+                                },
+                            ));
+                        }
+                    },
+                }
+
+                Action::None
+            },
+            Message::FrameSaveError(err) => {
+                if let Some(error) = err {
+                    self.frame_save_error = Some(error);
+                    eprintln!("{:?}", self.frame_save_error);
+                };
+
+                Action::None
+            },
+            Message::Classify => {
                 Action::None
             }
         }
@@ -138,7 +193,19 @@ impl Home {
             time::every(Duration::from_millis(8))
                 .map(|arg0: std::time::Instant| Message::Tick(arg0.elapsed())),
 
-            camera_subscription            
+            camera_subscription,
+
+            // TODO: Will need custom subscription / event to handle rpi IO
+            event::listen_with(|event, status, _| match (event, status) {
+                (
+                    Event::Keyboard(KeyPressed {
+                        key: Key::Named(Named::Enter),
+                        ..
+                    }),
+                    Status::Ignored,
+                ) => Some(Message::IOInput(IOAction::TakePicture)),
+                _ => None,
+            })
         ])
     }
 
@@ -146,7 +213,7 @@ impl Home {
         if self.gstreamer_error.is_some() {
             text(format!("Error opening camera! Try rebooting or check with a developer.")).into()
         }
-        else if let Some(handle) = &self.last_frame {
+        else if let Some(handle) = &self.last_frame_handle {
             stack![
                 iced::widget::image(handle),
                 QuadCanvas::new(&self.quad_state),

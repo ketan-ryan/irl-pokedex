@@ -81,7 +81,7 @@ impl QuadState {
         }
     }
 
-    pub fn tick(&mut self, dt: f32) {
+    pub fn tick(&mut self) {
         let time = self.time.elapsed().as_secs_f32();
         self.cache.clear(); // invalidate so canvas redraws
 
