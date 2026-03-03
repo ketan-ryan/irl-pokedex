@@ -81,7 +81,7 @@ impl QuadState {
         }
     }
 
-    pub fn tick(&mut self, dt: f32) {
+    pub fn tick(&mut self) {
         let time = self.time.elapsed().as_secs_f32();
         self.cache.clear(); // invalidate so canvas redraws
 
@@ -114,12 +114,10 @@ impl QuadState {
 }
 
 // The widget itself
-pub struct QuadCanvas<'a> {
-    state: &'a QuadState,
-}
+pub struct QuadCanvas;
 
-impl<'a> QuadCanvas<'a> {
-    pub fn new(state: &'a QuadState) -> Element<'a, Message> {
+impl QuadCanvas {
+    pub fn new<'a>(state: &'a QuadState) -> Element<'a, Message> {
         Canvas::new(QuadCanvasProgram { state })
             .width(iced::Fill)
             .height(iced::Fill)

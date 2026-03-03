@@ -7,10 +7,15 @@ edition = "2024"
 gstreamer = "0.24.4"
 gstreamer-app = "0.24.4"
 gstreamer-video = "0.24.4"
-iced = { version = "0.14.0", features = ["advanced", "canvas", "tokio", "image"] }
 image = { version = "0.25.9", features = ["default-formats"] }
 include_assets = "1.0.0"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
 tokio = {version = "1.48.0", features=["sync"]}
 url = "2.5.7"
+
+[target.'cfg(target_arch = "aarch64")'.dependencies]
+iced = { version = "0.14.0", default-features = false, features = ["advanced", "canvas", "tokio", "image", "tiny-skia", "wayland"] }
+
+[target.'cfg(target_arch = "x86_64")'.dependencies]
+iced = { version = "0.14.0", default-features = false, features = ["advanced", "canvas", "tokio", "image", "wgpu"] }

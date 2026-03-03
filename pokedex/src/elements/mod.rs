@@ -1,3 +1,4 @@
 pub mod grid;
 pub mod gstreamer_stream;
 pub mod loading_screen;
+pub mod pokedex_spinner;
