@@ -7,7 +7,7 @@ use std::time::{Instant, Duration};
 
 use crate::screen::home::Message;
 
-// The state that lives inside the canvas
+
 #[derive(Debug)]
 pub struct PokedexSpinnerState { 
     pub time: Instant,
@@ -37,10 +37,9 @@ impl PokedexSpinnerState {
         self.scale.interpolate_with(|v| v, Instant::now())
     }
 
-
-pub fn tick(&mut self) {
-    self.cache.clear();
-}
+    pub fn tick(&mut self) {
+        self.cache.clear();
+    }
 }
 
 pub struct SpinnerCanvas;
@@ -62,16 +61,6 @@ struct SpinnerCanvasProgram<'a> {
 
 impl<'a> Program<Message> for SpinnerCanvasProgram<'a> {
     type State = ();
-
-    fn update(
-        &self,
-        _state: &mut (),
-        _event: &iced::Event,
-        _bounds: Rectangle,
-        _cursor: iced::mouse::Cursor,
-    ) -> Option<iced::widget::Action<Message>> {
-        None
-    }
 
     fn draw(
         &self,
@@ -102,15 +91,6 @@ impl<'a> Program<Message> for SpinnerCanvasProgram<'a> {
             });    
         });
         vec![geometry]
-    }
-    
-    fn mouse_interaction(
-        &self,
-        _state: &Self::State,
-        _bounds: Rectangle,
-        _cursor: iced::advanced::mouse::Cursor,
-    ) -> iced::advanced::mouse::Interaction {
-        iced::advanced::mouse::Interaction::default()
     }
 }
 
