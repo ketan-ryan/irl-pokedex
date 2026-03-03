@@ -1,10 +1,8 @@
-use iced::{
-    Center, Color, Element, Event, Fill, Length, Subscription, Task, event::{self, Status}, keyboard::{Event::KeyPressed, Key, key::Named}, time
-};
+use iced::{Center, Color, Element, Event, Fill, Subscription, Task, time};
+use iced::event::{self, Status};
+use iced::keyboard::{Event::KeyPressed, Key, key::Named};
 use iced::animation::Animation;
-use iced::widget::{
-    column, container, text, stack, canvas::Canvas
-};
+use iced::widget::{column, container, text, stack, canvas::Canvas};
 
 use image;
 
@@ -253,7 +251,8 @@ impl Home {
                 iced::widget::image(self.captured_frame.as_ref().unwrap())
                 .opacity(self.fade.interpolate_with(|v|v, Instant::now())),
 
-                iced::widget::image(self.bg_handle.clone()),
+                iced::widget::image(self.bg_handle.clone())
+                    .scale(self.spinner_state.current_scale()),
                 SpinnerCanvas::new(&self.spinner_state)
             ].into()
         }

@@ -1,27 +1,38 @@
 use iced::widget::Canvas;
 use iced::widget::canvas::{self, Frame, Geometry, Program};
 use iced::widget::canvas::path::{Arc, Builder};
-use iced::{Color, Element, Point, Radians, Rectangle, Renderer, Theme, Vector};
+use iced::{Animation, Color, Element, Point, Radians, Rectangle, Renderer, Theme, Vector};
 use std::f32::consts::TAU;
-use std::time::Instant;
+use std::time::{Instant, Duration};
 
 use crate::screen::home::Message;
 
 // The state that lives inside the canvas
 #[derive(Debug)]
 pub struct PokedexSpinnerState { 
-    pub time: Instant
+    pub time: Instant,
+    pub scale: Animation<f32>
 }
 
 impl PokedexSpinnerState {
     pub fn new() -> Self {
+        let scale = Animation::new(0.0f32)
+        .duration(Duration::from_millis(600))
+        .easing(iced::animation::Easing::EaseOut);
+        
         Self {
-            time: Instant::now()
+            time: Instant::now(),
+            scale
         }
     }
 
     pub fn set_time(&mut self) {
         self.time = Instant::now();
+        self.scale.go_mut(1.0, Instant::now());
+    }
+
+    pub fn current_scale(&self) -> f32 {
+        self.scale.interpolate_with(|v| v, Instant::now())
     }
 }
 
@@ -77,44 +88,50 @@ impl<'a> Program<Message> for SpinnerCanvasProgram<'a> {
 
 fn draw_spinner(frame: &mut Frame, cx: f32, cy: f32, radius: f32, state: &PokedexSpinnerState) {
     let angle = state.time.elapsed().as_secs_f32();
+    let scale = state.current_scale();
 
-    // arc length: TAU / n. Each arc is 1/n circle
-    // gap between: TAU / n. n gaps evenly spaced
-    let mut opacity = ((angle - 0.0) / 0.5).clamp(0.0, 1.0);
-    opacity = 0.7 * opacity.clamp(0.0, 1.0);
-    draw_arcs(
-        frame, cx, cy, 
-        radius - 60.0, 
-        [TAU / 4.0; 3].as_slice(), 
-        TAU / 3.0, 
-        angle * 2.0, 
-        Color::from_rgba(1.0, 1.0, 1.0, opacity)
-    );
-    if angle > 0.5 {
-        let mut opacity = ((angle - 0.5) / 0.5).clamp(0.0, 1.0);
+    frame.with_save(|frame| {
+        frame.translate(Vector::new(cx, cy));
+        frame.scale(scale);
+        frame.translate(Vector::new(-cx, -cy));
+
+        // arc length: TAU / n. Each arc is 1/n circle
+        // gap between: TAU / n. n gaps evenly spaced
+        let mut opacity = ((angle - 0.0) / 0.5).clamp(0.0, 1.0);
         opacity = 0.7 * opacity.clamp(0.0, 1.0);
         draw_arcs(
             frame, cx, cy, 
-            radius - 87.0, 
-            [TAU / 6.0, TAU / 16.0, TAU / 20.0].as_slice(), 
+            radius - 60.0, 
+            [TAU / 4.0; 3].as_slice(), 
             TAU / 3.0, 
-            -angle * 1.8, 
-            Color::from_rgba(140.0 / 255.0, 213.0 / 255.0, 229.0 / 255.0, opacity)
+            angle * 2.0, 
+            Color::from_rgba(1.0, 1.0, 1.0, opacity)
         );
-    }
-    if angle > 1.0 {
-        let mut opacity = ((angle - 1.0) / 0.5).clamp(0.0, 1.0);
-        opacity = 0.7 * opacity.clamp(0.0, 1.0);
-        draw_arcs(
-            frame, cx, cy, 
-            radius - 114.0, 
-            [TAU / 8.0, TAU / 14.0].as_slice(), 
-            TAU / 2.0, 
-            angle * 3.0,
-            Color::from_rgba(0.0, 156.0 / 255.0, 195.0 / 255.0, opacity)
-        );
-    }
-
+        if angle > 0.5 {
+            let mut opacity = ((angle - 0.5) / 0.5).clamp(0.0, 1.0);
+            opacity = 0.7 * opacity.clamp(0.0, 1.0);
+            draw_arcs(
+                frame, cx, cy, 
+                radius - 87.0, 
+                [TAU / 6.0, TAU / 16.0, TAU / 20.0].as_slice(), 
+                TAU / 3.0, 
+                -angle * 1.8, 
+                Color::from_rgba(140.0 / 255.0, 213.0 / 255.0, 229.0 / 255.0, opacity)
+            );
+        }
+        if angle > 1.0 {
+            let mut opacity = ((angle - 1.0) / 0.5).clamp(0.0, 1.0);
+            opacity = 0.7 * opacity.clamp(0.0, 1.0);
+            draw_arcs(
+                frame, cx, cy, 
+                radius - 114.0, 
+                [TAU / 8.0, TAU / 14.0].as_slice(), 
+                TAU / 2.0, 
+                angle * 3.0,
+                Color::from_rgba(0.0, 156.0 / 255.0, 195.0 / 255.0, opacity)
+            );
+        }
+    });
 }
 
 fn draw_arcs(frame: &mut Frame, cx: f32, cy: f32, radius: f32, arc_lengths: &[f32], gap_between: f32, angle: f32, color: Color) {

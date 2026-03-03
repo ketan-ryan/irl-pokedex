@@ -21,7 +21,7 @@ use crate::io::get_local_path;
 fn main() -> iced::Result {
     let pokedex: std::collections::HashMap<String, io::PokemonInfo> = io::load_dex_entries("pokedex.json");
     let hydreigon = &pokedex["hydreigon"];
-    // println!("{:?}", hydreigon.dex_entries);
+    println!("{:?}", hydreigon.dex_entries);
     match get_local_path() {
         Ok(path) => {
             println!("Found local path to be {:?}", path)
