@@ -115,8 +115,8 @@ fn draw_spinner(frame: &mut Frame, cx: f32, cy: f32, radius: f32, state: &Pokede
             angle * 2.0, 
             Color::from_rgba(1.0, 1.0, 1.0, opacity)
         );
-        if angle > 0.5 {
-            let mut opacity = ((angle - 0.5) / 0.5).clamp(0.0, 1.0);
+        if angle > 0.35 {
+            let mut opacity = ((angle - 0.35) / 0.5).clamp(0.0, 1.0);
             opacity = 0.7 * opacity.clamp(0.0, 1.0);
             draw_arcs(
                 frame, cx, cy, 
@@ -127,8 +127,8 @@ fn draw_spinner(frame: &mut Frame, cx: f32, cy: f32, radius: f32, state: &Pokede
                 Color::from_rgba(140.0 / 255.0, 213.0 / 255.0, 229.0 / 255.0, opacity)
             );
         }
-        if angle > 1.0 {
-            let mut opacity = ((angle - 1.0) / 0.5).clamp(0.0, 1.0);
+        if angle > 0.7 {
+            let mut opacity = ((angle - 0.7) / 0.5).clamp(0.0, 1.0);
             opacity = 0.7 * opacity.clamp(0.0, 1.0);
             draw_arcs(
                 frame, cx, cy, 

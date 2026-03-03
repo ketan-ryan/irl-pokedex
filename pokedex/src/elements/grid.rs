@@ -17,8 +17,8 @@ impl Grid {
 
     pub fn tick(&mut self) {
         self.cache.clear();
-        self.offset.x += 0.5;
-        self.offset.y += 0.5;
+        self.offset.x += 0.25;
+        self.offset.y += 0.25;
     }
 }
 
