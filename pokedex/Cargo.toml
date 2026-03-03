@@ -7,7 +7,7 @@ edition = "2024"
 gstreamer = "0.24.4"
 gstreamer-app = "0.24.4"
 gstreamer-video = "0.24.4"
-iced = { version = "0.14.0", features = ["advanced", "canvas", "tokio", "image"] }
+iced = { version = "0.14.0", features = ["advanced", "canvas", "tokio", "image", "wgpu"] }
 image = { version = "0.25.9", features = ["default-formats"] }
 include_assets = "1.0.0"
 serde = { version = "1.0.228", features = ["derive"] }

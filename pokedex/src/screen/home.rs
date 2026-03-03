@@ -1,18 +1,18 @@
 use iced::{
-    Center, Color, Element, Event, Fill, Subscription, Task, time,
-    event::{self, Status},
-    keyboard::{Event::KeyPressed, Key, key::Named}
+    Center, Color, Element, Event, Fill, Length, Subscription, Task, event::{self, Status}, keyboard::{Event::KeyPressed, Key, key::Named}, time
 };
+use iced::animation::Animation;
 use iced::widget::{
     column, container, text, stack, canvas::Canvas
 };
 
 use image;
 
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
-use crate::{elements::gstreamer_stream::{VideoError, VideoFrame, gstreamer_stream}};
+use crate::elements::gstreamer_stream::{VideoError, VideoFrame, gstreamer_stream};
 use crate::elements::loading_screen::{QuadCanvas, QuadState};
+use crate::elements::pokedex_spinner::{SpinnerCanvas, PokedexSpinnerState};
 use crate::grid::Grid;
 use crate::io;
 
@@ -28,7 +28,11 @@ pub struct Home {
     time: f32,
     gstreamer_error: Option<String>,
     captured_frame: Option<iced::widget::image::Handle>,
-    frame_save_error: Option<String>
+    frame_save_error: Option<String>,
+    classifying: bool,
+    fade: Animation<f32>,
+    bg_handle: iced::widget::image::Handle,
+    spinner_state: PokedexSpinnerState
 }
 
 #[derive(Debug, Clone)]
@@ -41,6 +45,7 @@ pub enum Message {
     IOInput(IOAction),
     FrameSaveError(Option<String>),
     Classify,
+    Blurred(iced::widget::image::Handle)
 }
 
 pub enum Action {
@@ -70,6 +75,14 @@ impl Home {
                 gstreamer_error: None,
                 captured_frame: None,
                 frame_save_error: None,
+                classifying: false,
+                fade: Animation::new(0.0)
+                    .duration(Duration::from_millis(300))
+                    .easing(iced::animation::Easing::EaseInOut),
+                bg_handle: iced::widget::image::Handle::from_bytes(
+                    include_bytes!("../../assets/background.png").as_slice()
+                ),
+                spinner_state: PokedexSpinnerState::new()
             },
             Task::none()
         )
@@ -138,27 +151,28 @@ impl Home {
             Message::IOInput(action) => {
                 match action {
                     IOAction::TakePicture => {
-                        if let Some(frame) = self.last_frame.clone() {
-                            self.captured_frame = Some(iced::widget::image::Handle::from_rgba(
-                                frame.width,
-                                frame.height,
-                                frame.data.clone())
-                            );
-                            
-                            return Action::Run(Task::perform(
-                                async move {
-                                    // Save image to a temp staging area while we classify it
-                                    // If classification succeeds: move to appropriate folder
-                                    // Else: Do nothing, staging area will be recreated on next capture
-                                    io::save_frame(&frame)
-                                        .map_err(|e| e.to_string())
-                                },
-                                |result| match result {
-                                    Ok(()) => Message::Classify,
-                                    Err(e) => Message::FrameSaveError(Some(e))
-                                },
-                            ));
+                        if self.classifying {
+                            return Action::None
                         }
+                        if let Some(frame) = self.last_frame.clone() {                           
+                            return Action::Run(Task::batch([
+                                Task::perform(Self::blur_image(frame.clone()), Message::Blurred),
+                                Task::perform(
+                                    async move {
+                                        // Save image to a temp staging area while we classify it
+                                        // If classification succeeds: move to appropriate folder
+                                        // Else: Do nothing, staging area will be recreated on next capture
+                                        
+                                        io::save_frame(&frame)
+                                            .map_err(|e| e.to_string())
+                                    },
+                                    |result| match result {
+                                        Ok(()) => Message::Classify,
+                                        Err(e) => Message::FrameSaveError(Some(e))
+                                    },
+                                )
+                            ])
+                        )};
                     },
                 }
 
@@ -173,9 +187,30 @@ impl Home {
                 Action::None
             },
             Message::Classify => {
+                self.classifying = true;
+                Action::None
+            },
+            Message::Blurred(handle) => {
+                self.captured_frame = Some(handle);
+
+                self.fade.go_mut(1.0, Instant::now());
+                self.spinner_state.set_time();
+
                 Action::None
             }
         }
+    }    
+
+    async fn blur_image(frame: VideoFrame) -> iced::widget::image::Handle {
+        let buff: image::ImageBuffer<image::Rgba<u8>, Vec<u8>> = image::ImageBuffer::from_vec(
+            frame.width, 
+            frame.height, 
+            frame.data.clone()
+        ).unwrap();
+        let blurred = image::imageops::fast_blur(&buff, 10.0);
+        let pixels = blurred.into_raw();
+        
+        iced::widget::image::Handle::from_rgba(frame.width, frame.height, pixels)
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
@@ -205,13 +240,22 @@ impl Home {
                     Status::Ignored,
                 ) => Some(Message::IOInput(IOAction::TakePicture)),
                 _ => None,
-            })
+            }),
         ])
     }
 
     pub fn top_view(&self) -> Element<'_, Message> {
         if self.gstreamer_error.is_some() {
             text(format!("Error opening camera! Try rebooting or check with a developer.")).into()
+        }
+        else if self.classifying && self.captured_frame.is_some(){
+            stack![
+                iced::widget::image(self.captured_frame.as_ref().unwrap())
+                .opacity(self.fade.interpolate_with(|v|v, Instant::now())),
+
+                iced::widget::image(self.bg_handle.clone()),
+                SpinnerCanvas::new(&self.spinner_state)
+            ].into()
         }
         else if let Some(handle) = &self.last_frame_handle {
             stack![

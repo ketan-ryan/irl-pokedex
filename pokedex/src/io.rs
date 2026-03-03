@@ -68,6 +68,6 @@ pub fn save_frame(frame: &VideoFrame) -> Result<(), image::ImageError> {
         frame.width, 
         frame.height, 
         image::ColorType::Rgba8,
-    image::ImageFormat::Png
+        image::ImageFormat::Png
     )
 }
