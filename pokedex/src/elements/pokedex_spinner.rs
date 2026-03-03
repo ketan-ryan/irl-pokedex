@@ -11,7 +11,8 @@ use crate::screen::home::Message;
 #[derive(Debug)]
 pub struct PokedexSpinnerState { 
     pub time: Instant,
-    pub scale: Animation<f32>
+    pub scale: Animation<f32>,
+    pub cache: canvas::Cache,
 }
 
 impl PokedexSpinnerState {
@@ -22,7 +23,8 @@ impl PokedexSpinnerState {
         
         Self {
             time: Instant::now(),
-            scale
+            cache: canvas::Cache::new(),
+            scale,
         }
     }
 
@@ -34,6 +36,11 @@ impl PokedexSpinnerState {
     pub fn current_scale(&self) -> f32 {
         self.scale.interpolate_with(|v| v, Instant::now())
     }
+
+
+pub fn tick(&mut self) {
+    self.cache.clear();
+}
 }
 
 pub struct SpinnerCanvas;
@@ -56,6 +63,16 @@ struct SpinnerCanvasProgram<'a> {
 impl<'a> Program<Message> for SpinnerCanvasProgram<'a> {
     type State = ();
 
+    fn update(
+        &self,
+        _state: &mut (),
+        _event: &iced::Event,
+        _bounds: Rectangle,
+        _cursor: iced::mouse::Cursor,
+    ) -> Option<iced::widget::Action<Message>> {
+        None
+    }
+
     fn draw(
         &self,
         _state: &(),
@@ -64,7 +81,6 @@ impl<'a> Program<Message> for SpinnerCanvasProgram<'a> {
         bounds: Rectangle,
         _: iced::mouse::Cursor,
     ) -> Vec<Geometry> {
-        let mut frame = Frame::new(renderer, bounds.size());
         let cx = bounds.width / 2.0;
         let cy = bounds.height / 2.0;
 
@@ -72,17 +88,29 @@ impl<'a> Program<Message> for SpinnerCanvasProgram<'a> {
         let cutout_top = cy - CUTOUT_WIDTH;
         let cutout_bottom = cy + CUTOUT_WIDTH;
 
-        // above cutout
-        frame.with_clip(Rectangle::new(Point::ORIGIN, iced::Size::new(bounds.width, cutout_top)), |frame| {
-            draw_spinner(frame, cx, cy, bounds.width.min(bounds.height) / 2.0, &self.state);
-        });
+        let origin = bounds.position();
 
-        // below cutout
-        frame.with_clip(Rectangle::new(Point::new(0.0, cutout_bottom), iced::Size::new(bounds.width, bounds.height - cutout_bottom)), |frame| {
-            draw_spinner(frame, cx, cy, bounds.width.min(bounds.height) / 2.0, &self.state);
+        let geometry = self.state.cache.draw(renderer, bounds.size(), |frame| {
+            // above cutout
+            frame.with_clip(Rectangle::new(origin, iced::Size::new(bounds.width, cutout_top)), |frame| {
+                draw_spinner(frame, cx, cy, bounds.width.min(bounds.height) / 2.0, &self.state);
+            });
+
+            // below cutout
+            frame.with_clip(Rectangle::new(Point::new(origin.x,origin.y +  cutout_bottom), iced::Size::new(bounds.width, bounds.height - cutout_bottom)), |frame| {
+                draw_spinner(frame, cx, cy, bounds.width.min(bounds.height) / 2.0, &self.state);
+            });    
         });
-        
-        vec![frame.into_geometry()]
+        vec![geometry]
+    }
+    
+    fn mouse_interaction(
+        &self,
+        _state: &Self::State,
+        _bounds: Rectangle,
+        _cursor: iced::advanced::mouse::Cursor,
+    ) -> iced::advanced::mouse::Interaction {
+        iced::advanced::mouse::Interaction::default()
     }
 }
 
@@ -138,7 +166,7 @@ fn draw_arcs(frame: &mut Frame, cx: f32, cy: f32, radius: f32, arc_lengths: &[f3
     const STROKE_WIDTH: f32 = 25.0;
 
     let layers: &[(f32, f32)] = &[
-        (STROKE_WIDTH + 0.0, color.a),  // core
+        (STROKE_WIDTH + 0.0, color.a),            // core
         (STROKE_WIDTH + 5.0, color.a * 0.3),      // soft glow
         (STROKE_WIDTH + 10.0, color.a * 0.1),     // outer glow
     ];

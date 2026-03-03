@@ -49,8 +49,8 @@ pub fn save_frame(frame: &VideoFrame) -> Result<(), image::ImageError> {
     let path = get_local_path()?; 
     let staging_area = path.join("staging");
 
-    // we want this to be the only image present
-    fs::remove_dir_all(&staging_area)?;
+    // remove dir could error if dir isn't present - ignore
+    let _ = fs::remove_dir_all(&staging_area);
     fs::create_dir_all(&staging_area)?;
 
     let now = SystemTime::now()

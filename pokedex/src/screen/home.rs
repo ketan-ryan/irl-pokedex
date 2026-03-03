@@ -64,7 +64,7 @@ impl Home {
         (
             Self {
                 processing: false,
-                grid: Grid { offset: crate::grid::Vector { x: 0.0, y: 0.0 } },
+                grid: Grid::new(),
                 last_frame_handle: None,
                 last_frame: None,
                 loading: true,
@@ -96,8 +96,7 @@ impl Home {
                 Action::GoHome
             }
             Message::Tick(duration) => {
-                self.grid.offset.x += 0.5;
-                self.grid.offset.y += 0.5;
+                self.grid.tick();
 
                 if self.quad_state.is_loading() 
                     || self.quad_state.is_finishing() 
@@ -112,6 +111,10 @@ impl Home {
                 self.time += duration.as_secs_f32();
                 if self.time > 3.0 && !self.quad_state.is_finishing() && self.quad_state.is_loading() {
                     self.quad_state.set_loaded();
+                }
+
+                if self.classifying {
+                    self.spinner_state.tick();
                 }
 
                 Action::RedrawWindows
@@ -212,7 +215,7 @@ impl Home {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        let camera_subscription = if self.gstreamer_error.is_none() {
+        let camera_subscription = if self.gstreamer_error.is_none() && !self.classifying {
             Subscription::run(gstreamer_stream).map(|result| match result {
                 Ok(frame) => Message::FrameReceived(frame),
                 Err(e) => Message::GSTError(e)
@@ -253,7 +256,25 @@ impl Home {
 
                 iced::widget::image(self.bg_handle.clone())
                     .scale(self.spinner_state.current_scale()),
-                SpinnerCanvas::new(&self.spinner_state)
+                SpinnerCanvas::new(&self.spinner_state),
+
+                // // cutout: centered 8px strip of the blurred bg drawn over everything
+                // TODO: test clipping when iced updates with tinyskia fix
+                // iced::widget::container(
+                //     iced::widget::container(
+                //         iced::widget::image(self.captured_frame.as_ref().unwrap())
+                //             .content_fit(iced::ContentFit::Cover)
+                //             .width(iced::Fill)
+                //             .height(iced::Fill)
+                //     )
+                //     .width(iced::Fill)
+                //     .height(40)
+                //     .clip(true)
+                // )
+                // .width(iced::Fill)
+                // .height(iced::Fill)
+                // .align_y(iced::Center)
+
             ].into()
         }
         else if let Some(handle) = &self.last_frame_handle {
