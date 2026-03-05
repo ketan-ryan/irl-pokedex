@@ -1,4 +1,6 @@
 tqdm
+numpy
 pillow
 pokemontcgsdk
 playwright
+pyyaml
