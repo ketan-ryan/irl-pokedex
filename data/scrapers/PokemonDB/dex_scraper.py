@@ -22,7 +22,6 @@ for poke_url in tqdm(pokemon):
     if pokemon_name in entries:
         continue
 
-    data = {}
     url = f'https://pokemondb.net{poke_url}'
     response = requests.get(url)
     poke_soup = BeautifulSoup(response.text, 'html.parser')
@@ -30,10 +29,11 @@ for poke_url in tqdm(pokemon):
     headers = poke_soup.find_all('h2', string="Pokédex data")
     forms = [a.get_text() for a in poke_soup.find('div', class_='sv-tabs-tab-list').find_all('a')]
     try:
-        dex_headers = [d for d in poke_soup.find('h2', string='Pokédex entries').find_next_siblings() if d.name == 'h3']
+        dex_headers = [d for d in poke_soup.find('h2', string='Pokédex entries').find_next_siblings() 
+                       if d.name == 'h3' and d.get_text() in forms]
     except AttributeError:
         dex_headers = ['NotFound']
-    
+
     # No forms - just put all dex entries here
     if len(dex_headers) == 0:
         dex_headers.append(poke_soup.find('h2', string='Pokédex entries'))
@@ -43,6 +43,7 @@ for poke_url in tqdm(pokemon):
     # If there are multiple "Pokedex data" headers, this pokemon has regional forms
     for form, header, dex_header in datums:
         dex_table_data = header.find_next_sibling('table')
+        data = {}
         for row in dex_table_data.find_all('tr'):
             th = row.find('th')
             td = row.find('td')
@@ -99,8 +100,11 @@ for poke_url in tqdm(pokemon):
         name_sanitized = "".join(char for char in pokemon_name if char.isalpha())
 
         name_key = form if name_sanitized.lower() in form_sanitized.lower() else f'{pokemon_name} {form}'
-        entries[name_key.title()] = data
-        time.sleep(0.1)  # don't hit their servers too fast
+
+        # built-in title method capitalizes the D in farfetch'd, so split only on spaces
+        title = ' '.join(word.capitalize() for word in name_key.split(' '))
+        entries[title] = data
+    time.sleep(0.1)  # don't hit their servers too fast
 
 with open('pokedex_forms_unicode.json', 'w', encoding='utf-8') as fp:
     json.dump(entries, fp, indent=4, ensure_ascii=False)
