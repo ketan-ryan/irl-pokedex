@@ -42,7 +42,8 @@ pub enum PokedexError {
     MalformedConfig(String),
     PokedexNotFound(String),
     MalformedPokedex(String),
-    AssetsNotFound(String)
+    AssetsNotFound(String),
+    FatalError(String),
 }
 
 impl std::fmt::Display for PokedexError {
@@ -52,7 +53,8 @@ impl std::fmt::Display for PokedexError {
             PokedexError::MalformedConfig(e) => write!(f, "Configuration is invalid: {}", e),
             PokedexError::PokedexNotFound(dir) => write!(f, "Could not find pokedex JSON at {}", dir),
             PokedexError::MalformedPokedex(e) => write!(f, "Could not parse Pokedex JSON: {}", e),
-            PokedexError::AssetsNotFound(dir) => write!(f, "Could not find assets dir at {}", dir)
+            PokedexError::AssetsNotFound(dir) => write!(f, "Could not find assets dir at {}", dir),
+            PokedexError::FatalError(e) => write!(f, "Fatal error! Operation cannot proceed: {}", e)
         }
     }
 }

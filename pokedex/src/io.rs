@@ -24,8 +24,9 @@ pub struct PokemonInfo {
 }
 
 pub fn load_settings() -> Result<HashMap<String, String>, PokedexError> {
+    let cfg_path = get_local_path()?.join("pokedex_settings.yaml");
     Config::builder()
-        .add_source(config::File::with_name("pokedex_settings"))
+        .add_source(config::File::from(cfg_path))
         .build()
         .map_err(|e| match e {
             config::ConfigError::NotFound(_) => PokedexError::ConfigNotFound,
@@ -36,7 +37,8 @@ pub fn load_settings() -> Result<HashMap<String, String>, PokedexError> {
 }
 
 pub fn load_dex_entries(filename: &str) -> Result<HashMap<String, PokemonInfo>, PokedexError> {
-    let dex =  std::fs::read_to_string(filename).map_err(|e| match e.kind() {
+    let dex_path = get_local_path()?.join(filename);
+    let dex =  std::fs::read_to_string(dex_path).map_err(|e| match e.kind() {
         std::io::ErrorKind::NotFound => PokedexError::PokedexNotFound(filename.to_string()),
         _ => PokedexError::MalformedPokedex(e.to_string())
     })?;
@@ -45,19 +47,27 @@ pub fn load_dex_entries(filename: &str) -> Result<HashMap<String, PokemonInfo>, 
         .map_err(|e| PokedexError::MalformedPokedex(e.to_string()))
 }
 
-pub fn get_local_path() -> io::Result<PathBuf> {
+pub fn get_local_path() -> Result<PathBuf, PokedexError> {
     // Get the path to the current executable
-    let exe_path: PathBuf = env::current_exe()?;
+    let current_exe = env::current_exe();
+    if current_exe.is_err() {
+        return Err(PokedexError::FatalError("Failed to get current exe!".into()));
+    }
+    let exe_path: PathBuf = current_exe.unwrap();
+
     // Get the directory containing the executable
-    let exe_dir: &std::path::Path = exe_path.parent().expect("Executable must be in a directory");
-    println!("Executable path: {}", exe_path.display());
+    let exe_parent = exe_path.parent();
+    if exe_parent.is_none() {
+        return Err(PokedexError::FatalError("Executable must be in a directory".into()))
+    }
+    let exe_dir: &std::path::Path = exe_parent.unwrap();
 
     Ok(exe_dir.into())
 }
 
 pub fn save_frame(frame: &VideoFrame) -> Result<(), image::ImageError> {
     // Save image to a temporary staging area while classification runs
-    let path = get_local_path()?; 
+    let path = get_local_path().map_err(|e| image::ImageError::IoError(io::Error::new(io::ErrorKind::Other, e.to_string())))?; 
     let staging_area = path.join("staging");
 
     // remove dir could error if dir isn't present - ignore
