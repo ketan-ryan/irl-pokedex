@@ -7,16 +7,19 @@ use iced::widget::{column, container, text, stack, canvas::Canvas};
 use image;
 
 use std::time::{Duration, Instant};
+use std::collections::HashMap;
+use std::sync::Arc;
 
 use crate::elements::gstreamer_stream::{VideoError, VideoFrame, gstreamer_stream};
 use crate::elements::loading_screen::{QuadCanvas, QuadState};
 use crate::elements::pokedex_spinner::{SpinnerCanvas, PokedexSpinnerState};
 use crate::grid::Grid;
-use crate::io;
+use crate::io::{self, PokemonInfo};
 
 
 #[derive(Debug)]
 pub struct Home {
+    pokedex: Arc<HashMap<String, PokemonInfo>>,
     processing: bool,
     grid: Grid,
     last_frame_handle: Option<iced::widget::image::Handle>,
@@ -59,10 +62,11 @@ pub enum IOAction {
 }
 
 impl Home {
-    pub fn new() -> (Self, Task<Message>) {
+    pub fn new(pokedex: Arc<HashMap<String, PokemonInfo>>) -> (Self, Task<Message>) {
         println!("New home created");
         (
             Self {
+                pokedex: pokedex,
                 processing: false,
                 grid: Grid::new(),
                 last_frame_handle: None,

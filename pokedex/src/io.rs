@@ -1,4 +1,5 @@
-use include_assets::{NamedArchive, include_dir};
+use anyhow::Result;
+use config::Config;
 use serde::Deserialize;
 
 use std::{collections::HashMap};
@@ -9,9 +10,10 @@ use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::{elements::gstreamer_stream::{VideoFrame}};
+use crate::PokedexError;
 
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct PokemonInfo {
     pub number: String,
     pub r#type: String,
@@ -21,17 +23,26 @@ pub struct PokemonInfo {
     pub dex_entries: HashMap<String, String>
 }
 
-pub fn load_dex_entries(filename: &str) -> HashMap<String, PokemonInfo> {
-    let archive = NamedArchive::load(include_dir!("assets"));
-    let pokedex_asset = archive.get(filename).unwrap();
-    let json = match str::from_utf8(pokedex_asset) {
-        Ok(s) => s,
-        Err(e) => panic!("Invalid utf-8 seq {}", e),
-    }.to_string();
+pub fn load_settings() -> Result<HashMap<String, String>, PokedexError> {
+    Config::builder()
+        .add_source(config::File::with_name("pokedex_settings"))
+        .build()
+        .map_err(|e| match e {
+            config::ConfigError::NotFound(_) => PokedexError::ConfigNotFound,
+            e => PokedexError::MalformedConfig(e.to_string())
+        })?
+        .try_deserialize::<HashMap<String, String>>()
+        .map_err(|e| PokedexError::MalformedConfig(e.to_string()))
+}
 
-    // If the JSON is unparsable, that probably indicates some upstream error with
-    // its generation, and we should panic so it can be fixed.
-    serde_json::from_str(&json).expect("Couldn't parse pokedex JSON")
+pub fn load_dex_entries(filename: &str) -> Result<HashMap<String, PokemonInfo>, PokedexError> {
+    let dex =  std::fs::read_to_string(filename).map_err(|e| match e.kind() {
+        std::io::ErrorKind::NotFound => PokedexError::PokedexNotFound(filename.to_string()),
+        _ => PokedexError::MalformedPokedex(e.to_string())
+    })?;
+
+    serde_json::from_str(&dex)
+        .map_err(|e| PokedexError::MalformedPokedex(e.to_string()))
 }
 
 pub fn get_local_path() -> io::Result<PathBuf> {
