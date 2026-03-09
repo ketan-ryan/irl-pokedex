@@ -1,6 +1,9 @@
 tqdm
 numpy
+onnx
+onnxruntime
 pillow
 pokemontcgsdk
 playwright
 pyyaml
+ultralytics

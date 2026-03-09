@@ -15,9 +15,10 @@ use iced::window::{self};
 use iced::{
     Center, Element, Fill, Subscription, Task
 };
+use ort::session::Session;
 
 use std::collections::{BTreeMap, HashMap};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use crate::io::get_local_path;
 
@@ -44,6 +45,8 @@ pub enum PokedexError {
     MalformedPokedex(String),
     AssetsNotFound(String),
     FatalError(String),
+    ModelNotFound(String),
+    ModelError(String),
 }
 
 impl std::fmt::Display for PokedexError {
@@ -54,7 +57,9 @@ impl std::fmt::Display for PokedexError {
             PokedexError::PokedexNotFound(dir) => write!(f, "Could not find pokedex JSON at {}", dir),
             PokedexError::MalformedPokedex(e) => write!(f, "Could not parse Pokedex JSON: {}", e),
             PokedexError::AssetsNotFound(dir) => write!(f, "Could not find assets dir at {}", dir),
-            PokedexError::FatalError(e) => write!(f, "Fatal error! Operation cannot proceed: {}", e)
+            PokedexError::FatalError(e) => write!(f, "Fatal error! Operation cannot proceed: {}", e),
+            PokedexError::ModelNotFound(dir) => write!(f, "Could not find model {}", dir),
+            PokedexError::ModelError(e) => write!(f, "Error loading model: {}", e)
         }
     }
 }
@@ -64,7 +69,8 @@ struct App {
     screen: Screen,
     pokedex: Option<Arc<HashMap<String, io::PokemonInfo>>>,
     error: Option<PokedexError>,
-    assets_path: Option<String>
+    assets_path: Option<String>,
+    model: Option<Arc<Mutex<Session>>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -89,7 +95,8 @@ impl App {
                 windows: None,
                 pokedex: None,
                 error: None,
-                assets_path: None
+                assets_path: None,
+                model: None
             },
             Task::done(Message::Init)
         )
@@ -187,12 +194,34 @@ impl App {
         }
         self.assets_path = Some(path.unwrap().to_string());
 
+        let model_path = binding.get("model_location");
+        if model_path.is_none() {
+            let merr = "Could not find key model_location in config. Classificaiton model cannot be loaded.";
+            self.error = Some(PokedexError::MalformedConfig(merr.to_string()));
+            return window_open_task;
+        }
+
+        let binding = io::get_local_path().unwrap().join(model_path.unwrap());
+        let mpath = binding.as_os_str();
+
+        let model = ml::init(mpath.to_str().unwrap())
+            .map_err(|e| PokedexError::ModelError(e.to_string()));
+        if model.is_err() {
+            self.error = Some(model.err().unwrap());
+            return window_open_task;
+        }
+        self.model = Some(model.unwrap());
+        println!("Loaded model");
+
         window_open_task
     }
 
     fn open_home(&mut self) -> Task<Message> {
         // If we get here, self.pokedex should be Some
-        let (home, task) = screen::Home::new(Arc::clone(self.pokedex.as_ref().unwrap()));
+        let (home, task) = screen::Home::new(
+            Arc::clone(self.pokedex.as_ref().unwrap()),
+            Arc::clone(self.model.as_ref().unwrap()),
+        );
         self.screen = Screen::Home(home);
         task.map(Message::Home)
     }

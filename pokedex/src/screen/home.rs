@@ -5,11 +5,14 @@ use iced::animation::Animation;
 use iced::widget::{column, container, text, stack, canvas::Canvas};
 
 use image;
-
+use std::path::PathBuf;
 use std::time::{Duration, Instant};
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+use ort::session::Session;
 
+
+use crate::ml;
 use crate::elements::gstreamer_stream::{VideoError, VideoFrame, gstreamer_stream};
 use crate::elements::loading_screen::{QuadCanvas, QuadState};
 use crate::elements::pokedex_spinner::{SpinnerCanvas, PokedexSpinnerState};
@@ -20,6 +23,7 @@ use crate::io::{self, PokemonInfo};
 #[derive(Debug)]
 pub struct Home {
     pokedex: Arc<HashMap<String, PokemonInfo>>,
+    model: Arc<Mutex<Session>>,
     processing: bool,
     grid: Grid,
     last_frame_handle: Option<iced::widget::image::Handle>,
@@ -33,7 +37,8 @@ pub struct Home {
     classifying: bool,
     fade: Animation<f32>,
     bg_handle: iced::widget::image::Handle,
-    spinner_state: PokedexSpinnerState
+    spinner_state: PokedexSpinnerState,
+    failed_classification: Option<String>
 }
 
 #[derive(Debug, Clone)]
@@ -45,8 +50,11 @@ pub enum Message {
     GSTError(VideoError),
     IOInput(IOAction),
     FrameSaveError(Option<String>),
-    Classify,
-    Blurred(iced::widget::image::Handle)
+    Classify(PathBuf),
+    Blurred(iced::widget::image::Handle),
+    ClassificationResult(Result<(usize, f32), String>),
+    FailedClassification(Option<String>),
+    Classified(usize)
 }
 
 pub enum Action {
@@ -62,11 +70,15 @@ pub enum IOAction {
 }
 
 impl Home {
-    pub fn new(pokedex: Arc<HashMap<String, PokemonInfo>>) -> (Self, Task<Message>) {
+    pub fn new(
+        pokedex: Arc<HashMap<String, PokemonInfo>>,
+        model: Arc<Mutex<Session>>
+    ) -> (Self, Task<Message>) {
         println!("New home created");
         (
             Self {
                 pokedex: pokedex,
+                model: model,
                 processing: false,
                 grid: Grid::new(),
                 last_frame_handle: None,
@@ -84,7 +96,8 @@ impl Home {
                 bg_handle: iced::widget::image::Handle::from_bytes(
                     include_bytes!("../../assets/background.png").as_slice()
                 ),
-                spinner_state: PokedexSpinnerState::new()
+                spinner_state: PokedexSpinnerState::new(),
+                failed_classification: None
             },
             Task::none()
         )
@@ -172,7 +185,7 @@ impl Home {
                                             .map_err(|e| e.to_string())
                                     },
                                     |result| match result {
-                                        Ok(()) => Message::Classify,
+                                        Ok(result) => Message::Classify(result),
                                         Err(e) => Message::FrameSaveError(Some(e))
                                     },
                                 )
@@ -191,9 +204,16 @@ impl Home {
 
                 Action::None
             },
-            Message::Classify => {
+            Message::Classify(path) => {
                 self.classifying = true;
-                Action::None
+
+                let model = Arc::clone(&self.model);
+                Action::Run(Task::perform(
+                    async move {
+                        let mut session = model.lock().unwrap();
+                        ml::classify_image(&mut session, path.to_str().unwrap())
+                    }, |result| Message::ClassificationResult(result.map_err(|e| e.to_string())))
+                )
             },
             Message::Blurred(handle) => {
                 self.captured_frame = Some(handle);
@@ -201,6 +221,36 @@ impl Home {
                 self.fade.go_mut(1.0, Instant::now());
                 self.spinner_state.set_time();
 
+                Action::None
+            },
+            Message::ClassificationResult(result) => {
+                if result.is_err() {
+                    println!("{:?}", &result);
+
+                    return Action::Run(
+                        Task::done(Message::FailedClassification(Some(result.as_ref().err().unwrap().to_string())))
+                    );
+                }
+                println!("{:?}", result.as_ref());
+                let (class_idx, conf) = result.unwrap();
+                if conf < 0.5 {
+                    return Action::Run(
+                        Task::done(Message::FailedClassification(Some("No Pokemon detected in image.".to_string())))
+                    );
+                } else {
+                    return Action::Run(
+                        Task::done(Message::Classified(class_idx))
+                    );
+                }
+            },
+            Message::FailedClassification(err) => {
+                if let Some(error) = err {
+                    self.failed_classification = Some(error);
+                    println!("Failed classification: {:?}", self.failed_classification);
+                }
+                Action::None
+            },
+            Message::Classified(class_idx) => {
                 Action::None
             }
         }
