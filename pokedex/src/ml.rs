@@ -1,7 +1,7 @@
 use ort::value::Tensor;
 use ort::{inputs, execution_providers::CoreMLExecutionProvider};
 use ort::session::Session;
-use anyhow::{Context, Error, Result};
+use anyhow::{Context, Error, Result, anyhow};
 
 use image::DynamicImage;
 use ndarray::Array4;
@@ -37,8 +37,8 @@ fn image_to_tensor(img: &DynamicImage) -> Array4<f32> {
     tensor
 }
 
-pub fn classify_image(session: &mut Session, img_path: &str) -> Result<(usize, f32), ort::Error> {
-    let img = image::open(img_path).unwrap();
+pub fn classify_image(session: &mut Session, img_path: &str) -> Result<(usize, f32), anyhow::Error> {
+    let img = image::open(img_path)?;
     let tensor = image_to_tensor(&img);
     let input = Tensor::from_array(tensor)?;
 
@@ -47,14 +47,14 @@ pub fn classify_image(session: &mut Session, img_path: &str) -> Result<(usize, f
     let output: (&ort::value::Shape, &[f32]) = outputs["output0"].try_extract_tensor::<f32>()?;
 
     let (_, probs) = output;
-    
+
     // find the class with highest confidence
     let (class_idx, confidence) = probs
         .iter()
         .enumerate()
         .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
         .map(|(i, &v)| (i, v))
-        .unwrap();
+        .ok_or(anyhow!("failed to parse model output"))?;
 
     Ok((class_idx, confidence))
 }

@@ -1,5 +1,6 @@
 use anyhow::Result;
 use config::Config;
+use ort::session::Session;
 use serde::Deserialize;
 
 use std::{collections::HashMap};
@@ -7,10 +8,11 @@ use std::env;
 use std::fs;
 use std::io;
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::{elements::gstreamer_stream::{VideoFrame}};
-use crate::PokedexError;
+use crate::{PokedexError, ml};
 
 
 #[derive(Deserialize, Debug)]
@@ -21,6 +23,46 @@ pub struct PokemonInfo {
     pub weight: String,
     pub abilities: Vec<String>,
     pub dex_entries: HashMap<String, String>
+}
+
+#[derive(Debug)]
+pub struct PokedexConfig {
+    pub pokedex_json: HashMap<String, PokemonInfo>,
+    pub sprites_location: String,
+    pub session: Arc<Mutex<Session>>
+}
+
+pub fn validate_config() -> Result<PokedexConfig, PokedexError> {
+    let config = load_settings()?;
+
+    let filename = config.get("pokedex_location");
+    if filename.is_none() {
+        let mcerr = "Could not find key pokedex_location in config. Pokedex cannot be loaded.";
+        return Err(PokedexError::MalformedConfig(mcerr.to_string()));
+    }
+
+    let entries = load_dex_entries(filename.unwrap())?;
+    let path = config.get("sprites_location");
+    if path.is_none() {
+        let mcerr = "Could not find key sprites_location in config. Assets cannot be loaded.";
+        return Err(PokedexError::MalformedConfig(mcerr.to_string()));
+    }
+
+    let model_path = config.get("model_location");
+    if model_path.is_none() {
+        let mcerr = "Could not find key model_location in config. Classification model cannot be loaded.";
+        return Err(PokedexError::MalformedConfig(mcerr.to_string()));
+    }
+
+    let binding = get_local_path()?.join(model_path.unwrap());
+    let model = ml::init(binding.to_str().unwrap())
+            .map_err(|e| PokedexError::ModelError(e.to_string()))?;
+
+    Ok(PokedexConfig {
+        pokedex_json: entries, 
+        sprites_location: path.unwrap().to_string(),
+        session: model
+    })
 }
 
 pub fn load_settings() -> Result<HashMap<String, String>, PokedexError> {

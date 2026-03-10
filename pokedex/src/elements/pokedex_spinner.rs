@@ -13,18 +13,24 @@ pub struct PokedexSpinnerState {
     pub time: Instant,
     pub scale: Animation<f32>,
     pub cache: canvas::Cache,
+    register_circle: Animation<f32>
 }
 
 impl PokedexSpinnerState {
     pub fn new() -> Self {
         let scale = Animation::new(0.0f32)
-        .duration(Duration::from_millis(600))
-        .easing(iced::animation::Easing::EaseOut);
+            .duration(Duration::from_millis(600))
+            .easing(iced::animation::Easing::EaseOut);
+
+        let register_scale = Animation::new(0.0f32)
+            .duration(Duration::from_millis(800))
+            .easing(iced::animation::Easing::EaseOut);
         
         Self {
             time: Instant::now(),
             cache: canvas::Cache::new(),
             scale,
+            register_circle: register_scale,
         }
     }
 
@@ -33,8 +39,16 @@ impl PokedexSpinnerState {
         self.scale.go_mut(1.0, Instant::now());
     }
 
+    pub fn start_register(&mut self) {
+        self.register_circle.go_mut(1.2, Instant::now());
+    }
+
     pub fn current_scale(&self) -> f32 {
         self.scale.interpolate_with(|v| v, Instant::now())
+    }
+
+    pub fn current_register_scale(&self) -> f32 {
+        self.register_circle.interpolate_with(|v| v, Instant::now())
     }
 
     pub fn tick(&mut self) {

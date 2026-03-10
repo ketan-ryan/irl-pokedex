@@ -167,52 +167,18 @@ impl App {
             (bottom_id, WindowType::BottomScreen)
         ]));
 
-        let config = io::load_settings().map_err(|e| self.error = Some(e));
-        if config.is_err() {
-            return window_open_task;
+        match io::validate_config() {
+            Ok(cfg) => {
+                self.pokedex = Some(Arc::new(cfg.pokedex_json));
+                self.assets_path = Some(cfg.sprites_location);
+                self.model = Some(cfg.session);
+            },
+            Err(e) => {
+                self.error = Some(e);
+                return window_open_task;
+            }
         }
-
-        let binding = config.unwrap();
-        let filename = binding.get("pokedex_location");
-        if filename.is_none() {
-            let mcerr = "Could not find key pokedex_location in config. Pokedex cannot be loaded.";
-            self.error = Some(PokedexError::MalformedConfig(mcerr.to_string()));
-            return window_open_task;
-        }
-
-        let entries =  io::load_dex_entries(filename.unwrap()).map_err(|e| self.error = Some(e));
-        if entries.is_err() {
-            return window_open_task;
-        }
-        self.pokedex = Some(Arc::new(entries.unwrap()));
-
-        let path = binding.get("sprites_location");
-        if path.is_none() {
-            let mcerr = "Could not find key sprites_location in config. Assets cannot be loaded.";
-            self.error = Some(PokedexError::MalformedConfig(mcerr.to_string()));
-            return window_open_task;
-        }
-        self.assets_path = Some(path.unwrap().to_string());
-
-        let model_path = binding.get("model_location");
-        if model_path.is_none() {
-            let merr = "Could not find key model_location in config. Classificaiton model cannot be loaded.";
-            self.error = Some(PokedexError::MalformedConfig(merr.to_string()));
-            return window_open_task;
-        }
-
-        let binding = io::get_local_path().unwrap().join(model_path.unwrap());
-        let mpath = binding.as_os_str();
-
-        let model = ml::init(mpath.to_str().unwrap())
-            .map_err(|e| PokedexError::ModelError(e.to_string()));
-        if model.is_err() {
-            self.error = Some(model.err().unwrap());
-            return window_open_task;
-        }
-        self.model = Some(model.unwrap());
-        println!("Loaded model");
-
+        
         window_open_task
     }
 

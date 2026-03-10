@@ -37,6 +37,7 @@ pub struct Home {
     classifying: bool,
     fade: Animation<f32>,
     bg_handle: iced::widget::image::Handle,
+    ring_handle: iced::widget::image::Handle,
     spinner_state: PokedexSpinnerState,
     failed_classification: Option<String>
 }
@@ -73,7 +74,7 @@ impl Home {
     pub fn new(
         pokedex: Arc<HashMap<String, PokemonInfo>>,
         model: Arc<Mutex<Session>>
-    ) -> (Self, Task<Message>) {
+    ) -> (Self, Task<Message>) { 
         println!("New home created");
         (
             Self {
@@ -95,6 +96,9 @@ impl Home {
                     .easing(iced::animation::Easing::EaseInOut),
                 bg_handle: iced::widget::image::Handle::from_bytes(
                     include_bytes!("../../assets/background.png").as_slice()
+                ),
+                ring_handle: iced::widget::image::Handle::from_bytes(
+                    include_bytes!("../../assets/ring.png").as_slice()
                 ),
                 spinner_state: PokedexSpinnerState::new(),
                 failed_classification: None
@@ -224,6 +228,9 @@ impl Home {
                 Action::None
             },
             Message::ClassificationResult(result) => {
+                // self.classifying = false;
+                self.spinner_state.start_register();
+
                 if result.is_err() {
                     println!("{:?}", &result);
 
@@ -307,6 +314,10 @@ impl Home {
             stack![
                 iced::widget::image(self.captured_frame.as_ref().unwrap())
                 .opacity(self.fade.interpolate_with(|v|v, Instant::now())),
+
+                iced::widget::image(self.ring_handle.clone())
+                    .scale(self.spinner_state.current_register_scale())
+                    .opacity(1.2 - self.spinner_state.current_register_scale()),
 
                 iced::widget::image(self.bg_handle.clone())
                     .scale(self.spinner_state.current_scale()),
