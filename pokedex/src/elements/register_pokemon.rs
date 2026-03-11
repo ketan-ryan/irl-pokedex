@@ -98,6 +98,8 @@ impl<'a> Program<Message> for RegisterCanvasProgram<'a> {
         if self.state.offset.is_none() {
             return vec![];
         }
+        const PADDING: f32 = 100.0;
+
         let cx = bounds.width / 2.0;
         let x_diff = 0.5 - self.state.offset.unwrap();
         let x_offset = x_diff * bounds.width;
@@ -105,13 +107,13 @@ impl<'a> Program<Message> for RegisterCanvasProgram<'a> {
         // cheap trick - since we are using square images, we can set the width to the height.
         // otherwise, we'd have to calculate the image aspect ratio, since adjusting the x_pos of the
         // top-left coord shifts the bounds width. Also, subtract some padding. 
-        let dim = bounds.height - 30.0;
+        let dim = bounds.height - PADDING;
 
         let x_pos = cx - x_offset;
 
         let geometry = self.state.cache.draw(renderer, bounds.size(), |frame| {
             frame.draw_image(
-        Rectangle::new(Point::new(x_pos, 15.0), iced::Size::new(dim, dim)),
+        Rectangle::new(Point::new(x_pos, PADDING / 2.0), iced::Size::new(dim, dim)),
                 canvas::Image {
                     handle: self.state.white_handle.clone().unwrap(),
                     filter_method: iced::advanced::image::FilterMethod::Linear,
@@ -123,7 +125,7 @@ impl<'a> Program<Message> for RegisterCanvasProgram<'a> {
             );
 
             frame.draw_image(
-        Rectangle::new(Point::new(x_pos, 15.0), iced::Size::new(dim, dim)),
+        Rectangle::new(Point::new(x_pos, PADDING / 2.0), iced::Size::new(dim, dim)),
                 canvas::Image {
                     handle: self.state.png_handle.clone().unwrap(),
                     filter_method: iced::advanced::image::FilterMethod::Linear,

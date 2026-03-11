@@ -20,28 +20,38 @@ use crate::grid::Grid;
 use crate::io::{self, PokedexConfig};
 
 
-// TODO use me
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum STATE {
-    PROECSSING,
+    PROCESSING,
     LOADING,
-    CLASSIFYING
+    LOADED,
+    CLASSIFYING,
+    REGISTERING
+}
+
+impl STATE {
+    fn should_get_frames(&self) -> bool {
+        *self == STATE::LOADING || *self == STATE::LOADED
+    }
+
+    // TODO: Maybe move this to its own Screen?
+    fn show_animation(&self) -> bool {
+        *self == STATE::CLASSIFYING || *self == STATE::REGISTERING
+    }
 }
 
 #[derive(Debug)]
 pub struct Home {
     config: Arc<PokedexConfig>,
-    processing: bool,
+    state: STATE,
     grid: Grid,
     last_frame_handle: Option<iced::widget::image::Handle>,
     last_frame: Option<VideoFrame>,
-    loading: bool,
     quad_state: QuadState,
     time: f32,
     gstreamer_error: Option<String>,
     captured_frame: Option<iced::widget::image::Handle>,
     frame_save_error: Option<String>,
-    classifying: bool,
     fade: Animation<f32>,
     bg_handle: iced::widget::image::Handle,
     ring_handle: iced::widget::image::Handle,
@@ -86,17 +96,15 @@ impl Home {
         (
             Self {
                 config: pokedex,
-                processing: false,
+                state: STATE::LOADING,
                 grid: Grid::new(),
                 last_frame_handle: None,
                 last_frame: None,
-                loading: true,
                 quad_state: QuadState::new(),
                 time: 0.0,
                 gstreamer_error: None,
                 captured_frame: None,
                 frame_save_error: None,
-                classifying: false,
                 fade: Animation::new(0.0)
                     .duration(Duration::from_millis(300))
                     .easing(iced::animation::Easing::EaseInOut),
@@ -117,7 +125,7 @@ impl Home {
     pub fn update(&mut self, msg: Message) -> Action {
         match msg {
             Message::HomeToggled => {
-                self.processing = true;
+                self.state = STATE::PROCESSING;
                 Action::None
             }
             Message::Refresh => {
@@ -126,28 +134,21 @@ impl Home {
             Message::Tick(duration) => {
                 self.grid.tick();
 
-                if self.quad_state.is_loading() 
+                if self.state == STATE::LOADING 
                     || self.quad_state.is_finishing() 
                     || !self.quad_state.finished_spinning() 
                     && self.gstreamer_error.is_none()
                 {
                     self.quad_state.tick();
-                } else {
-                    self.loading = false;
-                }
-                
-                self.time += duration.as_secs_f32();
-                if self.time > 3.0 && !self.quad_state.is_finishing() && self.quad_state.is_loading() {
-                    self.quad_state.set_loaded();
                 }
 
-                if self.classifying {
+                self.time += duration.as_secs_f32();
+
+                if self.state.show_animation() {
                     self.spinner_state.tick();
                 }
 
-                //TODO: state machine
-
-                if self.register_pokemon.current_full_fade() < 1.0 {
+                if self.state == STATE::REGISTERING && self.register_pokemon.current_full_fade() < 1.0 {
                     self.register_pokemon.tick();
                 }
 
@@ -162,7 +163,8 @@ impl Home {
                     frame.data
                 ));
                 
-                if self.quad_state.is_loading() {
+                if self.state == STATE::LOADING {
+                    self.state = STATE::LOADED;
                     self.quad_state.set_loaded();
                 }
                 
@@ -186,7 +188,7 @@ impl Home {
             Message::IOInput(action) => {
                 match action {
                     IOAction::TakePicture => {
-                        if self.classifying {
+                        if self.state.show_animation() {
                             return Action::None
                         }
                         if let Some(frame) = self.last_frame.clone() {                           
@@ -222,7 +224,7 @@ impl Home {
                 Action::None
             },
             Message::Classify(path) => {
-                self.classifying = true;
+                self.state = STATE::CLASSIFYING;
 
                 let model = Arc::clone(&self.config.session);
                 Action::Run(Task::perform(
@@ -241,7 +243,7 @@ impl Home {
                 Action::None
             },
             Message::ClassificationResult(result) => {
-                // self.classifying = false;
+                self.state = STATE::REGISTERING;
                 self.spinner_state.start_register();
 
                 if result.is_err() {
@@ -375,7 +377,7 @@ impl Home {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        let camera_subscription = if self.gstreamer_error.is_none() && !self.classifying {
+        let camera_subscription = if self.gstreamer_error.is_none() && self.state.should_get_frames() {
             Subscription::run(gstreamer_stream).map(|result| match result {
                 Ok(frame) => Message::FrameReceived(frame),
                 Err(e) => Message::GSTError(e)
@@ -409,7 +411,7 @@ impl Home {
         if self.gstreamer_error.is_some() {
             text(format!("Error opening camera! Try rebooting or check with a developer.")).into()
         }
-        else if self.classifying && self.captured_frame.is_some() {
+        else if self.state.show_animation() && self.captured_frame.is_some() {
             let mut elements: Vec<Element<Message>> = vec![
                 iced::widget::image(self.captured_frame.as_ref().unwrap())
                     .opacity(self.fade.interpolate_with(|v|v, Instant::now()))

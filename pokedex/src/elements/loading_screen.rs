@@ -57,7 +57,6 @@ pub struct QuadState {
     half_ball_handle: image::Handle,
     ball_handle: image::Handle,
     spinner: SpinnerState,
-    loading: bool,
     loaded_time: f32
 }
 
@@ -76,7 +75,6 @@ impl QuadState {
                 include_bytes!("../../assets/pokeball.png").as_slice()
             ),
             spinner: spinner,
-            loading: true,
             loaded_time: 0.0
         }
     }
@@ -94,12 +92,7 @@ impl QuadState {
         }
     }
 
-    pub fn is_loading(&self) -> bool {
-        return self.loading;
-    }
-
     pub fn set_loaded(&mut self) {
-        self.loading = false;
         self.loaded_time = self.time.elapsed().as_secs_f32();
         self.spinner.go_to_baseline();
     }
