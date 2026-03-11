@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use config::Config;
 use ort::session::Session;
 use serde::Deserialize;
@@ -29,7 +29,8 @@ pub struct PokemonInfo {
 pub struct PokedexConfig {
     pub pokedex_json: HashMap<String, PokemonInfo>,
     pub sprites_location: String,
-    pub session: Arc<Mutex<Session>>
+    pub session: Arc<Mutex<Session>>,
+    pub classes: Vec<String>
 }
 
 pub fn validate_config() -> Result<PokedexConfig, PokedexError> {
@@ -58,10 +59,18 @@ pub fn validate_config() -> Result<PokedexConfig, PokedexError> {
     let model = ml::init(binding.to_str().unwrap())
             .map_err(|e| PokedexError::ModelError(e.to_string()))?;
 
+    let classes_path = config.get("classes_location");
+    if classes_path.is_none() {
+        let mcerr = "Could not find key classes_location in config. Pokemon classes cannot be mapped.";
+        return Err(PokedexError::MalformedConfig(mcerr.to_string()));
+    }
+    let classes = load_classes(classes_path.unwrap())?;
+
     Ok(PokedexConfig {
         pokedex_json: entries, 
         sprites_location: path.unwrap().to_string(),
-        session: model
+        session: model,
+        classes: classes
     })
 }
 
@@ -87,6 +96,45 @@ pub fn load_dex_entries(filename: &str) -> Result<HashMap<String, PokemonInfo>, 
 
     serde_json::from_str(&dex)
         .map_err(|e| PokedexError::MalformedPokedex(e.to_string()))
+}
+
+pub fn load_classes(filename: &str) -> Result<Vec<String>, PokedexError> {
+    let classes_path = get_local_path()?.join(filename);
+    let classes = std::fs::read_to_string(classes_path).map_err(|e| match e.kind() {
+        std::io::ErrorKind::NotFound => PokedexError::ClassesNotFound(filename.to_string()),
+        _ => PokedexError::MalformedClasses(e.to_string())
+    })?;
+
+    serde_json::from_str(&classes)
+        .map_err(|e| PokedexError::MalformedClasses(e.to_string()))
+}
+
+pub fn load_png(sprite_folder: String, pokemon_name: &str) -> Result<Vec<u8>, anyhow::Error> {
+    let folder = get_local_path()?.join(sprite_folder).join(pokemon_name);
+
+    let img = {
+        // first collect entries
+        let mut entries: Vec<_> = std::fs::read_dir(folder)?
+            .filter_map(|e| e.ok())
+            .collect();
+        // then reverse them
+        entries.sort_by_key(|e| e.file_name());
+        // the last photo in a directory, alphabetically, will be the clean
+        // default pose for the pokemon.
+        entries.into_iter().rev().find_map(|entry| {
+            let path = entry.path();
+            if path.extension()?.to_str()? == "png" {
+                std::fs::read(&path).ok()
+            } else {
+                None
+            }
+        })
+    };
+    if img.is_none() {
+        return Err(anyhow!("Failed to get image for pokemon {}", pokemon_name))
+    }
+
+    Ok(img.unwrap())
 }
 
 pub fn get_local_path() -> Result<PathBuf, PokedexError> {

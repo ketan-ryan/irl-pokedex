@@ -15,23 +15,13 @@ use iced::window::{self};
 use iced::{
     Center, Element, Fill, Subscription, Task
 };
-use ort::session::Session;
 
-use std::collections::{BTreeMap, HashMap};
-use std::sync::{Arc, Mutex};
+use std::collections::BTreeMap;
+use std::sync::Arc;
 
-use crate::io::get_local_path;
+use crate::io::PokedexConfig;
 
 fn main() -> iced::Result {
-    match get_local_path() {
-        Ok(path) => {
-            println!("Found local path to be {:?}", path)
-        },
-        Err(err) => {
-            eprintln!("Error getting local path: {:?}", err)
-        },
-    }
-
     iced::daemon(App::new, App::update, App::view)
         .subscription(App::subscription)
         .run()
@@ -47,7 +37,11 @@ pub enum PokedexError {
     FatalError(String),
     ModelNotFound(String),
     ModelError(String),
+    ClassesNotFound(String),
+    MalformedClasses(String),
 }
+
+impl std::error::Error for PokedexError {}
 
 impl std::fmt::Display for PokedexError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -59,7 +53,9 @@ impl std::fmt::Display for PokedexError {
             PokedexError::AssetsNotFound(dir) => write!(f, "Could not find assets dir at {}", dir),
             PokedexError::FatalError(e) => write!(f, "Fatal error! Operation cannot proceed: {}", e),
             PokedexError::ModelNotFound(dir) => write!(f, "Could not find model {}", dir),
-            PokedexError::ModelError(e) => write!(f, "Error loading model: {}", e)
+            PokedexError::ModelError(e) => write!(f, "Error loading model: {}", e),
+            PokedexError::ClassesNotFound(dir) => write!(f, "Could not find list of Pokemon names at {}", dir),
+            PokedexError::MalformedClasses(e) => write!(f, "Could not parse Pokemon classes list: {}", e)
         }
     }
 }
@@ -67,10 +63,8 @@ impl std::fmt::Display for PokedexError {
 struct App {
     windows: Option<BTreeMap<window::Id, WindowType>>,
     screen: Screen,
-    pokedex: Option<Arc<HashMap<String, io::PokemonInfo>>>,
     error: Option<PokedexError>,
-    assets_path: Option<String>,
-    model: Option<Arc<Mutex<Session>>>,
+    config: Option<Arc<PokedexConfig>>
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -93,10 +87,8 @@ impl App {
             Self {
                 screen: Screen::Loading,
                 windows: None,
-                pokedex: None,
                 error: None,
-                assets_path: None,
-                model: None
+                config: None,
             },
             Task::done(Message::Init)
         )
@@ -157,11 +149,6 @@ impl App {
             ..window::Settings::default()
         });
 
-        let window_open_task = Task::batch([
-            open.map(Message::WindowOpened),
-            open_second.map(Message::WindowOpened),
-        ]);
-
         self.windows = Some(BTreeMap::from([
             (top_id, WindowType::TopScreen),
             (bottom_id, WindowType::BottomScreen)
@@ -169,24 +156,23 @@ impl App {
 
         match io::validate_config() {
             Ok(cfg) => {
-                self.pokedex = Some(Arc::new(cfg.pokedex_json));
-                self.assets_path = Some(cfg.sprites_location);
-                self.model = Some(cfg.session);
+                self.config = Some(Arc::new(cfg));
             },
             Err(e) => {
                 self.error = Some(e);
-                return window_open_task;
             }
         }
-        
-        window_open_task
+
+        Task::batch([
+            open.map(Message::WindowOpened),
+            open_second.map(Message::WindowOpened),
+        ])
     }
 
     fn open_home(&mut self) -> Task<Message> {
-        // If we get here, self.pokedex should be Some
+        // If we get here, config should be loaded successfully
         let (home, task) = screen::Home::new(
-            Arc::clone(self.pokedex.as_ref().unwrap()),
-            Arc::clone(self.model.as_ref().unwrap()),
+            Arc::clone(self.config.as_ref().unwrap())
         );
         self.screen = Screen::Home(home);
         task.map(Message::Home)

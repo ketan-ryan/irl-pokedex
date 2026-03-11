@@ -4,7 +4,7 @@ use iced::widget::canvas::path::Builder;
 use iced::{Color, Element, Point, Radians, Rectangle, Renderer, Theme, Vector};
 use std::f32::consts::PI;
 use std::time::{Duration, Instant};
-use iced::widget::{image};
+use iced::widget::image;
 use iced::Animation;
 
 use crate::screen::home::Message;

@@ -1,3 +1,4 @@
 pokedex_location: "../../assets/pokedex.json"
-sprites_location: "../../assets/registering_sprites"
+sprites_location: "../../../data/registering_sprites"
 model_location: "../../assets/yolo26n-cls.onnx"
+classes_location: "../../assets/all_pokemon_safe.json"

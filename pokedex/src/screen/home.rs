@@ -1,3 +1,5 @@
+use anyhow::anyhow;
+
 use iced::{Center, Color, Element, Event, Fill, Subscription, Task, time};
 use iced::event::{self, Status};
 use iced::keyboard::{Event::KeyPressed, Key, key::Named};
@@ -7,23 +9,28 @@ use iced::widget::{column, container, text, stack, canvas::Canvas};
 use image;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
-use ort::session::Session;
+use std::sync::Arc;
 
-
+use crate::elements::register_pokemon::{RegisterCanvas, RegisterPokemonState};
 use crate::ml;
 use crate::elements::gstreamer_stream::{VideoError, VideoFrame, gstreamer_stream};
 use crate::elements::loading_screen::{QuadCanvas, QuadState};
 use crate::elements::pokedex_spinner::{SpinnerCanvas, PokedexSpinnerState};
 use crate::grid::Grid;
-use crate::io::{self, PokemonInfo};
+use crate::io::{self, PokedexConfig};
 
+
+// TODO use me
+#[derive(Debug)]
+enum STATE {
+    PROECSSING,
+    LOADING,
+    CLASSIFYING
+}
 
 #[derive(Debug)]
 pub struct Home {
-    pokedex: Arc<HashMap<String, PokemonInfo>>,
-    model: Arc<Mutex<Session>>,
+    config: Arc<PokedexConfig>,
     processing: bool,
     grid: Grid,
     last_frame_handle: Option<iced::widget::image::Handle>,
@@ -39,7 +46,8 @@ pub struct Home {
     bg_handle: iced::widget::image::Handle,
     ring_handle: iced::widget::image::Handle,
     spinner_state: PokedexSpinnerState,
-    failed_classification: Option<String>
+    failed_classification: Option<String>,
+    register_pokemon: RegisterPokemonState
 }
 
 #[derive(Debug, Clone)]
@@ -72,14 +80,12 @@ pub enum IOAction {
 
 impl Home {
     pub fn new(
-        pokedex: Arc<HashMap<String, PokemonInfo>>,
-        model: Arc<Mutex<Session>>
+        pokedex: Arc<PokedexConfig>
     ) -> (Self, Task<Message>) { 
         println!("New home created");
         (
             Self {
-                pokedex: pokedex,
-                model: model,
+                config: pokedex,
                 processing: false,
                 grid: Grid::new(),
                 last_frame_handle: None,
@@ -101,7 +107,8 @@ impl Home {
                     include_bytes!("../../assets/ring.png").as_slice()
                 ),
                 spinner_state: PokedexSpinnerState::new(),
-                failed_classification: None
+                failed_classification: None,
+                register_pokemon: RegisterPokemonState::new(),
             },
             Task::none()
         )
@@ -136,6 +143,12 @@ impl Home {
 
                 if self.classifying {
                     self.spinner_state.tick();
+                }
+
+                //TODO: state machine
+
+                if self.register_pokemon.current_full_fade() < 1.0 {
+                    self.register_pokemon.tick();
                 }
 
                 Action::RedrawWindows
@@ -211,7 +224,7 @@ impl Home {
             Message::Classify(path) => {
                 self.classifying = true;
 
-                let model = Arc::clone(&self.model);
+                let model = Arc::clone(&self.config.session);
                 Action::Run(Task::perform(
                     async move {
                         let mut session = model.lock().unwrap();
@@ -240,15 +253,38 @@ impl Home {
                 }
                 println!("{:?}", result.as_ref());
                 let (class_idx, conf) = result.unwrap();
-                if conf < 0.5 {
-                    return Action::Run(
-                        Task::done(Message::FailedClassification(Some("No Pokemon detected in image.".to_string())))
-                    );
-                } else {
+                // if conf < 0.5 {
+                //     return Action::Run(
+                //         Task::done(Message::FailedClassification(Some("No Pokemon detected in image.".to_string())))
+                //     );
+                // } else {
+                // return Action::Run(
+                //     Task::perform(
+                //         async move {
+                //             let pokemon = self.config.classes.get(class_idx);
+                //             if pokemon.is_none() {
+                //                 // TODO error handling - missingno?
+                //                 println!("Index {} OOB!", class_idx);
+                //                 return Err(anyhow!("aadflk"));
+                //             }
+                            
+                //             let pokemon = pokemon.unwrap();
+                //             println!("Getting pokemon {}", pokemon);
+                //             // grab png
+                //             io::load_png(self.config.sprites_location.clone(), "Zygarde Complete Forme")
+                //                 .map_err(|e| e.to_string())        
+                //         },
+                //         |result| match result {
+                //             Ok(result) => Message::Classify("adf"),
+                //             Err(e) => Message::FrameSaveError(Some(e))
+                //         },
+                //     )
+                // );
+
                     return Action::Run(
                         Task::done(Message::Classified(class_idx))
                     );
-                }
+                // }
             },
             Message::FailedClassification(err) => {
                 if let Some(error) = err {
@@ -258,6 +294,24 @@ impl Home {
                 Action::None
             },
             Message::Classified(class_idx) => {
+                let pokemon = self.config.classes.get(class_idx);
+                if pokemon.is_none() {
+                    // TODO error handling - missingno?
+                    println!("Index {} OOB!", class_idx);
+                    return Action::None
+                }
+                
+                let pokemon = pokemon.unwrap();
+                println!("Getting pokemon {}", pokemon);
+                // grab png
+                let img = io::load_png(self.config.sprites_location.clone(), "snivy");
+                if img.is_ok() {
+                    let white_handle = Self::make_white_mask(&img.as_ref().unwrap());
+                    let offset = Self::find_x_com(&img.as_ref().unwrap());
+                    let png_handle = iced::widget::image::Handle::from_bytes(img.unwrap());
+                    self.register_pokemon.init(white_handle, png_handle, offset);
+                }
+
                 Action::None
             }
         }
@@ -273,6 +327,51 @@ impl Home {
         let pixels = blurred.into_raw();
         
         iced::widget::image::Handle::from_rgba(frame.width, frame.height, pixels)
+    }
+
+    // TODO make these async and move to task
+    fn make_white_mask(bytes: &[u8]) -> iced::widget::image::Handle {
+        let img = image::load_from_memory(bytes)
+            .unwrap()
+            .into_rgba8();
+
+        let result = image::ImageBuffer::from_fn(img.width(), img.height(), |x, y| {
+            let pixel = img.get_pixel(x, y);
+            if pixel[3] > 0 {
+                image::Rgba([255, 255, 255, pixel[3]])
+            } else {
+                image::Rgba([0, 0, 0, 0])
+            }
+        });
+
+        iced::widget::image::Handle::from_rgba(result.width(), result.height(), result.into_raw())
+    }
+
+    fn find_x_com(bytes: &[u8]) -> f32{
+        let img = image::load_from_memory(bytes)
+            .unwrap()
+            .into_rgba8();
+
+        let (width, height) = img.dimensions();
+        let mut running_sum = 0.0;
+        let mut col_masses = Vec::with_capacity(width as usize);
+
+        for col in 0..width {
+            let mut col_mass = 0.0;
+            
+            for row in 0..height {
+                let pixel = img.get_pixel(row, col);
+                if pixel[3] > 0 {
+                    col_mass += 1.0;
+                }
+            }
+            col_mass /= height as f32;
+            // squaring weights dense areas more heavily
+            col_mass *= col_mass;
+            col_masses.push(col_mass);
+            running_sum += col_mass;
+        }
+        running_sum / width as f32
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
@@ -310,20 +409,30 @@ impl Home {
         if self.gstreamer_error.is_some() {
             text(format!("Error opening camera! Try rebooting or check with a developer.")).into()
         }
-        else if self.classifying && self.captured_frame.is_some(){
-            stack![
+        else if self.classifying && self.captured_frame.is_some() {
+            let mut elements: Vec<Element<Message>> = vec![
                 iced::widget::image(self.captured_frame.as_ref().unwrap())
-                .opacity(self.fade.interpolate_with(|v|v, Instant::now())),
+                    .opacity(self.fade.interpolate_with(|v|v, Instant::now()))
+                    .into(),
 
                 iced::widget::image(self.ring_handle.clone())
                     .scale(self.spinner_state.current_register_scale())
-                    .opacity(1.2 - self.spinner_state.current_register_scale()),
+                    .opacity(1.2 - self.spinner_state.current_register_scale())
+                    .into(),
 
                 iced::widget::image(self.bg_handle.clone())
-                    .scale(self.spinner_state.current_scale()),
+                    .scale(self.spinner_state.current_scale())
+                    .into(),
                 SpinnerCanvas::new(&self.spinner_state),
+            ];
+            if self.register_pokemon.offset.is_some() {
+                elements.push(
+                    RegisterCanvas::new(&self.register_pokemon)
+                );
+            }
+            iced::widget::Stack::with_children(elements).into()
 
-                // // cutout: centered 8px strip of the blurred bg drawn over everything
+                // cutout: centered 8px strip of the blurred bg drawn over everything
                 // TODO: test clipping when iced updates with tinyskia fix
                 // iced::widget::container(
                 //     iced::widget::container(
@@ -340,7 +449,6 @@ impl Home {
                 // .height(iced::Fill)
                 // .align_y(iced::Center)
 
-            ].into()
         }
         else if let Some(handle) = &self.last_frame_handle {
             stack![
