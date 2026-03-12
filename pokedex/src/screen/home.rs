@@ -1,10 +1,11 @@
 use anyhow::anyhow;
 
-use iced::{Center, Color, Element, Event, Fill, Subscription, Task, time};
+use iced::widget::mouse_area;
+use iced::{Color, Element, Event, Subscription, Task, time};
 use iced::event::{self, Status};
 use iced::keyboard::{Event::KeyPressed, Key, key::Named};
 use iced::animation::Animation;
-use iced::widget::{column, container, text, stack, canvas::Canvas};
+use iced::widget::{container, text, stack};
 
 use image;
 
@@ -22,29 +23,37 @@ use crate::io::{self, PokedexConfig};
 
 
 #[derive(Debug, PartialEq)]
-enum STATE {
-    PROCESSING,
-    LOADING,
-    LOADED,
-    CLASSIFYING,
-    REGISTERING
+enum State {
+    Loading,            // waiting for camera
+    Loaded,             // getting frames
+    Classifying,        // running inference
+    Registering,        // playing pokedex registration anim
+    Registered,         // dex reg anim over
+    FailedRegistering   // show error screen
 }
 
-impl STATE {
+impl State {
     fn should_get_frames(&self) -> bool {
-        *self == STATE::LOADING || *self == STATE::LOADED
+        *self == State::Loading || *self == State::Loaded
     }
 
     // TODO: Maybe move this to its own Screen?
     fn show_animation(&self) -> bool {
-        *self == STATE::CLASSIFYING || *self == STATE::REGISTERING
+        *self == State::Classifying || !self.should_get_frames()
+    }
+
+    fn registering_or_later(&self) -> bool {
+        *self == State::Registered || *self == State::Registering || *self == State::FailedRegistering
     }
 }
 
 #[derive(Debug)]
 pub struct Home {
     config: Arc<PokedexConfig>,
-    state: STATE,
+    state: State,
+    bottom_handle: iced::widget::image::Handle,
+    bottom_pressed_handle: iced::widget::image::Handle,
+    pressed: bool,
     grid: Grid,
     last_frame_handle: Option<iced::widget::image::Handle>,
     last_frame: Option<VideoFrame>,
@@ -66,6 +75,8 @@ pub enum Message {
     HomeToggled,
     Refresh, // TODO: use this to try restarting camera if error
     Tick(Duration),
+    BottomPressed,
+    BottomReleased,
     FrameReceived(VideoFrame),
     GSTError(VideoError),
     IOInput(IOAction),
@@ -97,7 +108,14 @@ impl Home {
         (
             Self {
                 config: pokedex,
-                state: STATE::LOADING,
+                state: State::Loading,
+                bottom_handle: iced::widget::image::Handle::from_bytes(
+                    include_bytes!("../../assets/bottom_screen.png").as_slice()
+                ),
+                bottom_pressed_handle: iced::widget::image::Handle::from_bytes(
+                    include_bytes!("../../assets/bottom_screen_pressed.png").as_slice()
+                ),
+                pressed: false,
                 grid: Grid::new(),
                 last_frame_handle: None,
                 last_frame: None,
@@ -126,7 +144,6 @@ impl Home {
     pub fn update(&mut self, msg: Message) -> Action {
         match msg {
             Message::HomeToggled => {
-                self.state = STATE::PROCESSING;
                 Action::None
             }
             Message::Refresh => {
@@ -135,7 +152,7 @@ impl Home {
             Message::Tick(duration) => {
                 self.grid.tick();
 
-                if self.state == STATE::LOADING 
+                if self.state == State::Loading 
                     || self.quad_state.is_finishing() 
                     || !self.quad_state.finished_spinning() 
                     && self.gstreamer_error.is_none()
@@ -149,11 +166,21 @@ impl Home {
                     self.spinner_state.tick();
                 }
 
-                if self.state == STATE::REGISTERING && self.register_pokemon.current_full_fade() < 1.0 {
+                if self.state == State::Registering && self.register_pokemon.current_full_fade() < 1.0 {
                     self.register_pokemon.tick();
                 }
 
                 Action::RedrawWindows
+            },
+            Message::BottomPressed => {
+                if self.state != State::Loading {
+                    self.pressed = true;
+                }
+                Action::None
+            },
+            Message::BottomReleased => {
+                self.pressed = false;
+                Action::None
             }
             Message::FrameReceived(frame) => {
                 self.last_frame = Some(frame.clone());
@@ -164,8 +191,8 @@ impl Home {
                     frame.data
                 ));
                 
-                if self.state == STATE::LOADING {
-                    self.state = STATE::LOADED;
+                if self.state == State::Loading {
+                    self.state = State::Loaded;
                     self.quad_state.set_loaded();
                 }
                 
@@ -189,7 +216,7 @@ impl Home {
             Message::IOInput(action) => {
                 match action {
                     IOAction::TakePicture => {
-                        if self.state.show_animation() {
+                        if !self.state.should_get_frames() {
                             return Action::None
                         }
                         if let Some(frame) = self.last_frame.clone() {                           
@@ -199,8 +226,7 @@ impl Home {
                                     async move {
                                         // Save image to a temp staging area while we classify it
                                         // If classification succeeds: move to appropriate folder
-                                        // Else: Do nothing, staging area will be recreated on next capture
-                                        
+                                        // Else: Do nothing, staging area will be recreated on next capture 
                                         io::save_frame(&frame)
                                             .map_err(|e| e.to_string())
                                     },
@@ -225,7 +251,7 @@ impl Home {
                 Action::None
             },
             Message::Classify(path) => {
-                self.state = STATE::CLASSIFYING;
+                self.state = State::Classifying;
 
                 let model = Arc::clone(&self.config.session);
                 Action::Run(Task::perform(
@@ -259,16 +285,14 @@ impl Home {
                     );
                 } else {
                     let cfg = self.config.clone();
-                    
-                    let cls = rand::random_range(0..cfg.classes.len());
-
-                    let pokemon: Option<&String> = cfg.classes.get(cls);
+                    let pokemon: Option<&String> = cfg.classes.get(class_idx);
                     let loc = cfg.sprites_location.clone();
 
                     if pokemon.is_none() {
                         // TODO error handling - missingno?
                         println!("Index {} OOB!", class_idx);
-                        return Action::Run(Task::done(Message::FrameSaveError(Some("terror".to_string()))));
+                        return Action::Run(Task::done(Message::FailedClassification(Some(
+                            "Pokemon index out of bounds - likely an issue with the class list.".to_string()))));
                     }
 
                     let poke = pokemon.unwrap().to_string();
@@ -276,7 +300,7 @@ impl Home {
                     return Action::Run(
                         Task::perform(
                             async move {
-                                Self::classify(poke, loc)
+                                Self::classify(poke, loc, false)
                                     .map_err(|e| e.to_string())
                             }, |result| match result {
                                 Ok(res) => {
@@ -289,14 +313,29 @@ impl Home {
                 }
             },
             Message::FailedClassification(err) => {
-                if let Some(error) = err {
-                    self.failed_classification = Some(error);
-                    println!("Failed classification: {:?}", self.failed_classification);
-                }
-                Action::None
+                // if we are here, err is Some
+                self.failed_classification = err;
+                self.state = State::FailedRegistering;
+
+                let cfg = self.config.clone();
+                let loc = cfg.sprites_location.clone();
+
+                Action::Run(
+                    Task::perform(
+                        async move {
+                            Self::classify("missingno".to_string(), loc, true)
+                                .map_err(|e| e.to_string())
+                        }, |result| match result {
+                            Ok(res) => {
+                                Message::Classified(res)
+                            },
+                            Err(e) => Message::FrameSaveError(Some(e))
+                        },
+                    )
+                )
             },
             Message::Classified(result) => {
-                self.state = STATE::REGISTERING;
+                self.state = State::Registering;
                 self.spinner_state.start_register();
                 
                 self.register_pokemon.init(result.0, result.2, result.1);
@@ -306,13 +345,17 @@ impl Home {
         }
     }
 
-    fn classify(pokemon: String, sprite_folder: String) -> Result<(
+    fn classify(pokemon: String, sprite_folder: String, is_error: bool) -> Result<(
         iced::widget::image::Handle,    // white_handle
         f32,                            // offset
         iced::widget::image::Handle     // png_handle
     ), anyhow::Error> {        
         // grab png
-        let img = io::load_png(sprite_folder, &pokemon);
+        let img: Result<Vec<u8>, anyhow::Error> = if is_error {
+            Ok(include_bytes!("../../assets/missingno.png").to_vec())
+        } else {
+            io::load_png(sprite_folder, &pokemon)
+        };
         if img.is_ok() {
             let white_handle = Self::make_white_mask(&img.as_ref().unwrap());
             let offset = Self::find_image_com(&img.as_ref().unwrap());
@@ -425,8 +468,8 @@ impl Home {
         };
 
         Subscription::batch([
-            // tick screen for updates ~120fps
-            time::every(Duration::from_millis(8))
+            // tick screen for updates ~60fps
+            time::every(Duration::from_millis(16))
                 .map(|arg0: std::time::Instant| Message::Tick(arg0.elapsed())),
 
             camera_subscription,
@@ -455,17 +498,20 @@ impl Home {
                     .opacity(self.fade.interpolate_with(|v|v, Instant::now()))
                     .into(),
 
-                iced::widget::image(self.ring_handle.clone())
-                    .scale(self.spinner_state.current_register_scale())
-                    .opacity(1.2 - self.spinner_state.current_register_scale())
-                    .into(),
-
-                iced::widget::image(self.bg_handle.clone())
+                iced::widget::image(&self.bg_handle)
                     .scale(self.spinner_state.current_scale())
                     .into(),
                 SpinnerCanvas::new(&self.spinner_state),
             ];
-            if self.register_pokemon.offset.is_some() {
+            if self.state == State::Registering {
+                elements.push(
+                    iced::widget::image(&self.ring_handle)
+                        .scale(self.spinner_state.current_register_scale())
+                        .opacity(1.2 - self.spinner_state.current_register_scale())
+                        .into(),
+                );
+            }
+            if self.state.registering_or_later() {
                 elements.push(
                     RegisterCanvas::new(&self.register_pokemon)
                 );
@@ -501,33 +547,28 @@ impl Home {
     }
 
     pub fn bottom_view(&self) -> Element<'_, Message> {
-        let new_window_button =
-            text(format!("bottom window home screen"));
+        let opacity = if self.state == State::Loading {
+            0.5
+        } else {
+            1.0
+        };
+        let handle = if self.pressed {&self.bottom_pressed_handle} else {&self.bottom_handle};
 
-        let main = column![new_window_button]
-            .spacing(50)
-            .width(Fill)
-            .align_x(Center)
-            .width(200);
-
-        let stack = stack![
-            Canvas::new(&self.grid)
-                .width(Fill)
-                .height(Fill),
-
-            main,
-        ];
-
-        container(stack)
-        .width(iced::Length::Fill)
-        .height(iced::Length::Fill)
-        .style( |_| iced::widget::container::Style {
-            background: Some(iced::Background::Color(Color::from_rgb(1.0, 162.0 / 255.0, 0.0))),
-            text_color: Some(Color::BLACK),
-            border: Default::default(),
-            shadow: Default::default(),
-            snap: Default::default()
-        })
-        .into()    
+        stack![
+            // warmup render so there's no flash while it loads the image
+            iced::widget::image(&self.bottom_pressed_handle).opacity(0.0),
+            mouse_area(
+                container(
+                iced::widget::image(handle).opacity(opacity)
+                )
+                .style(|_| iced::widget::container::Style {
+                    background: Some(iced::Background::Color(Color::BLACK)),
+                    ..Default::default()
+                })
+            )
+            .on_press(Message::BottomPressed)
+            .on_release(Message::BottomReleased)
+        ]
+        .into()  
     }
 }
