@@ -7,6 +7,7 @@ use iced::animation::Animation;
 use iced::widget::{column, container, text, stack, canvas::Canvas};
 
 use image;
+
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 use std::sync::Arc;
@@ -73,7 +74,7 @@ pub enum Message {
     Blurred(iced::widget::image::Handle),
     ClassificationResult(Result<(usize, f32), String>),
     FailedClassification(Option<String>),
-    Classified(usize)
+    Classified((iced::widget::image::Handle, f32, iced::widget::image::Handle))
 }
 
 pub enum Action {
@@ -243,9 +244,6 @@ impl Home {
                 Action::None
             },
             Message::ClassificationResult(result) => {
-                self.state = STATE::REGISTERING;
-                self.spinner_state.start_register();
-
                 if result.is_err() {
                     println!("{:?}", &result);
 
@@ -255,38 +253,40 @@ impl Home {
                 }
                 println!("{:?}", result.as_ref());
                 let (class_idx, conf) = result.unwrap();
-                // if conf < 0.5 {
-                //     return Action::Run(
-                //         Task::done(Message::FailedClassification(Some("No Pokemon detected in image.".to_string())))
-                //     );
-                // } else {
-                // return Action::Run(
-                //     Task::perform(
-                //         async move {
-                //             let pokemon = self.config.classes.get(class_idx);
-                //             if pokemon.is_none() {
-                //                 // TODO error handling - missingno?
-                //                 println!("Index {} OOB!", class_idx);
-                //                 return Err(anyhow!("aadflk"));
-                //             }
-                            
-                //             let pokemon = pokemon.unwrap();
-                //             println!("Getting pokemon {}", pokemon);
-                //             // grab png
-                //             io::load_png(self.config.sprites_location.clone(), "Zygarde Complete Forme")
-                //                 .map_err(|e| e.to_string())        
-                //         },
-                //         |result| match result {
-                //             Ok(result) => Message::Classify("adf"),
-                //             Err(e) => Message::FrameSaveError(Some(e))
-                //         },
-                //     )
-                // );
+                if conf < 0.5 {
+                    return Action::Run(
+                        Task::done(Message::FailedClassification(Some("No Pokemon detected in image.".to_string())))
+                    );
+                } else {
+                    let cfg = self.config.clone();
+                    
+                    let cls = rand::random_range(0..cfg.classes.len());
+
+                    let pokemon: Option<&String> = cfg.classes.get(cls);
+                    let loc = cfg.sprites_location.clone();
+
+                    if pokemon.is_none() {
+                        // TODO error handling - missingno?
+                        println!("Index {} OOB!", class_idx);
+                        return Action::Run(Task::done(Message::FrameSaveError(Some("terror".to_string()))));
+                    }
+
+                    let poke = pokemon.unwrap().to_string();
 
                     return Action::Run(
-                        Task::done(Message::Classified(class_idx))
+                        Task::perform(
+                            async move {
+                                Self::classify(poke, loc)
+                                    .map_err(|e| e.to_string())
+                            }, |result| match result {
+                                Ok(res) => {
+                                    Message::Classified(res)
+                                },
+                                Err(e) => Message::FrameSaveError(Some(e))
+                            },
+                        )
                     );
-                // }
+                }
             },
             Message::FailedClassification(err) => {
                 if let Some(error) = err {
@@ -295,29 +295,33 @@ impl Home {
                 }
                 Action::None
             },
-            Message::Classified(class_idx) => {
-                let pokemon = self.config.classes.get(class_idx);
-                if pokemon.is_none() {
-                    // TODO error handling - missingno?
-                    println!("Index {} OOB!", class_idx);
-                    return Action::None
-                }
+            Message::Classified(result) => {
+                self.state = STATE::REGISTERING;
+                self.spinner_state.start_register();
                 
-                let pokemon = pokemon.unwrap();
-                println!("Getting pokemon {}", pokemon);
-                // grab png
-                let img = io::load_png(self.config.sprites_location.clone(), "snivy");
-                if img.is_ok() {
-                    let white_handle = Self::make_white_mask(&img.as_ref().unwrap());
-                    let offset = Self::find_x_com(&img.as_ref().unwrap());
-                    let png_handle = iced::widget::image::Handle::from_bytes(img.unwrap());
-                    self.register_pokemon.init(white_handle, png_handle, offset);
-                }
-
+                self.register_pokemon.init(result.0, result.2, result.1);
+                
                 Action::None
             }
         }
-    }    
+    }
+
+    fn classify(pokemon: String, sprite_folder: String) -> Result<(
+        iced::widget::image::Handle,    // white_handle
+        f32,                            // offset
+        iced::widget::image::Handle     // png_handle
+    ), anyhow::Error> {        
+        // grab png
+        let img = io::load_png(sprite_folder, &pokemon);
+        if img.is_ok() {
+            let white_handle = Self::make_white_mask(&img.as_ref().unwrap());
+            let offset = Self::find_image_com(&img.as_ref().unwrap());
+            let png_handle = iced::widget::image::Handle::from_bytes(img.unwrap());
+            return Ok((white_handle, offset, png_handle));
+        } else {
+            return Err(anyhow!("Failed to grab sprite for {}", pokemon));
+        }
+    }
 
     async fn blur_image(frame: VideoFrame) -> iced::widget::image::Handle {
         let buff: image::ImageBuffer<image::Rgba<u8>, Vec<u8>> = image::ImageBuffer::from_vec(
@@ -331,7 +335,10 @@ impl Home {
         iced::widget::image::Handle::from_rgba(frame.width, frame.height, pixels)
     }
 
-    // TODO make these async and move to task
+    /**
+     * Given a PNG, loops over its pixels and returns a mask
+     * where every non-tranparent pixel is full white
+     */
     fn make_white_mask(bytes: &[u8]) -> iced::widget::image::Handle {
         let img = image::load_from_memory(bytes)
             .unwrap()
@@ -349,31 +356,62 @@ impl Home {
         iced::widget::image::Handle::from_rgba(result.width(), result.height(), result.into_raw())
     }
 
-    fn find_x_com(bytes: &[u8]) -> f32{
-        let img = image::load_from_memory(bytes)
-            .unwrap()
-            .into_rgba8();
-
+    /**
+     * Finds center of mass for a png across rows and columns
+     * A pixel is considered to have mass if it has a > 0 alpha
+     */
+    fn find_image_com(bytes: &[u8]) -> f32{
+        let img = image::load_from_memory(bytes).unwrap().into_rgba8();
         let (width, height) = img.dimensions();
-        let mut running_sum = 0.0;
-        let mut col_masses = Vec::with_capacity(width as usize);
+
+        // row-based CoM
+        let mut row_weighted_sum = 0.0;
+        let mut row_total_weight = 0.0;
+
+        for row in 0..height {
+            let mut row_mass = 0.0;
+            let mut row_x_sum = 0.0;
+
+            for col in 0..width {
+                let pixel = img.get_pixel(col, row);
+                if pixel[3] > 0 {
+                    row_mass += 1.0;
+                    row_x_sum += col as f32;
+                }
+            }
+
+            if row_mass > 0.0 {
+                // give more weight to dense areas
+                row_weighted_sum += (row_x_sum / row_mass) * row_mass;
+                row_total_weight += row_mass;
+            }
+        }
+
+        let row_com = (row_weighted_sum / row_total_weight) / width as f32;
+
+        // col-based CoM
+        let mut col_weighted_sum = 0.0;
+        let mut col_total_weight = 0.0;
 
         for col in 0..width {
             let mut col_mass = 0.0;
-            
+
             for row in 0..height {
-                let pixel = img.get_pixel(row, col);
+                let pixel = img.get_pixel(col, row);
                 if pixel[3] > 0 {
                     col_mass += 1.0;
                 }
             }
-            col_mass /= height as f32;
-            // squaring weights dense areas more heavily
-            col_mass *= col_mass;
-            col_masses.push(col_mass);
-            running_sum += col_mass;
+
+            if col_mass > 0.0 {
+                col_weighted_sum += (col as f32 / width as f32) * col_mass;
+                col_total_weight += col_mass;
+            }
         }
-        running_sum / width as f32
+
+        let col_com = col_weighted_sum / col_total_weight;
+
+        (row_com + col_com) / 2.0
     }
 
     pub fn subscription(&self) -> Subscription<Message> {

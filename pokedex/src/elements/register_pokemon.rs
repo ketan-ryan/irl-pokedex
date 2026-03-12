@@ -100,32 +100,38 @@ impl<'a> Program<Message> for RegisterCanvasProgram<'a> {
         }
         const PADDING: f32 = 100.0;
 
-        let cx = bounds.width / 2.0;
-        let x_diff = 0.5 - self.state.offset.unwrap();
-        let x_offset = x_diff * bounds.width;
+        let x_diff = 0.5 - self.state.offset.unwrap(); // diff to center
+        let x_offset = x_diff * bounds.width; // scale to pixels
 
         // cheap trick - since we are using square images, we can set the width to the height.
         // otherwise, we'd have to calculate the image aspect ratio, since adjusting the x_pos of the
         // top-left coord shifts the bounds width. Also, subtract some padding. 
-        let dim = bounds.height - PADDING;
+        let dim_y = bounds.height - PADDING;
+  
+        // first, center the image
+        let px = (bounds.width / 2.0) - (dim_y / 2.0);
+        let py = (bounds.height / 2.0) - (dim_y / 2.0);
 
-        let x_pos = cx - x_offset;
+        // then, apply translation
+        let px = px + x_offset;
 
         let geometry = self.state.cache.draw(renderer, bounds.size(), |frame| {
-            frame.draw_image(
-        Rectangle::new(Point::new(x_pos, PADDING / 2.0), iced::Size::new(dim, dim)),
-                canvas::Image {
-                    handle: self.state.white_handle.clone().unwrap(),
-                    filter_method: iced::advanced::image::FilterMethod::Linear,
-                    rotation: Radians(0.0),
-                    border_radius: iced::border::radius(0),
-                    opacity: self.state.current_white(),
-                    snap: false,
-                },
-            );
+            if self.state.current_full_fade() < 1.0 {
+                frame.draw_image(
+            Rectangle::new(Point::new(px, py), iced::Size::new(dim_y, dim_y)),
+                    canvas::Image {
+                        handle: self.state.white_handle.clone().unwrap(),
+                        filter_method: iced::advanced::image::FilterMethod::Linear,
+                        rotation: Radians(0.0),
+                        border_radius: iced::border::radius(0),
+                        opacity: self.state.current_white(),
+                        snap: false,
+                    },
+                );
+            }
 
             frame.draw_image(
-        Rectangle::new(Point::new(x_pos, PADDING / 2.0), iced::Size::new(dim, dim)),
+        Rectangle::new(Point::new(px, py), iced::Size::new(dim_y, dim_y)),
                 canvas::Image {
                     handle: self.state.png_handle.clone().unwrap(),
                     filter_method: iced::advanced::image::FilterMethod::Linear,
