@@ -18,14 +18,15 @@ use crate::io::{self, PokedexConfig};
 
 #[derive(Debug, PartialEq)]
 enum State {
-    Registering,        // playing pokedex registration anim
-    Registered,         // dex reg anim over
+    Registering,        // blurring complete
+    Registered,         // playing pokedex registration anim
     FailedRegistering,  // show error screen
-    Classifying         // running inference
+    Classifying,        // running inference
+    ReadingEntry        // reading the dex entry - show detailed view
 }
 
 impl State {
-    fn registering_or_later(&self) -> bool {
+    fn registering(&self) -> bool {
         *self == State::Registered || *self == State::Registering || *self == State::FailedRegistering
     }
 }
@@ -42,7 +43,8 @@ pub struct Register {
     ring_handle: iced::widget::image::Handle,
     spinner_state: PokedexSpinnerState,
     failed_classification: Option<String>,
-    register_pokemon: RegisterPokemonState
+    register_pokemon: RegisterPokemonState,
+    reading_timer: Duration
 }
 
 
@@ -55,7 +57,8 @@ pub enum Message {
     Blurred(iced::widget::image::Handle),
     ClassificationResult(Result<(usize, f32), String>),
     FailedClassification(Option<String>),
-    Classified((iced::widget::image::Handle, f32, iced::widget::image::Handle))
+    Classified((iced::widget::image::Handle, f32, iced::widget::image::Handle)),
+    ReadEntry
 }
 
 pub enum Action {
@@ -91,6 +94,7 @@ impl Register {
                 spinner_state: PokedexSpinnerState::new(),
                 failed_classification: None,
                 register_pokemon: RegisterPokemonState::new(),
+                reading_timer: Duration::from_millis(0)
             },
             Task::done(Message::Start(frame))
         )
@@ -100,6 +104,7 @@ impl Register {
         match msg {
             Message::HomeToggled => Action::GoHome,
             Message::Start(frame) => {
+                self.state = State::Classifying;
                 self.captured_frame = Some(
                     iced::widget::image::Handle::from_rgba(frame.width, frame.height, frame.data.clone())
                 );
@@ -114,15 +119,23 @@ impl Register {
             Message::Tick(duration) => {       
                 self.spinner_state.tick();
 
-                if self.state == State::Registering && self.register_pokemon.current_full_fade() < 1.0 {
-                    self.register_pokemon.tick();
+                if self.state == State::Registered {
+                    self.reading_timer += duration;
+
+                    if self.register_pokemon.current_full_fade() < 1.0 {
+                        self.register_pokemon.tick();
+                    }
+
+                    // TODO: Replace with time of audio clip
+                    // ex: "Pikachu, the electric mouse pokemon"
+                    if self.reading_timer > Duration::from_millis(3000) {
+                        return Action::Run(Task::done(Message::ReadEntry));
+                    }
                 }
 
                 Action::None
             }
             Message::Classify(frame) => {
-                self.state = State::Classifying;
-
                 let model = Arc::clone(&self.config.session);
                 Action::Run(Task::perform(
                     async move {
@@ -133,11 +146,9 @@ impl Register {
             },
             Message::Blurred(handle) => {
                 self.blurred_frame = Some(handle);
+                self.state = State::Registering;
 
                 self.fade.go_mut(1.0, Instant::now());
-
-                println!("Blurring complete");
-
                 Action::None
             },
             Message::ClassificationResult(result) => {
@@ -206,16 +217,41 @@ impl Register {
                 )
             },
             Message::Classified(result) => {
-                self.state = State::Registering;
+                self.state = State::Registered;
                 self.spinner_state.start_register();
                 
                 self.register_pokemon.init(result.0, result.2, result.1);
-                
+                Action::None
+            },
+            Message::ReadEntry => {
+                self.state = State::ReadingEntry;
+
                 Action::None
             }
         }
     }
 
+    /// Given a pokemon's name, this
+    /// * Finds and loads the pokemon's sprite via [load_png](`crate::io::load_png`)
+    /// * Generates a mask for the sprite where every non-transparent
+    /// pixel is white via [make_white_mask](`Self::make_white_mask`)
+    /// * Finds the sprite's center of mass via [find_image_com](`Self::find_image_com`)
+    /// 
+    /// # Arguments
+    /// * `pokemon` The pokemon's name, as a string. Must match an entry in the [classes dict](`crate::io::PokedexConfig::classes`)
+    /// * `sprite_folder` The directory where all Pokemon sprites are stored. Retrieved from the [config](`crate::io::PokedexConfig::sprites_location`)
+    /// * `is_error` Whether to show a Missingno sprite indicating an error with classification.
+    /// 
+    /// # Returns
+    /// 
+    /// A [`Result`] containing:
+    /// * `white_handle` An iced [handle](iced::widget::image::Handle) to the all-white mask
+    /// * `offset` The x-coord of the image's center of mass
+    /// * `png_handle` An iced [handle](iced::widget::image::Handle) to the pokemon sprite
+    /// 
+    /// # Errors
+    /// 
+    /// Returns [`anyhow::Error`] if anything fails
     fn classify(pokemon: String, sprite_folder: String, is_error: bool) -> Result<(
         iced::widget::image::Handle,    // white_handle
         f32,                            // offset
@@ -237,10 +273,14 @@ impl Register {
         }
     }
 
-    /**
-     * Given a PNG, loops over its pixels and returns a mask
-     * where every non-tranparent pixel is full white
-     */
+    /// Given a PNG, loops over its pixels and returns a mask
+    /// where every non-tranparent pixel is full white
+    /// 
+    /// # Arguments
+    /// * `bytes` the raw bytes making up the rgba8 image
+    /// 
+    /// # Returns 
+    /// An [`iced::widget::image::Handle`] to the newly created mask
     fn make_white_mask(bytes: &[u8]) -> iced::widget::image::Handle {
         let img = image::load_from_memory(bytes)
             .unwrap()
@@ -258,10 +298,16 @@ impl Register {
         iced::widget::image::Handle::from_rgba(result.width(), result.height(), result.into_raw())
     }
 
-    /**
-     * Finds center of mass for a png across rows and columns
-     * A pixel is considered to have mass if it has a > 0 alpha
-     */
+    /// Finds center of mass for a png across its rows and columns
+    /// 
+    /// A pixel is considered to have mass if its alpha is > 0
+    /// 
+    /// # Arguments
+    /// 
+    /// * `bytes` the raw bytes making up the rgba8 image
+    /// 
+    /// # Returns
+    /// The x-position of the image's center of mass
     fn find_image_com(bytes: &[u8]) -> f32{
         let img = image::load_from_memory(bytes).unwrap().into_rgba8();
         let (width, height) = img.dimensions();
@@ -343,7 +389,7 @@ impl Register {
                 SpinnerCanvas::new(&self.spinner_state),
             ];
         }
-        else if self.blurred_frame.is_some() {
+        else if self.state.registering() {
             elements = vec![
                 // captured image, un-blurred
                 iced::widget::image(self.captured_frame.as_ref().unwrap())
@@ -361,7 +407,7 @@ impl Register {
                 SpinnerCanvas::new(&self.spinner_state),
             ];
 
-            if self.state == State::Registering {
+            if self.state == State::Registered {
                 // ring pulses in
                 elements.push(
                     iced::widget::image(&self.ring_handle)
@@ -369,13 +415,13 @@ impl Register {
                         .opacity(1.2 - self.spinner_state.current_register_scale())
                         .into(),
                 );
-            }
-            if self.state.registering_or_later() {
                 // show pokemon sprite
                 elements.push(
                     RegisterCanvas::new(&self.register_pokemon)
                 );
             }
+        } else {
+            println!("{:?}", self.state); 
         }
         iced::widget::Stack::with_children(elements).into()
     }
@@ -391,6 +437,15 @@ impl Register {
     }
 }
 
+/// Blurs an image using [fast_blur](image::imageops::fast_blur)
+/// 
+/// # Arguments
+/// 
+/// * `frame` An Arc containing the image the user captured as a [VideoFrame](crate::elements::gstreamer_stream::VideoFrame)
+/// 
+/// # Returns
+/// 
+/// * An iced [handle](iced::widget::image::Handle) to the blurred image
 async fn blur_image(frame: Arc<VideoFrame>) -> iced::widget::image::Handle {
     let buff: image::ImageBuffer<image::Rgba<u8>, Vec<u8>> = image::ImageBuffer::from_vec(
         frame.width, 
