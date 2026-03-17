@@ -3,3 +3,6 @@ pub mod gstreamer_stream;
 pub mod loading_screen;
 pub mod pokedex_spinner;
 pub mod register_pokemon;
+pub mod message_box;
+pub mod hex_button;
+pub mod modal;

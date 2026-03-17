@@ -19,11 +19,14 @@ use iced::{
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
+use crate::elements::gstreamer_stream::VideoFrame;
+use crate::screen::register;
 use crate::io::PokedexConfig;
 
 fn main() -> iced::Result {
     iced::daemon(App::new, App::update, App::view)
         .subscription(App::subscription)
+        .font(include_bytes!("../assets/OpenSans-Light.ttf"))
         .run()
 }
 
@@ -78,7 +81,9 @@ enum Message {
     Init,
     WindowOpened(window::Id),
     Home(home::Message),
+    Register(register::Message),
     OpenHome,
+    OpenRegister(Arc<VideoFrame>),
 }
 
 impl App {
@@ -113,12 +118,27 @@ impl App {
                 match home.update(message) {
                     home::Action::None => Task::none(),
                     home::Action::GoHome => Task::none(),
+                    home::Action::Register(result) => Task::done(Message::OpenRegister(result)),
                     home::Action::Run(task) => task.map(Message::Home),
                     home::Action::RedrawWindows => Task::none(),
                 }
             }
             Message::OpenHome => {
                 self.open_home()
+            },
+            Message::Register(message) => {
+                let Screen::Register(register) = &mut self.screen else {
+                    return Task::none();
+                };
+
+                match register.update(message) {
+                    register::Action::None => Task::none(),
+                    register::Action::GoHome => Task::done(Message::OpenHome),
+                    register::Action::Run(task) => task.map(Message::Register)
+                }
+            },
+            Message::OpenRegister(result) => {
+                self.open_register(result)
             }
         }
     }
@@ -127,6 +147,9 @@ impl App {
         match &self.screen {
             Screen::Home(home) =>
                 home.subscription().map(Message::Home),
+
+            Screen::Register(register) =>
+                register.subscription().map(Message::Register),
 
             _ => Subscription::none(),
         }
@@ -171,11 +194,18 @@ impl App {
 
     fn open_home(&mut self) -> Task<Message> {
         // If we get here, config should be loaded successfully
-        let (home, task) = screen::Home::new(
-            Arc::clone(self.config.as_ref().unwrap())
-        );
+        let (home, task) = screen::Home::new();
         self.screen = Screen::Home(home);
         task.map(Message::Home)
+    }
+
+    fn open_register(&mut self, result: Arc<VideoFrame>) -> Task<Message> {
+        let (reg, task) = screen::Register::new(
+            Arc::clone(self.config.as_ref().unwrap()),
+            result
+        );
+        self.screen = Screen::Register(reg);
+        task.map(Message::Register)
     }
 
     fn view(&self, window_id: window::Id) -> Element<'_, Message> {
@@ -197,6 +227,7 @@ impl App {
         if self.error.is_none() {
             match &self.screen {
                 Screen::Home(home) => home.top_view().map(Message::Home),
+                Screen::Register(register) => register.top_view().map(Message::Register),
                 Screen::Loading =>  {
                     let new_window_button =
                         button("Go home").on_press(Message::OpenHome);
@@ -250,6 +281,7 @@ impl App {
         if self.error.is_none() {
             match &self.screen {
                 Screen::Home(home) => home.bottom_view().map(Message::Home),
+                Screen::Register(register) => register.bottom_view().map(Message::Register),
                 Screen::Loading =>  {
                     space().into()
                 },

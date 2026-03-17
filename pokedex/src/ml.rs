@@ -8,6 +8,8 @@ use ndarray::Array4;
 
 use std::sync::{Arc, Mutex};
 
+use crate::elements::gstreamer_stream::VideoFrame;
+
 
 pub fn init(model_path: &str) -> Result<Arc<Mutex<Session>>, Error> {
     // investigate parameters here
@@ -37,8 +39,16 @@ fn image_to_tensor(img: &DynamicImage) -> Array4<f32> {
     tensor
 }
 
-pub fn classify_image(session: &mut Session, img_path: &str) -> Result<(usize, f32), anyhow::Error> {
-    let img = image::open(img_path)?;
+// todo: take in vec<u8> image data, then when we return,
+// decide whether or not and where to move the staged image
+pub fn classify_image(session: &mut Session, frame: Arc<VideoFrame>) -> Result<(usize, f32), anyhow::Error> {
+    let buff: image::ImageBuffer<image::Rgba<u8>, Vec<u8>> = image::ImageBuffer::from_vec(
+        frame.width, 
+        frame.height, 
+        frame.data.clone()
+    ).ok_or(anyhow!("Failed to create buffer from data"))?;
+    let img = image::DynamicImage::ImageRgba8(buff);
+    // let img  = image::load_from_memory_with_format(&frame.data, image::ImageFormat::Png)?;
     let tensor = image_to_tensor(&img);
     let input = Tensor::from_array(tensor)?;
 

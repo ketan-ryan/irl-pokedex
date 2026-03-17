@@ -4,7 +4,7 @@ use iced::widget::canvas::{self, Geometry, Program};
 use iced::{Animation, Element, Point, Radians, Rectangle, Renderer, Theme};
 use std::time::{Instant, Duration};
 
-use crate::screen::home::Message;
+use crate::screen::register::Message;
 
 
 #[derive(Debug)]

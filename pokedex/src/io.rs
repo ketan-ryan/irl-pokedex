@@ -155,7 +155,7 @@ pub fn get_local_path() -> Result<PathBuf, PokedexError> {
     Ok(exe_dir.into())
 }
 
-pub fn save_frame(frame: &VideoFrame) -> Result<PathBuf, image::ImageError> {
+pub fn save_frame(frame: &VideoFrame) -> Result<(), image::ImageError> {
     // Save image to a temporary staging area while classification runs
     let path = get_local_path().map_err(|e| image::ImageError::IoError(io::Error::new(io::ErrorKind::Other, e.to_string())))?; 
     let staging_area = path.join("staging");
@@ -182,5 +182,5 @@ pub fn save_frame(frame: &VideoFrame) -> Result<PathBuf, image::ImageError> {
         image::ImageFormat::Png
     )?;
 
-    Ok(out_path.to_path_buf())
+    Ok(())
 }

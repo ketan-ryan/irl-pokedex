@@ -5,7 +5,7 @@ use iced::{Animation, Color, Element, Point, Radians, Rectangle, Renderer, Theme
 use std::f32::consts::TAU;
 use std::time::{Instant, Duration};
 
-use crate::screen::home::Message;
+use crate::screen::register::Message;
 
 
 #[derive(Debug)]

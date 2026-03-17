@@ -1,55 +1,31 @@
-use anyhow::anyhow;
-
-use iced::widget::mouse_area;
-use iced::{Color, Element, Event, Subscription, Task, time};
 use iced::event::{self, Status};
 use iced::keyboard::{Event::KeyPressed, Key, key::Named};
-use iced::animation::Animation;
-use iced::widget::{container, text, stack};
+use iced::widget::{ button, container, mouse_area, stack, text};
+use iced::{Border, Color, Element, Event, Subscription, Task, Theme, Vector, time};
 
-use image;
-
-use std::path::PathBuf;
-use std::time::{Duration, Instant};
 use std::sync::Arc;
+use std::time::{Duration};
 
-use crate::elements::register_pokemon::{RegisterCanvas, RegisterPokemonState};
-use crate::ml;
 use crate::elements::gstreamer_stream::{VideoError, VideoFrame, gstreamer_stream};
 use crate::elements::loading_screen::{QuadCanvas, QuadState};
-use crate::elements::pokedex_spinner::{SpinnerCanvas, PokedexSpinnerState};
+use crate::elements::modal::modal;
 use crate::grid::Grid;
 use crate::io::{self, PokedexConfig};
 
-
 #[derive(Debug, PartialEq)]
 enum State {
-    Loading,            // waiting for camera
-    Loaded,             // getting frames
-    Classifying,        // running inference
-    Registering,        // playing pokedex registration anim
-    Registered,         // dex reg anim over
-    FailedRegistering   // show error screen
+    Loading, // waiting for camera
+    Loaded,  // getting frames
 }
 
 impl State {
     fn should_get_frames(&self) -> bool {
         *self == State::Loading || *self == State::Loaded
     }
-
-    // TODO: Maybe move this to its own Screen?
-    fn show_animation(&self) -> bool {
-        *self == State::Classifying || !self.should_get_frames()
-    }
-
-    fn registering_or_later(&self) -> bool {
-        *self == State::Registered || *self == State::Registering || *self == State::FailedRegistering
-    }
 }
 
 #[derive(Debug)]
 pub struct Home {
-    config: Arc<PokedexConfig>,
     state: State,
     bottom_handle: iced::widget::image::Handle,
     bottom_pressed_handle: iced::widget::image::Handle,
@@ -60,14 +36,7 @@ pub struct Home {
     quad_state: QuadState,
     time: f32,
     gstreamer_error: Option<String>,
-    captured_frame: Option<iced::widget::image::Handle>,
     frame_save_error: Option<String>,
-    fade: Animation<f32>,
-    bg_handle: iced::widget::image::Handle,
-    ring_handle: iced::widget::image::Handle,
-    spinner_state: PokedexSpinnerState,
-    failed_classification: Option<String>,
-    register_pokemon: RegisterPokemonState
 }
 
 #[derive(Debug, Clone)]
@@ -81,39 +50,33 @@ pub enum Message {
     GSTError(VideoError),
     IOInput(IOAction),
     FrameSaveError(Option<String>),
-    Classify(PathBuf),
-    Blurred(iced::widget::image::Handle),
-    ClassificationResult(Result<(usize, f32), String>),
-    FailedClassification(Option<String>),
-    Classified((iced::widget::image::Handle, f32, iced::widget::image::Handle))
+    Register(Arc<VideoFrame>),
 }
 
 pub enum Action {
     None,
     GoHome,
+    Register(Arc<VideoFrame>),
     RedrawWindows,
     Run(Task<Message>),
 }
 
 #[derive(Debug, Clone)]
 pub enum IOAction {
-    TakePicture
+    TakePicture,
 }
 
 impl Home {
-    pub fn new(
-        pokedex: Arc<PokedexConfig>
-    ) -> (Self, Task<Message>) { 
+    pub fn new() -> (Self, Task<Message>) {
         println!("New home created");
         (
             Self {
-                config: pokedex,
                 state: State::Loading,
                 bottom_handle: iced::widget::image::Handle::from_bytes(
-                    include_bytes!("../../assets/bottom_screen.png").as_slice()
+                    include_bytes!("../../assets/bottom_screen.png").as_slice(),
                 ),
                 bottom_pressed_handle: iced::widget::image::Handle::from_bytes(
-                    include_bytes!("../../assets/bottom_screen_pressed.png").as_slice()
+                    include_bytes!("../../assets/bottom_screen_pressed.png").as_slice(),
                 ),
                 pressed: false,
                 grid: Grid::new(),
@@ -122,62 +85,36 @@ impl Home {
                 quad_state: QuadState::new(),
                 time: 0.0,
                 gstreamer_error: None,
-                captured_frame: None,
                 frame_save_error: None,
-                fade: Animation::new(0.0)
-                    .duration(Duration::from_millis(300))
-                    .easing(iced::animation::Easing::EaseInOut),
-                bg_handle: iced::widget::image::Handle::from_bytes(
-                    include_bytes!("../../assets/background.png").as_slice()
-                ),
-                ring_handle: iced::widget::image::Handle::from_bytes(
-                    include_bytes!("../../assets/ring.png").as_slice()
-                ),
-                spinner_state: PokedexSpinnerState::new(),
-                failed_classification: None,
-                register_pokemon: RegisterPokemonState::new(),
             },
-            Task::none()
+            Task::none(),
         )
     }
 
     pub fn update(&mut self, msg: Message) -> Action {
         match msg {
-            Message::HomeToggled => {
-                Action::None
-            }
-            Message::Refresh => {
-                Action::GoHome
-            }
+            Message::HomeToggled => Action::None,
+            Message::Refresh => Action::GoHome,
             Message::Tick(duration) => {
                 self.grid.tick();
 
-                if self.state == State::Loading 
-                    || self.quad_state.is_finishing() 
-                    || !self.quad_state.finished_spinning() 
-                    && self.gstreamer_error.is_none()
+                if self.state == State::Loading
+                    || self.quad_state.is_finishing()
+                    || !self.quad_state.finished_spinning() && self.gstreamer_error.is_none()
                 {
                     self.quad_state.tick();
                 }
 
                 self.time += duration.as_secs_f32();
 
-                if self.state.show_animation() {
-                    self.spinner_state.tick();
-                }
-
-                if self.state == State::Registering && self.register_pokemon.current_full_fade() < 1.0 {
-                    self.register_pokemon.tick();
-                }
-
                 Action::RedrawWindows
-            },
+            }
             Message::BottomPressed => {
                 if self.state != State::Loading {
                     self.pressed = true;
                 }
                 Action::None
-            },
+            }
             Message::BottomReleased => {
                 self.pressed = false;
                 Action::None
@@ -188,14 +125,14 @@ impl Home {
                 self.last_frame_handle = Some(iced::widget::image::Handle::from_rgba(
                     frame.width,
                     frame.height,
-                    frame.data
+                    frame.data,
                 ));
-                
+
                 if self.state == State::Loading {
                     self.state = State::Loaded;
                     self.quad_state.set_loaded();
                 }
-                
+
                 Action::None
             }
             Message::GSTError(error) => {
@@ -212,36 +149,36 @@ impl Home {
                     }
                 }
                 Action::None
-            },
+            }
             Message::IOInput(action) => {
                 match action {
                     IOAction::TakePicture => {
                         if !self.state.should_get_frames() {
-                            return Action::None
+                            return Action::None;
                         }
-                        if let Some(frame) = self.last_frame.clone() {                           
+                        if let Some(frame) = self.last_frame.clone() {
+                            let res = Arc::new(frame.clone());
                             return Action::Run(Task::batch([
-                                Task::perform(Self::blur_image(frame.clone()), Message::Blurred),
+                                // Task::perform(Self::blur_image(frame.clone()), Message::Blurred),
                                 Task::perform(
                                     async move {
                                         // Save image to a temp staging area while we classify it
                                         // If classification succeeds: move to appropriate folder
-                                        // Else: Do nothing, staging area will be recreated on next capture 
-                                        io::save_frame(&frame)
-                                            .map_err(|e| e.to_string())
+                                        // Else: Do nothing, staging area will be recreated on next capture
+                                        io::save_frame(&frame).map_err(|e| e.to_string())
                                     },
-                                    |result| match result {
-                                        Ok(result) => Message::Classify(result),
-                                        Err(e) => Message::FrameSaveError(Some(e))
+                                    move |result| match result {
+                                        Ok(..) => Message::Register(Arc::clone(&res)),
+                                        Err(e) => Message::FrameSaveError(Some(e)),
                                     },
-                                )
-                            ])
-                        )};
-                    },
+                                ),
+                            ]));
+                        };
+                    }
                 }
 
                 Action::None
-            },
+            }
             Message::FrameSaveError(err) => {
                 if let Some(error) = err {
                     self.frame_save_error = Some(error);
@@ -249,231 +186,35 @@ impl Home {
                 };
 
                 Action::None
-            },
-            Message::Classify(path) => {
-                self.state = State::Classifying;
-
-                let model = Arc::clone(&self.config.session);
-                Action::Run(Task::perform(
-                    async move {
-                        let mut session = model.lock().unwrap();
-                        ml::classify_image(&mut session, path.to_str().unwrap())
-                    }, |result| Message::ClassificationResult(result.map_err(|e| e.to_string())))
-                )
-            },
-            Message::Blurred(handle) => {
-                self.captured_frame = Some(handle);
-
-                self.fade.go_mut(1.0, Instant::now());
-                self.spinner_state.set_time();
-
-                Action::None
-            },
-            Message::ClassificationResult(result) => {
-                if result.is_err() {
-                    println!("{:?}", &result);
-
-                    return Action::Run(
-                        Task::done(Message::FailedClassification(Some(result.as_ref().err().unwrap().to_string())))
-                    );
-                }
-                println!("{:?}", result.as_ref());
-                let (class_idx, conf) = result.unwrap();
-                if conf < 0.5 {
-                    return Action::Run(
-                        Task::done(Message::FailedClassification(Some("No Pokemon detected in image.".to_string())))
-                    );
-                } else {
-                    let cfg = self.config.clone();
-                    let pokemon: Option<&String> = cfg.classes.get(class_idx);
-                    let loc = cfg.sprites_location.clone();
-
-                    if pokemon.is_none() {
-                        // TODO error handling - missingno?
-                        println!("Index {} OOB!", class_idx);
-                        return Action::Run(Task::done(Message::FailedClassification(Some(
-                            "Pokemon index out of bounds - likely an issue with the class list.".to_string()))));
-                    }
-
-                    let poke = pokemon.unwrap().to_string();
-
-                    return Action::Run(
-                        Task::perform(
-                            async move {
-                                Self::classify(poke, loc, false)
-                                    .map_err(|e| e.to_string())
-                            }, |result| match result {
-                                Ok(res) => {
-                                    Message::Classified(res)
-                                },
-                                Err(e) => Message::FrameSaveError(Some(e))
-                            },
-                        )
-                    );
-                }
-            },
-            Message::FailedClassification(err) => {
-                // if we are here, err is Some
-                self.failed_classification = err;
-                self.state = State::FailedRegistering;
-
-                let cfg = self.config.clone();
-                let loc = cfg.sprites_location.clone();
-
-                Action::Run(
-                    Task::perform(
-                        async move {
-                            Self::classify("missingno".to_string(), loc, true)
-                                .map_err(|e| e.to_string())
-                        }, |result| match result {
-                            Ok(res) => {
-                                Message::Classified(res)
-                            },
-                            Err(e) => Message::FrameSaveError(Some(e))
-                        },
-                    )
-                )
-            },
-            Message::Classified(result) => {
-                self.state = State::Registering;
-                self.spinner_state.start_register();
-                
-                self.register_pokemon.init(result.0, result.2, result.1);
-                
-                Action::None
+            }
+            Message::Register(result) => {
+                Action::Register(result)
+                // Action::Run(Task::perform(
+                //     async move {
+                //         let mut session = model.lock().unwrap();
+                //         ml::classify_image(&mut session, path.to_str().unwrap())
+                //     }, |result| Message::ClassificationResult(result.map_err(|e| e.to_string())))
+                // )
             }
         }
-    }
-
-    fn classify(pokemon: String, sprite_folder: String, is_error: bool) -> Result<(
-        iced::widget::image::Handle,    // white_handle
-        f32,                            // offset
-        iced::widget::image::Handle     // png_handle
-    ), anyhow::Error> {        
-        // grab png
-        let img: Result<Vec<u8>, anyhow::Error> = if is_error {
-            Ok(include_bytes!("../../assets/missingno.png").to_vec())
-        } else {
-            io::load_png(sprite_folder, &pokemon)
-        };
-        if img.is_ok() {
-            let white_handle = Self::make_white_mask(&img.as_ref().unwrap());
-            let offset = Self::find_image_com(&img.as_ref().unwrap());
-            let png_handle = iced::widget::image::Handle::from_bytes(img.unwrap());
-            return Ok((white_handle, offset, png_handle));
-        } else {
-            return Err(anyhow!("Failed to grab sprite for {}", pokemon));
-        }
-    }
-
-    async fn blur_image(frame: VideoFrame) -> iced::widget::image::Handle {
-        let buff: image::ImageBuffer<image::Rgba<u8>, Vec<u8>> = image::ImageBuffer::from_vec(
-            frame.width, 
-            frame.height, 
-            frame.data.clone()
-        ).unwrap();
-        let blurred = image::imageops::fast_blur(&buff, 10.0);
-        let pixels = blurred.into_raw();
-        
-        iced::widget::image::Handle::from_rgba(frame.width, frame.height, pixels)
-    }
-
-    /**
-     * Given a PNG, loops over its pixels and returns a mask
-     * where every non-tranparent pixel is full white
-     */
-    fn make_white_mask(bytes: &[u8]) -> iced::widget::image::Handle {
-        let img = image::load_from_memory(bytes)
-            .unwrap()
-            .into_rgba8();
-
-        let result = image::ImageBuffer::from_fn(img.width(), img.height(), |x, y| {
-            let pixel = img.get_pixel(x, y);
-            if pixel[3] > 0 {
-                image::Rgba([255, 255, 255, pixel[3]])
-            } else {
-                image::Rgba([0, 0, 0, 0])
-            }
-        });
-
-        iced::widget::image::Handle::from_rgba(result.width(), result.height(), result.into_raw())
-    }
-
-    /**
-     * Finds center of mass for a png across rows and columns
-     * A pixel is considered to have mass if it has a > 0 alpha
-     */
-    fn find_image_com(bytes: &[u8]) -> f32{
-        let img = image::load_from_memory(bytes).unwrap().into_rgba8();
-        let (width, height) = img.dimensions();
-
-        // row-based CoM
-        let mut row_weighted_sum = 0.0;
-        let mut row_total_weight = 0.0;
-
-        for row in 0..height {
-            let mut row_mass = 0.0;
-            let mut row_x_sum = 0.0;
-
-            for col in 0..width {
-                let pixel = img.get_pixel(col, row);
-                if pixel[3] > 0 {
-                    row_mass += 1.0;
-                    row_x_sum += col as f32;
-                }
-            }
-
-            if row_mass > 0.0 {
-                // give more weight to dense areas
-                row_weighted_sum += (row_x_sum / row_mass) * row_mass;
-                row_total_weight += row_mass;
-            }
-        }
-
-        let row_com = (row_weighted_sum / row_total_weight) / width as f32;
-
-        // col-based CoM
-        let mut col_weighted_sum = 0.0;
-        let mut col_total_weight = 0.0;
-
-        for col in 0..width {
-            let mut col_mass = 0.0;
-
-            for row in 0..height {
-                let pixel = img.get_pixel(col, row);
-                if pixel[3] > 0 {
-                    col_mass += 1.0;
-                }
-            }
-
-            if col_mass > 0.0 {
-                col_weighted_sum += (col as f32 / width as f32) * col_mass;
-                col_total_weight += col_mass;
-            }
-        }
-
-        let col_com = col_weighted_sum / col_total_weight;
-
-        (row_com + col_com) / 2.0
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        let camera_subscription = if self.gstreamer_error.is_none() && self.state.should_get_frames() {
-            Subscription::run(gstreamer_stream).map(|result| match result {
-                Ok(frame) => Message::FrameReceived(frame),
-                Err(e) => Message::GSTError(e)
-            })
-        } else {
-            Subscription::none()
-        };
+        let camera_subscription =
+            if self.gstreamer_error.is_none() && self.state.should_get_frames() {
+                Subscription::run(gstreamer_stream).map(|result| match result {
+                    Ok(frame) => Message::FrameReceived(frame),
+                    Err(e) => Message::GSTError(e),
+                })
+            } else {
+                Subscription::none()
+            };
 
         Subscription::batch([
             // tick screen for updates ~60fps
             time::every(Duration::from_millis(16))
                 .map(|arg0: std::time::Instant| Message::Tick(arg0.elapsed())),
-
             camera_subscription,
-
             // TODO: Will need custom subscription / event to handle rpi IO
             event::listen_with(|event, status, _| match (event, status) {
                 (
@@ -489,58 +230,31 @@ impl Home {
     }
 
     pub fn top_view(&self) -> Element<'_, Message> {
+        const FONT: iced::Font = iced::Font::with_name("Open Sans Light");
+
+        let b = button(text!("Treecko, the Wood Gecko Pokemon").font(FONT))
+            .style(custom_button_style)
+            .padding(10)
+            .on_press(Message::HomeToggled);
         if self.gstreamer_error.is_some() {
-            text(format!("Error opening camera! Try rebooting or check with a developer.")).into()
-        }
-        else if self.state.show_animation() && self.captured_frame.is_some() {
-            let mut elements: Vec<Element<Message>> = vec![
-                iced::widget::image(self.captured_frame.as_ref().unwrap())
-                    .opacity(self.fade.interpolate_with(|v|v, Instant::now()))
-                    .into(),
-
-                iced::widget::image(&self.bg_handle)
-                    .scale(self.spinner_state.current_scale())
-                    .into(),
-                SpinnerCanvas::new(&self.spinner_state),
-            ];
-            if self.state == State::Registering {
-                elements.push(
-                    iced::widget::image(&self.ring_handle)
-                        .scale(self.spinner_state.current_register_scale())
-                        .opacity(1.2 - self.spinner_state.current_register_scale())
-                        .into(),
-                );
-            }
-            if self.state.registering_or_later() {
-                elements.push(
-                    RegisterCanvas::new(&self.register_pokemon)
-                );
-            }
-            iced::widget::Stack::with_children(elements).into()
-
-                // cutout: centered 8px strip of the blurred bg drawn over everything
-                // TODO: test clipping when iced updates with tinyskia fix
-                // iced::widget::container(
-                //     iced::widget::container(
-                //         iced::widget::image(self.captured_frame.as_ref().unwrap())
-                //             .content_fit(iced::ContentFit::Cover)
-                //             .width(iced::Fill)
-                //             .height(iced::Fill)
-                //     )
-                //     .width(iced::Fill)
-                //     .height(40)
-                //     .clip(true)
-                // )
-                // .width(iced::Fill)
-                // .height(iced::Fill)
-                // .align_y(iced::Center)
-
-        }
-        else if let Some(handle) = &self.last_frame_handle {
-            stack![
-                iced::widget::image(handle),
-                QuadCanvas::new(&self.quad_state),
-            ].into()
+            text(format!(
+                "Error opening camera! Try rebooting or check with a developer."
+            ))
+            .into()
+        } else if let Some(handle) = &self.last_frame_handle {
+            stack![modal(
+                stack![
+                    // warmup render so there's no flash while it loads the image
+                    iced::widget::image(handle),
+                    QuadCanvas::new(&self.quad_state),
+                ]
+                .into(),
+                "Confirm Action",
+                "Are you sure you want to proceed? This cannot be undone.",
+                vec![b],
+                400.0,
+            )]
+            .into()
         } else {
             QuadCanvas::new(&self.quad_state)
         }
@@ -552,23 +266,74 @@ impl Home {
         } else {
             1.0
         };
-        let handle = if self.pressed {&self.bottom_pressed_handle} else {&self.bottom_handle};
+        let handle = if self.pressed {
+            &self.bottom_pressed_handle
+        } else {
+            &self.bottom_handle
+        };
 
-        stack![
-            // warmup render so there's no flash while it loads the image
-            iced::widget::image(&self.bottom_pressed_handle).opacity(0.0),
-            mouse_area(
-                container(
-                iced::widget::image(handle).opacity(opacity)
+        let b = button("ada")
+            .style(custom_button_style)
+            .padding(10)
+            .on_press(Message::HomeToggled);
+
+        stack![modal(
+            stack![
+                // warmup render so there's no flash while it loads the image
+                iced::widget::image(&self.bottom_pressed_handle).opacity(0.0),
+                mouse_area(
+                    container(iced::widget::image(handle).opacity(opacity)).style(|_| {
+                        iced::widget::container::Style {
+                            background: Some(iced::Background::Color(Color::BLACK)),
+                            ..Default::default()
+                        }
+                    })
                 )
-                .style(|_| iced::widget::container::Style {
-                    background: Some(iced::Background::Color(Color::BLACK)),
-                    ..Default::default()
-                })
-            )
-            .on_press(Message::BottomPressed)
-            .on_release(Message::BottomReleased)
-        ]
-        .into()  
+                .on_press(Message::BottomPressed)
+                .on_release(Message::BottomReleased),
+            ]
+            .into(),
+            "Confirm Action",
+            "Are you sure you want to proceed? This cannot be undone.",
+            vec![b],
+            400.0,
+        )]
+        .into()
+    }
+}
+
+fn custom_button_style(theme: &Theme, status: button::Status) -> button::Style {
+
+    // Define style based on state (e.g., pressed, hovered)
+    match status {
+        button::Status::Active | button::Status::Pressed => button::Style {
+            background: Some(Color::from_rgba(0.2, 0.2, 0.2, 0.6).into()),
+            border: Border {
+                color: Color::WHITE,
+                width: 1.0,
+                radius: 5.0.into(),
+            },
+            text_color: Color::WHITE,
+            ..Default::default()
+        },
+        button::Status::Hovered => button::Style {
+            background: Some(Color::from_rgba(0.0, 0.3, 1.0, 0.6).into()),
+            shadow: iced::Shadow {
+                color: Color::from_rgba(0.0, 0.5, 0.8, 0.4),
+                offset: Vector::new(0.0, 0.0),
+                blur_radius: 8.0,
+            },
+            ..custom_button_style(theme, button::Status::Active) // Reuse active
+        },
+        _ => button::Style {
+            background: Some(Color::from_rgba(0.05, 0.05, 0.05, 0.6).into()),
+            border: Border {
+                color: Color::BLACK,
+                width: 1.0,
+                radius: 5.0.into(),
+            },
+            text_color: Color::WHITE,
+            ..Default::default()
+        },
     }
 }
