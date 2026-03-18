@@ -1,7 +1,6 @@
 // panel.rs
 use iced::{
-    advanced::{layout, renderer, widget, Widget},
-    Border, Color, Element, Length, Padding, Point, Rectangle, Renderer, Size, Theme,
+    Border, Color, Element, Length, Padding, Point, Rectangle, Renderer, Shadow, Size, Theme, advanced::{Widget, layout, renderer, widget}
 };
 use iced::advanced::Renderer as _;
 
@@ -60,34 +59,24 @@ impl<'a, Message> Widget<Message, Theme, Renderer> for Panel<'a, Message> {
         viewport: &Rectangle,
     ) {
         let bounds = layout.bounds();
-        let inner_padding = 6.0;
-        // gray outer with black border
-        // renderer.fill_quad(
-        //     renderer::Quad {
-        //         bounds,
-        //         border: Border {
-        //             color: Color::BLACK,
-        //             width: 2.0,
-        //             radius: 0.0.into(),
-        //         },
-        //         ..Default::default()
-        //     },
-        //     Color::from_rgb(0.5, 0.5, 0.5),
-        // );
 
-        // white inner
-        // renderer.fill_quad(
-        //     renderer::Quad {
-        //         bounds: Rectangle {
-        //             x: bounds.x + inner_padding / 2.0,
-        //             y: bounds.y + inner_padding,
-        //             width: bounds.width - inner_padding,
-        //             height: bounds.height - inner_padding * 2.0,
-        //         },
-        //         ..Default::default()
-        //     },
-        //     Color::WHITE,
-        // );
+        renderer.fill_quad(
+            renderer::Quad {
+                bounds,
+                border: Border {
+                    color: Color::BLACK,
+                    width: 2.0,
+                    radius: 12.0.into(),
+                },
+                shadow: Shadow {
+                    offset: iced::Vector { x: 5.0, y: 5.0 },
+                    blur_radius: 5.0,
+                    color: Color { r: 0.0, g: 0.0, b: 0.0, a: 0.7 }
+                },
+                ..Default::default()
+            },
+            Color::WHITE,
+        );
 
         // draw content
         self.content.as_widget().draw(

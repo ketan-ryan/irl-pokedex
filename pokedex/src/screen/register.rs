@@ -2,7 +2,7 @@ use anyhow::anyhow;
 
 use iced::{Border, Color, Element, Subscription, Task, Theme, Vector, time};
 use iced::animation::Animation;
-use iced::widget::{button, container};
+use iced::widget::{button, container, row, stack, text};
 
 use image;
 
@@ -10,6 +10,7 @@ use std::time::{Duration, Instant};
 use std::sync::Arc;
 
 use crate::elements::gstreamer_stream::VideoFrame;
+use crate::elements::modal::modal;
 use crate::elements::register_pokemon::{RegisterCanvas, RegisterPokemonState};
 use crate::ml;
 use crate::elements::pokedex_spinner::{SpinnerCanvas, PokedexSpinnerState};
@@ -27,7 +28,7 @@ enum State {
 
 impl State {
     fn registering(&self) -> bool {
-        *self == State::Registered || *self == State::Registering || *self == State::FailedRegistering
+        *self == State::Registered || *self == State::Registering
     }
 }
 
@@ -35,6 +36,7 @@ impl State {
 pub struct Register {
     config: Arc<PokedexConfig>,
     state: State,
+    unown_handle: iced::widget::image::Handle,
     fade: Animation<f32>,
     captured_frame: Option<iced::widget::image::Handle>,
     blurred_frame: Option<iced::widget::image::Handle>,
@@ -46,7 +48,6 @@ pub struct Register {
     register_pokemon: RegisterPokemonState,
     reading_timer: Duration
 }
-
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -90,6 +91,9 @@ impl Register {
                 ),
                 ring_handle: iced::widget::image::Handle::from_bytes(
                     include_bytes!("../../assets/ring.png").as_slice()
+                ),
+                unown_handle: iced::widget::image::Handle::from_bytes(
+                    include_bytes!("../../assets/unown.png").as_slice(),
                 ),
                 spinner_state: PokedexSpinnerState::new(),
                 failed_classification: None,
@@ -161,7 +165,7 @@ impl Register {
                 }
                 println!("{:?}", result.as_ref());
                 let (class_idx, conf) = result.unwrap();
-                if conf < 0.05 {
+                if conf < 0.5 {
                     return Action::Run(
                         Task::done(Message::FailedClassification(Some("No Pokemon detected in image.".to_string())))
                     );
@@ -198,23 +202,8 @@ impl Register {
                 self.failed_classification = err;
                 self.state = State::FailedRegistering;
 
-                let cfg = self.config.clone();
-                let loc = cfg.sprites_location.clone();
-
-                Action::Run(
-                    Task::perform(
-                        async move {
-                            Self::classify("missingno".to_string(), loc, true)
-                                .map_err(|e| e.to_string())
-                        }, |result| match result {
-                            Ok(res) => {
-                                Message::Classified(res)
-                            },
-                            // TODO: handle this differently to avoid recursing
-                            Err(e) => {Message::FailedClassification(Some(e))}
-                        },
-                    )
-                )
+                self.spinner_state.scale_down();
+                Action::None
             },
             Message::Classified(result) => {
                 self.state = State::Registered;
@@ -369,7 +358,7 @@ impl Register {
     }
 
     pub fn top_view(&self) -> Element<'_, Message> {
-        // const FONT: iced::Font = iced::Font::with_name("Open Sans Light");
+        const FONT: iced::Font = iced::Font::with_name("Open Sans Light");
 
         // items in the vec are drawn in order
         // items drawn first will be on the bottom
@@ -420,6 +409,65 @@ impl Register {
                     RegisterCanvas::new(&self.register_pokemon)
                 );
             }
+        } else if self.state == State::FailedRegistering {
+            let opacity = -self.spinner_state.current_scale() + 0.8;
+            let text_opacity = 1.0 - self.spinner_state.current_scale();
+            let width = (1.0 - self.spinner_state.current_scale()) * 640.0;
+            return 
+                container(
+                    stack![
+                        // Show captured frame
+                        iced::widget::image(self.captured_frame.as_ref().unwrap())
+                            .width(iced::Fill)
+                            .height(iced::Fill)
+                            .opacity(0.5),
+                            
+                         // fade out blurred image
+                        iced::widget::image(self.blurred_frame.as_ref().unwrap())
+                            .opacity(self.spinner_state.current_scale()),
+                            
+                        // Shrink spinner
+                        iced::widget::image(&self.bg_handle)
+                            .scale(self.spinner_state.current_scale()),
+
+                        SpinnerCanvas::new(&self.spinner_state),
+
+                        // Bar across center
+                        container(
+                            container(
+                                iced::widget::Space::new()
+                            )
+                            .width(width)
+                            .height(50)
+                            .style(move |_| container::Style {
+                                background: Some(iced::Background::Color(Color { r: 0.1, g: 0.1, b: 0.1, a: opacity })),
+                                ..Default::default()
+                            })                           
+                        )
+                        .width(iced::Fill)
+                        .height(iced::Fill)
+                        .align_y(iced::Center)
+                        .align_x(iced::Center),
+
+                        container(
+                            // Text
+                            iced::widget::text("Failed to Identify Pokémon!")
+                                .color(Color { r: 1.0, g: 1.0, b: 1.0, a: text_opacity })
+                                .size(38)
+                                .font(FONT)
+                        )
+                        .center(iced::Fill)
+                        
+                        // 
+                    ]
+                )
+                .width(iced::Fill)
+                .height(iced::Fill)
+                .style(|_| container::Style {
+                    background: Some(iced::Background::Color(Color::BLACK)),
+                    ..Default::default()
+                })
+                .into();
         } else {
             println!("{:?}", self.state); 
         }
@@ -427,13 +475,57 @@ impl Register {
     }
 
     pub fn bottom_view(&self) -> Element<'_, Message> {
-        container(iced::widget::image(&self.bottom_handle).opacity(0.5)).style(|_| {
-            iced::widget::container::Style {
-                background: Some(iced::Background::Color(Color::BLACK)),
-                ..Default::default()
-            }
-        })
-        .into()  
+        let mut elements: Vec<Element<Message>> = vec![
+            container(iced::widget::image(&self.bottom_handle).opacity(0.5)).style(|_| {
+                iced::widget::container::Style {
+                    background: Some(iced::Background::Color(Color::BLACK)),
+                    ..Default::default()
+                }
+            }).into()
+        ];
+
+        if self.state == State::FailedRegistering {
+            let dex_but = button("Go to Pokédex")
+                .style(custom_button_style)
+                .padding(10)
+                .on_press(Message::HomeToggled);
+
+            let ret_but = button("Retry Photo")
+                .style(custom_button_style)
+                .padding(10)
+                .on_press(Message::HomeToggled);
+            
+            elements.push(
+                modal(
+                    "Pokédex Registration Failed",
+                    row![
+                        container(
+                            iced::widget::image(&self.unown_handle)
+                        )
+                        .width(80)
+                        .height(80)
+                        .style(|_| container::Style {
+                            border: iced::Border {
+                                color: Color::BLACK,
+                                width: 2.0,
+                                radius: 8.0.into(),
+                            },
+                            ..Default::default()
+                        }),
+                        text("No information available!")
+                            .size(20)
+                            .width(iced::Fill)
+                            .align_x(iced::alignment::Horizontal::Right),
+                    ]
+                    .spacing(12)
+                    .align_y(iced::Center)
+                    .into(),
+                    vec![dex_but, ret_but],
+                    400.0,
+                )
+            )
+        }
+        iced::widget::Stack::with_children(elements).into()
     }
 }
 
@@ -459,27 +551,34 @@ async fn blur_image(frame: Arc<VideoFrame>) -> iced::widget::image::Handle {
 }
 
 fn custom_button_style(theme: &Theme, status: button::Status) -> button::Style {
-
     // Define style based on state (e.g., pressed, hovered)
     match status {
         button::Status::Active | button::Status::Pressed => button::Style {
             background: Some(Color::from_rgba(0.2, 0.2, 0.2, 0.6).into()),
-            border: Border { color: Color::WHITE, width: 1.0, radius: 5.0.into() },
+            border: Border {
+                color: Color::WHITE,
+                width: 1.0,
+                radius: 5.0.into(),
+            },
             text_color: Color::WHITE,
             ..Default::default()
         },
         button::Status::Hovered => button::Style {
-            background: Some(Color::from_rgba(0.0, 0.3, 1.0, 0.6).into()),
+            background: Some(Color::from_rgba8(0, 102, 255, 0.9).into()),
             shadow: iced::Shadow {
-                color: Color::from_rgba(0.0, 0.5, 0.8, 0.4),
+                color: Color::from_rgba8(0, 112, 255, 1.0),
                 offset: Vector::new(0.0, 0.0),
-                blur_radius: 8.0
+                blur_radius: 16.0,
             },
             ..custom_button_style(theme, button::Status::Active) // Reuse active
         },
         _ => button::Style {
             background: Some(Color::from_rgba(0.05, 0.05, 0.05, 0.6).into()),
-            border: Border { color: Color::BLACK, width: 1.0, radius: 5.0.into() },
+            border: Border {
+                color: Color::BLACK,
+                width: 1.0,
+                radius: 5.0.into(),
+            },
             text_color: Color::WHITE,
             ..Default::default()
         },

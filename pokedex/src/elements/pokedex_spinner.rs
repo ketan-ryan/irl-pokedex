@@ -39,6 +39,11 @@ impl PokedexSpinnerState {
         self.scale.go_mut(1.0, Instant::now());
     }
 
+    pub fn scale_down(&mut self) {
+        self.time = Instant::now();
+        self.scale.go_mut(0.0, Instant::now());
+    }
+
     pub fn start_register(&mut self) {
         self.register_circle.go_mut(1.2, Instant::now());
     }

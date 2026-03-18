@@ -1,16 +1,15 @@
 use iced::event::{self, Status};
 use iced::keyboard::{Event::KeyPressed, Key, key::Named};
-use iced::widget::{ button, container, mouse_area, stack, text};
-use iced::{Border, Color, Element, Event, Subscription, Task, Theme, Vector, time};
+use iced::widget::{container, mouse_area, stack, text};
+use iced::{Color, Element, Event, Subscription, Task, time};
 
 use std::sync::Arc;
 use std::time::{Duration};
 
 use crate::elements::gstreamer_stream::{VideoError, VideoFrame, gstreamer_stream};
 use crate::elements::loading_screen::{QuadCanvas, QuadState};
-use crate::elements::modal::modal;
 use crate::grid::Grid;
-use crate::io::{self, PokedexConfig};
+use crate::io;
 
 #[derive(Debug, PartialEq)]
 enum State {
@@ -37,6 +36,7 @@ pub struct Home {
     time: f32,
     gstreamer_error: Option<String>,
     frame_save_error: Option<String>,
+    
 }
 
 #[derive(Debug, Clone)]
@@ -230,30 +230,18 @@ impl Home {
     }
 
     pub fn top_view(&self) -> Element<'_, Message> {
-        const FONT: iced::Font = iced::Font::with_name("Open Sans Light");
-
-        let b = button(text!("Treecko, the Wood Gecko Pokemon").font(FONT))
-            .style(custom_button_style)
-            .padding(10)
-            .on_press(Message::HomeToggled);
         if self.gstreamer_error.is_some() {
             text(format!(
                 "Error opening camera! Try rebooting or check with a developer."
             ))
             .into()
         } else if let Some(handle) = &self.last_frame_handle {
-            stack![modal(
-                stack![
-                    // warmup render so there's no flash while it loads the image
-                    iced::widget::image(handle),
-                    QuadCanvas::new(&self.quad_state),
-                ]
-                .into(),
-                "Confirm Action",
-                "Are you sure you want to proceed? This cannot be undone.",
-                vec![b],
-                400.0,
-            )]
+            stack![
+                // warmup render so there's no flash while it loads the image
+                iced::widget::image(handle),
+                QuadCanvas::new(&self.quad_state),
+
+            ]
             .into()
         } else {
             QuadCanvas::new(&self.quad_state)
@@ -272,12 +260,7 @@ impl Home {
             &self.bottom_handle
         };
 
-        let b = button("ada")
-            .style(custom_button_style)
-            .padding(10)
-            .on_press(Message::HomeToggled);
-
-        stack![modal(
+        stack![
             stack![
                 // warmup render so there's no flash while it loads the image
                 iced::widget::image(&self.bottom_pressed_handle).opacity(0.0),
@@ -291,49 +274,8 @@ impl Home {
                 )
                 .on_press(Message::BottomPressed)
                 .on_release(Message::BottomReleased),
-            ]
-            .into(),
-            "Confirm Action",
-            "Are you sure you want to proceed? This cannot be undone.",
-            vec![b],
-            400.0,
-        )]
+            ],
+        ]
         .into()
-    }
-}
-
-fn custom_button_style(theme: &Theme, status: button::Status) -> button::Style {
-
-    // Define style based on state (e.g., pressed, hovered)
-    match status {
-        button::Status::Active | button::Status::Pressed => button::Style {
-            background: Some(Color::from_rgba(0.2, 0.2, 0.2, 0.6).into()),
-            border: Border {
-                color: Color::WHITE,
-                width: 1.0,
-                radius: 5.0.into(),
-            },
-            text_color: Color::WHITE,
-            ..Default::default()
-        },
-        button::Status::Hovered => button::Style {
-            background: Some(Color::from_rgba(0.0, 0.3, 1.0, 0.6).into()),
-            shadow: iced::Shadow {
-                color: Color::from_rgba(0.0, 0.5, 0.8, 0.4),
-                offset: Vector::new(0.0, 0.0),
-                blur_radius: 8.0,
-            },
-            ..custom_button_style(theme, button::Status::Active) // Reuse active
-        },
-        _ => button::Style {
-            background: Some(Color::from_rgba(0.05, 0.05, 0.05, 0.6).into()),
-            border: Border {
-                color: Color::BLACK,
-                width: 1.0,
-                radius: 5.0.into(),
-            },
-            text_color: Color::WHITE,
-            ..Default::default()
-        },
     }
 }
