@@ -9,6 +9,7 @@ config = "0.15.19"
 gstreamer = "0.24.4"
 gstreamer-app = "0.24.4"
 gstreamer-video = "0.24.4"
+iced_gif = "0.14.0"
 image = { version = "0.25.9", features = ["default-formats"] }
 include_assets = "1.0.0"
 ndarray = "0.17.2"

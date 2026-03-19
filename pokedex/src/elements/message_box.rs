@@ -29,7 +29,7 @@ impl<'a, Message> Widget<Message, Theme, Renderer> for Panel<'a, Message> {
     }
 
     fn layout(&mut self, tree: &mut widget::Tree, renderer: &Renderer, limits: &layout::Limits) -> layout::Node {
-        let inner_padding = Padding { top: 4.0, bottom: 4.0, left: 0.0, right: 0.0 };
+        let inner_padding = Padding { top: 4.0, bottom: 4.0, left: 20.0, right: 20.0 };
         let limits = limits.width(self.width);
 
         let child_node = self.content.as_widget_mut().layout(
@@ -59,23 +59,43 @@ impl<'a, Message> Widget<Message, Theme, Renderer> for Panel<'a, Message> {
         viewport: &Rectangle,
     ) {
         let bounds = layout.bounds();
+        let inner_padding = 10.0;
 
+        // blue outer box
         renderer.fill_quad(
-            renderer::Quad {
-                bounds,
-                border: Border {
-                    color: Color::BLACK,
-                    width: 2.0,
-                    radius: 12.0.into(),
+            renderer::Quad { 
+                bounds, 
+                    border: Border {
+                    color: Color::from_rgba8(77, 238, 255, 0.8),
+                    width: 6.0,
+                    radius: 8.0.into()
                 },
                 shadow: Shadow {
-                    offset: iced::Vector { x: 5.0, y: 5.0 },
+                    offset: iced::Vector { x: 0.0, y: 0.0 },
                     blur_radius: 5.0,
-                    color: Color { r: 0.0, g: 0.0, b: 0.0, a: 0.7 }
+                    color: Color::from_rgba8(0, 238, 255, 1.0)
+                },
+                ..Default::default() },
+        Color::from_rgba8(45, 190, 255, 0.9)
+        );
+
+        // white inner box
+        renderer.fill_quad(
+            renderer::Quad {
+                bounds: Rectangle { 
+                    x: bounds.x + inner_padding * 5.0, 
+                    y: bounds.y + inner_padding / 2.0, 
+                    width: bounds.width - inner_padding * 10.0, 
+                    height: bounds.height - inner_padding 
+                },
+                border: Border {
+                    color: Color::BLACK,
+                    width: 0.0,
+                    radius: 12.0.into(),
                 },
                 ..Default::default()
             },
-            Color::WHITE,
+            Color::WHITE
         );
 
         // draw content

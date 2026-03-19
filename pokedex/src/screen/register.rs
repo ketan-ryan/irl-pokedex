@@ -1,8 +1,9 @@
 use anyhow::anyhow;
 
-use iced::{Border, Color, Element, Subscription, Task, Theme, Vector, time};
+use iced::{Color, Element, Subscription, Task, time};
 use iced::animation::Animation;
 use iced::widget::{button, container, row, stack, text};
+use iced_gif::Gif;
 
 use image;
 
@@ -36,7 +37,7 @@ impl State {
 pub struct Register {
     config: Arc<PokedexConfig>,
     state: State,
-    unown_handle: iced::widget::image::Handle,
+    unown_handle: iced_gif::Frames,
     fade: Animation<f32>,
     captured_frame: Option<iced::widget::image::Handle>,
     blurred_frame: Option<iced::widget::image::Handle>,
@@ -92,9 +93,9 @@ impl Register {
                 ring_handle: iced::widget::image::Handle::from_bytes(
                     include_bytes!("../../assets/ring.png").as_slice()
                 ),
-                unown_handle: iced::widget::image::Handle::from_bytes(
-                    include_bytes!("../../assets/unown.png").as_slice(),
-                ),
+                unown_handle: iced_gif::Frames::from_bytes(
+                    include_bytes!("../../assets/unown-interrogation.gif").to_vec()
+                ).unwrap(),
                 spinner_state: PokedexSpinnerState::new(),
                 failed_classification: None,
                 register_pokemon: RegisterPokemonState::new(),
@@ -167,7 +168,7 @@ impl Register {
                 let (class_idx, conf) = result.unwrap();
                 if conf < 0.5 {
                     return Action::Run(
-                        Task::done(Message::FailedClassification(Some("No Pokemon detected in image.".to_string())))
+                        Task::done(Message::FailedClassification(Some("No Pokémon detected in image.".to_string())))
                     );
                 } else {
                     let cfg = self.config.clone();
@@ -177,7 +178,7 @@ impl Register {
                     if pokemon.is_none() {
                         println!("Index {} OOB!", class_idx);
                         return Action::Run(Task::done(Message::FailedClassification(Some(
-                            "Pokemon index out of bounds - likely an issue with the class list.".to_string()))));
+                            "Pokémon index out of bounds - likely an issue with the class list.".to_string()))));
                     }
 
                     let poke = pokemon.unwrap().to_string();
@@ -486,33 +487,27 @@ impl Register {
 
         if self.state == State::FailedRegistering {
             let dex_but = button("Go to Pokédex")
-                .style(custom_button_style)
                 .padding(10)
                 .on_press(Message::HomeToggled);
 
             let ret_but = button("Retry Photo")
-                .style(custom_button_style)
                 .padding(10)
                 .on_press(Message::HomeToggled);
             
+            let t = self.failed_classification.as_ref().unwrap();
+
             elements.push(
                 modal(
                     "Pokédex Registration Failed",
                     row![
                         container(
-                            iced::widget::image(&self.unown_handle)
+                            Gif::new(&self.unown_handle)
                         )
-                        .width(80)
-                        .height(80)
-                        .style(|_| container::Style {
-                            border: iced::Border {
-                                color: Color::BLACK,
-                                width: 2.0,
-                                radius: 8.0.into(),
-                            },
-                            ..Default::default()
-                        }),
-                        text("No information available!")
+                        .width(120)
+                        .height(120)
+                        .padding(iced::Padding { top: 30.0, bottom: 6.0, left: 16.0, right: 16.0 }),
+
+                        text(t)
                             .size(20)
                             .width(iced::Fill)
                             .align_x(iced::alignment::Horizontal::Right),
@@ -521,7 +516,7 @@ impl Register {
                     .align_y(iced::Center)
                     .into(),
                     vec![dex_but, ret_but],
-                    400.0,
+                    600.0,
                 )
             )
         }
@@ -548,39 +543,4 @@ async fn blur_image(frame: Arc<VideoFrame>) -> iced::widget::image::Handle {
     let pixels = blurred.into_raw();
     
     iced::widget::image::Handle::from_rgba(frame.width, frame.height, pixels)
-}
-
-fn custom_button_style(theme: &Theme, status: button::Status) -> button::Style {
-    // Define style based on state (e.g., pressed, hovered)
-    match status {
-        button::Status::Active | button::Status::Pressed => button::Style {
-            background: Some(Color::from_rgba(0.2, 0.2, 0.2, 0.6).into()),
-            border: Border {
-                color: Color::WHITE,
-                width: 1.0,
-                radius: 5.0.into(),
-            },
-            text_color: Color::WHITE,
-            ..Default::default()
-        },
-        button::Status::Hovered => button::Style {
-            background: Some(Color::from_rgba8(0, 102, 255, 0.9).into()),
-            shadow: iced::Shadow {
-                color: Color::from_rgba8(0, 112, 255, 1.0),
-                offset: Vector::new(0.0, 0.0),
-                blur_radius: 16.0,
-            },
-            ..custom_button_style(theme, button::Status::Active) // Reuse active
-        },
-        _ => button::Style {
-            background: Some(Color::from_rgba(0.05, 0.05, 0.05, 0.6).into()),
-            border: Border {
-                color: Color::BLACK,
-                width: 1.0,
-                radius: 5.0.into(),
-            },
-            text_color: Color::WHITE,
-            ..Default::default()
-        },
-    }
 }

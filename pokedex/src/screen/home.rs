@@ -4,7 +4,7 @@ use iced::widget::{container, mouse_area, stack, text};
 use iced::{Color, Element, Event, Subscription, Task, time};
 
 use std::sync::Arc;
-use std::time::{Duration};
+use std::time::{Duration, Instant};
 
 use crate::elements::gstreamer_stream::{VideoError, VideoFrame, gstreamer_stream};
 use crate::elements::loading_screen::{QuadCanvas, QuadState};
@@ -33,10 +33,9 @@ pub struct Home {
     last_frame_handle: Option<iced::widget::image::Handle>,
     last_frame: Option<VideoFrame>,
     quad_state: QuadState,
-    time: f32,
+    time: Instant,
     gstreamer_error: Option<String>,
     frame_save_error: Option<String>,
-    
 }
 
 #[derive(Debug, Clone)]
@@ -83,7 +82,7 @@ impl Home {
                 last_frame_handle: None,
                 last_frame: None,
                 quad_state: QuadState::new(),
-                time: 0.0,
+                time: Instant::now(),
                 gstreamer_error: None,
                 frame_save_error: None,
             },
@@ -95,7 +94,7 @@ impl Home {
         match msg {
             Message::HomeToggled => Action::None,
             Message::Refresh => Action::GoHome,
-            Message::Tick(duration) => {
+            Message::Tick(_) => {
                 self.grid.tick();
 
                 if self.state == State::Loading
@@ -104,8 +103,6 @@ impl Home {
                 {
                     self.quad_state.tick();
                 }
-
-                self.time += duration.as_secs_f32();
 
                 Action::RedrawWindows
             }
@@ -120,17 +117,19 @@ impl Home {
                 Action::None
             }
             Message::FrameReceived(frame) => {
-                self.last_frame = Some(frame.clone());
+                if self.time.elapsed() > Duration::from_secs_f32(0.5) {
+                    self.last_frame = Some(frame.clone());
 
-                self.last_frame_handle = Some(iced::widget::image::Handle::from_rgba(
-                    frame.width,
-                    frame.height,
-                    frame.data,
-                ));
+                    self.last_frame_handle = Some(iced::widget::image::Handle::from_rgba(
+                        frame.width,
+                        frame.height,
+                        frame.data,
+                    ));
 
-                if self.state == State::Loading {
-                    self.state = State::Loaded;
-                    self.quad_state.set_loaded();
+                    if self.state == State::Loading {
+                        self.state = State::Loaded;
+                        self.quad_state.set_loaded();
+                    }
                 }
 
                 Action::None
@@ -237,7 +236,6 @@ impl Home {
             .into()
         } else if let Some(handle) = &self.last_frame_handle {
             stack![
-                // warmup render so there's no flash while it loads the image
                 iced::widget::image(handle),
                 QuadCanvas::new(&self.quad_state),
 
@@ -261,20 +259,18 @@ impl Home {
         };
 
         stack![
-            stack![
-                // warmup render so there's no flash while it loads the image
-                iced::widget::image(&self.bottom_pressed_handle).opacity(0.0),
-                mouse_area(
-                    container(iced::widget::image(handle).opacity(opacity)).style(|_| {
-                        iced::widget::container::Style {
-                            background: Some(iced::Background::Color(Color::BLACK)),
-                            ..Default::default()
-                        }
-                    })
-                )
-                .on_press(Message::BottomPressed)
-                .on_release(Message::BottomReleased),
-            ],
+            // warmup render so there's no flash while it loads the image
+            iced::widget::image(&self.bottom_pressed_handle).opacity(0.0),
+            mouse_area(
+                container(iced::widget::image(handle).opacity(opacity)).style(|_| {
+                    iced::widget::container::Style {
+                        background: Some(iced::Background::Color(Color::BLACK)),
+                        ..Default::default()
+                    }
+                })
+            )
+            .on_press(Message::BottomPressed)
+            .on_release(Message::BottomReleased)
         ]
         .into()
     }
