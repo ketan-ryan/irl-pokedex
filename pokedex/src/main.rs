@@ -1,27 +1,23 @@
-mod io;
-mod screen;
 mod elements;
+mod io;
 mod ml;
+mod screen;
 
+use elements::grid;
 use include_assets::{NamedArchive, include_dir};
 use screen::Screen;
 use screen::home;
-use elements::grid;
 
-use iced::widget::{
-    button, column, space
-};
+use iced::widget::{button, column, space};
 use iced::window::{self};
-use iced::{
-    Center, Element, Fill, Subscription, Task
-};
+use iced::{Center, Element, Fill, Subscription, Task};
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use crate::elements::gstreamer_stream::VideoFrame;
-use crate::screen::register;
 use crate::io::PokedexConfig;
+use crate::screen::register;
 
 fn main() -> iced::Result {
     iced::daemon(App::new, App::update, App::view)
@@ -49,16 +45,27 @@ impl std::error::Error for PokedexError {}
 impl std::fmt::Display for PokedexError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            PokedexError::ConfigNotFound => write!(f, "Could not find config next to executable. Please place it in the same directory with name \"pokedex_settings.yaml\""),
+            PokedexError::ConfigNotFound => write!(
+                f,
+                "Could not find config next to executable. Please place it in the same directory with name \"pokedex_settings.yaml\""
+            ),
             PokedexError::MalformedConfig(e) => write!(f, "Configuration is invalid: {}", e),
-            PokedexError::PokedexNotFound(dir) => write!(f, "Could not find pokedex JSON at {}", dir),
+            PokedexError::PokedexNotFound(dir) => {
+                write!(f, "Could not find pokedex JSON at {}", dir)
+            }
             PokedexError::MalformedPokedex(e) => write!(f, "Could not parse Pokedex JSON: {}", e),
             PokedexError::AssetsNotFound(dir) => write!(f, "Could not find assets dir at {}", dir),
-            PokedexError::FatalError(e) => write!(f, "Fatal error! Operation cannot proceed: {}", e),
+            PokedexError::FatalError(e) => {
+                write!(f, "Fatal error! Operation cannot proceed: {}", e)
+            }
             PokedexError::ModelNotFound(dir) => write!(f, "Could not find model {}", dir),
             PokedexError::ModelError(e) => write!(f, "Error loading model: {}", e),
-            PokedexError::ClassesNotFound(dir) => write!(f, "Could not find list of Pokemon names at {}", dir),
-            PokedexError::MalformedClasses(e) => write!(f, "Could not parse Pokemon classes list: {}", e)
+            PokedexError::ClassesNotFound(dir) => {
+                write!(f, "Could not find list of Pokemon names at {}", dir)
+            }
+            PokedexError::MalformedClasses(e) => {
+                write!(f, "Could not parse Pokemon classes list: {}", e)
+            }
         }
     }
 }
@@ -67,13 +74,14 @@ struct App {
     windows: Option<BTreeMap<window::Id, WindowType>>,
     screen: Screen,
     error: Option<PokedexError>,
-    config: Option<Arc<PokedexConfig>>
+    config: Option<Arc<PokedexConfig>>,
+    bottom_handle: iced::widget::image::Handle,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum WindowType {
     TopScreen,
-    BottomScreen
+    BottomScreen,
 }
 
 #[derive(Debug, Clone)]
@@ -94,16 +102,17 @@ impl App {
                 windows: None,
                 error: None,
                 config: None,
+                bottom_handle: iced::widget::image::Handle::from_bytes(
+                    include_bytes!("../assets/bottom_screen.png").as_slice(),
+                ),
             },
-            Task::done(Message::Init)
+            Task::done(Message::Init),
         )
     }
 
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::Init => {
-                self.load_files()
-            }
+            Message::Init => self.load_files(),
             Message::WindowOpened(_) => {
                 if self.error.is_none() {
                     return self.open_home();
@@ -123,9 +132,7 @@ impl App {
                     home::Action::RedrawWindows => Task::none(),
                 }
             }
-            Message::OpenHome => {
-                self.open_home()
-            },
+            Message::OpenHome => self.open_home(),
             Message::Register(message) => {
                 let Screen::Register(register) = &mut self.screen else {
                     return Task::none();
@@ -134,22 +141,18 @@ impl App {
                 match register.update(message) {
                     register::Action::None => Task::none(),
                     register::Action::GoHome => Task::done(Message::OpenHome),
-                    register::Action::Run(task) => task.map(Message::Register)
+                    register::Action::Run(task) => task.map(Message::Register),
                 }
-            },
-            Message::OpenRegister(result) => {
-                self.open_register(result)
             }
+            Message::OpenRegister(result) => self.open_register(result),
         }
     }
 
     fn subscription(&self) -> Subscription<Message> {
         match &self.screen {
-            Screen::Home(home) =>
-                home.subscription().map(Message::Home),
+            Screen::Home(home) => home.subscription().map(Message::Home),
 
-            Screen::Register(register) =>
-                register.subscription().map(Message::Register),
+            Screen::Register(register) => register.subscription().map(Message::Register),
 
             _ => Subscription::none(),
         }
@@ -174,13 +177,13 @@ impl App {
 
         self.windows = Some(BTreeMap::from([
             (top_id, WindowType::TopScreen),
-            (bottom_id, WindowType::BottomScreen)
+            (bottom_id, WindowType::BottomScreen),
         ]));
 
         match io::validate_config() {
             Ok(cfg) => {
                 self.config = Some(Arc::new(cfg));
-            },
+            }
             Err(e) => {
                 self.error = Some(e);
             }
@@ -194,7 +197,7 @@ impl App {
 
     fn open_home(&mut self) -> Task<Message> {
         // If we get here, config should be loaded successfully
-        let (home, task) = screen::Home::new();
+        let (home, task) = screen::Home::new(self.bottom_handle.clone());
         self.screen = Screen::Home(home);
         task.map(Message::Home)
     }
@@ -202,21 +205,23 @@ impl App {
     fn open_register(&mut self, result: Arc<VideoFrame>) -> Task<Message> {
         let (reg, task) = screen::Register::new(
             Arc::clone(self.config.as_ref().unwrap()),
-            result
+            result,
+            self.bottom_handle.clone(),
         );
         self.screen = Screen::Register(reg);
         task.map(Message::Register)
     }
 
     fn view(&self, window_id: window::Id) -> Element<'_, Message> {
-        if let Some(window) = self.windows.clone().expect("Windows should exist!").get(&window_id) {
+        if let Some(window) = self
+            .windows
+            .clone()
+            .expect("Windows should exist!")
+            .get(&window_id)
+        {
             match window {
-                WindowType::TopScreen => {
-                    self.top_view()
-                }
-                WindowType::BottomScreen => {
-                    self.bottom_view()
-                }
+                WindowType::TopScreen => self.top_view(),
+                WindowType::BottomScreen => self.bottom_view(),
             }
         } else {
             space().into()
@@ -228,9 +233,8 @@ impl App {
             match &self.screen {
                 Screen::Home(home) => home.top_view().map(Message::Home),
                 Screen::Register(register) => register.top_view().map(Message::Register),
-                Screen::Loading =>  {
-                    let new_window_button =
-                        button("Go home").on_press(Message::OpenHome);
+                Screen::Loading => {
+                    let new_window_button = button("Go home").on_press(Message::OpenHome);
 
                     let content = column![new_window_button]
                         .spacing(50)
@@ -239,11 +243,11 @@ impl App {
                         .width(200);
 
                     content.into()
-                },
+                }
             }
         } else {
-                iced::widget::container(
-            iced::widget::column![
+            iced::widget::container(
+                iced::widget::column![
                     iced::widget::text("Fatal Error Detected!")
                         .size(48)
                         .color(iced::Color::from_rgb(1.0, 0.0, 0.0))
@@ -273,7 +277,7 @@ impl App {
                 background: Some(iced::Background::Color(iced::Color::WHITE)),
                 ..Default::default()
             })
-        .into()
+            .into()
         }
     }
 
@@ -282,9 +286,7 @@ impl App {
             match &self.screen {
                 Screen::Home(home) => home.bottom_view().map(Message::Home),
                 Screen::Register(register) => register.bottom_view().map(Message::Register),
-                Screen::Loading =>  {
-                    space().into()
-                },
+                Screen::Loading => space().into(),
             }
         } else {
             let archive = NamedArchive::load(include_dir!("assets"));
@@ -297,7 +299,7 @@ impl App {
                     background: Some(iced::Background::Color(iced::Color::BLACK)),
                     ..Default::default()
                 })
-            .into()
+                .into()
         }
     }
 }

@@ -1,14 +1,13 @@
-use iced::widget::image;
 use iced::widget::Canvas;
 use iced::widget::canvas::{self, Geometry, Program};
+use iced::widget::image;
 use iced::{Animation, Element, Point, Radians, Rectangle, Renderer, Theme};
-use std::time::{Instant, Duration};
+use std::time::{Duration, Instant};
 
 use crate::screen::register::Message;
 
-
 #[derive(Debug)]
-pub struct RegisterPokemonState { 
+pub struct RegisterPokemonState {
     pub time: Instant,
     pub white_fade: Animation<f32>,
     pub cache: canvas::Cache,
@@ -27,7 +26,7 @@ impl RegisterPokemonState {
         let full_fade = Animation::new(0.0f32)
             .duration(Duration::from_millis(800))
             .easing(iced::animation::Easing::EaseOut);
-        
+
         Self {
             time: Instant::now(),
             cache: canvas::Cache::new(),
@@ -35,7 +34,7 @@ impl RegisterPokemonState {
             full_fade,
             white_handle: None,
             png_handle: None,
-            offset: None
+            offset: None,
         }
     }
 
@@ -70,9 +69,7 @@ impl RegisterPokemonState {
 pub struct RegisterCanvas;
 
 impl RegisterCanvas {
-    pub fn new<'a>(
-        state: &'a RegisterPokemonState,
-    ) -> Element<'a, Message> {
+    pub fn new<'a>(state: &'a RegisterPokemonState) -> Element<'a, Message> {
         Canvas::new(RegisterCanvasProgram { state })
             .width(iced::Fill)
             .height(iced::Fill)
@@ -105,9 +102,9 @@ impl<'a> Program<Message> for RegisterCanvasProgram<'a> {
 
         // cheap trick - since we are using square images, we can set the width to the height.
         // otherwise, we'd have to calculate the image aspect ratio, since adjusting the x_pos of the
-        // top-left coord shifts the bounds width. Also, subtract some padding. 
+        // top-left coord shifts the bounds width. Also, subtract some padding.
         let dim_y = bounds.height - PADDING;
-  
+
         // first, center the image
         let px = (bounds.width / 2.0) - (dim_y / 2.0);
         let py = (bounds.height / 2.0) - (dim_y / 2.0);
@@ -118,7 +115,7 @@ impl<'a> Program<Message> for RegisterCanvasProgram<'a> {
         let geometry = self.state.cache.draw(renderer, bounds.size(), |frame| {
             if self.state.current_full_fade() < 1.0 {
                 frame.draw_image(
-            Rectangle::new(Point::new(px, py), iced::Size::new(dim_y, dim_y)),
+                    Rectangle::new(Point::new(px, py), iced::Size::new(dim_y, dim_y)),
                     canvas::Image {
                         handle: self.state.white_handle.clone().unwrap(),
                         filter_method: iced::advanced::image::FilterMethod::Linear,
@@ -131,7 +128,7 @@ impl<'a> Program<Message> for RegisterCanvasProgram<'a> {
             }
 
             frame.draw_image(
-        Rectangle::new(Point::new(px, py), iced::Size::new(dim_y, dim_y)),
+                Rectangle::new(Point::new(px, py), iced::Size::new(dim_y, dim_y)),
                 canvas::Image {
                     handle: self.state.png_handle.clone().unwrap(),
                     filter_method: iced::advanced::image::FilterMethod::Linear,

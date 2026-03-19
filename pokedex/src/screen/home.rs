@@ -66,14 +66,12 @@ pub enum IOAction {
 }
 
 impl Home {
-    pub fn new() -> (Self, Task<Message>) {
+    pub fn new(bottom_handle: iced::widget::image::Handle) -> (Self, Task<Message>) {
         println!("New home created");
         (
             Self {
                 state: State::Loading,
-                bottom_handle: iced::widget::image::Handle::from_bytes(
-                    include_bytes!("../../assets/bottom_screen.png").as_slice(),
-                ),
+                bottom_handle: bottom_handle,
                 bottom_pressed_handle: iced::widget::image::Handle::from_bytes(
                     include_bytes!("../../assets/bottom_screen_pressed.png").as_slice(),
                 ),
@@ -238,7 +236,6 @@ impl Home {
             stack![
                 iced::widget::image(handle),
                 QuadCanvas::new(&self.quad_state),
-
             ]
             .into()
         } else {

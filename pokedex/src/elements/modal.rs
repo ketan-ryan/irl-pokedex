@@ -1,6 +1,6 @@
 // modal.rs
-use iced::{Color, Border, Element, Length, Theme, Vector};
-use iced::widget::{button, button::Button, column, container, row, text, Space};
+use iced::widget::{Space, button, button::Button, column, container, row, text};
+use iced::{Border, Color, Element, Length, Theme, Vector};
 
 use crate::elements::message_box::Panel;
 
@@ -29,16 +29,19 @@ pub fn modal<'a, Message: Clone + 'static>(
         button_row,
     ]
     .spacing(4)
-    .padding(iced::Padding { top: 4.0, bottom: 6.0, left: 70.0, right: 70.0 });
+    .padding(iced::Padding {
+        top: 4.0,
+        bottom: 6.0,
+        left: 60.0,
+        right: 60.0,
+    });
 
     iced::widget::stack![
-        container(
-            Panel::new(content).width(width)
-        )
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .align_x(iced::Center)
-        .align_y(iced::Center),
+        container(Panel::new(content).width(width))
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .align_x(iced::Center)
+            .align_y(iced::Center),
     ]
     .into()
 }
