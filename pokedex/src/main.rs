@@ -4,6 +4,7 @@ mod ml;
 mod screen;
 
 use elements::grid;
+use gstreamer::glib::num_processors;
 use include_assets::{NamedArchive, include_dir};
 use screen::Screen;
 use screen::home;
@@ -20,6 +21,11 @@ use crate::io::PokedexConfig;
 use crate::screen::register;
 
 fn main() -> iced::Result {
+    rayon::ThreadPoolBuilder::new()
+        .num_threads((num_processors() as usize).saturating_sub(2)) // leave 2 cores for iced + OS
+        .build_global()
+        .unwrap();
+
     iced::daemon(App::new, App::update, App::view)
         .subscription(App::subscription)
         .font(include_bytes!("../assets/OpenSans-Light.ttf"))

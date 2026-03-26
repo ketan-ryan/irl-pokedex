@@ -13,6 +13,8 @@ pub struct PokedexSpinnerState {
     pub scale: Animation<f32>,
     pub cache: canvas::Cache,
     register_circle: Animation<f32>,
+    fading_out: bool,
+    faded_out: bool
 }
 
 impl PokedexSpinnerState {
@@ -30,6 +32,8 @@ impl PokedexSpinnerState {
             cache: canvas::Cache::new(),
             scale,
             register_circle: register_scale,
+            fading_out: false,
+            faded_out: false
         }
     }
 
@@ -42,6 +46,11 @@ impl PokedexSpinnerState {
         self.register_circle.go_mut(1.2, Instant::now());
     }
 
+    pub fn end_register(&mut self) {
+        self.register_circle.go_mut(0.0, Instant::now());
+        self.fading_out = true;
+    }
+
     pub fn current_scale(&self) -> f32 {
         self.scale.interpolate_with(|v| v, Instant::now())
     }
@@ -52,6 +61,10 @@ impl PokedexSpinnerState {
 
     pub fn tick(&mut self) {
         self.cache.clear();
+
+        if self.fading_out && self.current_register_scale() == 0.0 {
+            self.faded_out = true;
+        }
     }
 }
 
@@ -138,6 +151,13 @@ fn draw_spinner(frame: &mut Frame, cx: f32, cy: f32, radius: f32, state: &Pokede
         // arc length: TAU / n. Each arc is 1/n circle
         // gap between: TAU / n. n gaps evenly spaced
         let mut opacity = ((angle - 0.0) / 0.5).clamp(0.0, 1.0);
+        
+        // Fade out
+        let multiplier: f32 = match state.fading_out {
+            true => state.current_register_scale(),
+            false => 1.0,
+        };
+
         opacity = 0.7 * opacity.clamp(0.0, 1.0);
         draw_arcs(
             frame,
@@ -147,7 +167,7 @@ fn draw_spinner(frame: &mut Frame, cx: f32, cy: f32, radius: f32, state: &Pokede
             [TAU / 4.0; 3].as_slice(),
             TAU / 3.0,
             angle * 2.0,
-            Color::from_rgba(1.0, 1.0, 1.0, opacity),
+            Color::from_rgba(1.0, 1.0, 1.0, opacity * multiplier),
         );
         if angle > 0.35 {
             let mut opacity = ((angle - 0.35) / 0.5).clamp(0.0, 1.0);
@@ -160,7 +180,7 @@ fn draw_spinner(frame: &mut Frame, cx: f32, cy: f32, radius: f32, state: &Pokede
                 [TAU / 6.0, TAU / 16.0, TAU / 20.0].as_slice(),
                 TAU / 3.0,
                 -angle * 1.8,
-                Color::from_rgba(140.0 / 255.0, 213.0 / 255.0, 229.0 / 255.0, opacity),
+                Color::from_rgba(140.0 / 255.0, 213.0 / 255.0, 229.0 / 255.0, opacity * multiplier),
             );
         }
         if angle > 0.7 {
@@ -174,7 +194,7 @@ fn draw_spinner(frame: &mut Frame, cx: f32, cy: f32, radius: f32, state: &Pokede
                 [TAU / 8.0, TAU / 14.0].as_slice(),
                 TAU / 2.0,
                 angle * 3.0,
-                Color::from_rgba(0.0, 156.0 / 255.0, 195.0 / 255.0, opacity),
+                Color::from_rgba(0.0, 156.0 / 255.0, 195.0 / 255.0, opacity * multiplier),
             );
         }
     });

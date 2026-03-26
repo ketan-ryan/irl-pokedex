@@ -115,6 +115,7 @@ impl Home {
                 Action::None
             }
             Message::FrameReceived(frame) => {
+                // TODO move this to async task
                 if self.time.elapsed() > Duration::from_secs_f32(0.5) {
                     self.last_frame = Some(frame.clone());
 

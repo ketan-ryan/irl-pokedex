@@ -49,6 +49,11 @@ impl RegisterPokemonState {
     pub fn start_full(&mut self) {
         self.full_fade.go_mut(1.0, Instant::now());
     }
+    
+    pub fn fade_out(&mut self) {
+        self.white_fade.go_mut(0.0, Instant::now());    
+        self.full_fade.go_mut(0.0, Instant::now());
+    }
 
     pub fn current_white(&self) -> f32 {
         self.white_fade.interpolate_with(|v| v, Instant::now())
@@ -60,6 +65,7 @@ impl RegisterPokemonState {
 
     pub fn tick(&mut self) {
         self.cache.clear();
+        
         if self.current_white() == 1.0 && self.current_full_fade() == 0.0 {
             self.start_full();
         }

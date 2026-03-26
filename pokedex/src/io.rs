@@ -18,6 +18,7 @@ use crate::{PokedexError, ml};
 pub struct PokemonInfo {
     pub number: String,
     pub r#type: String,
+    pub species: String,
     pub height: String,
     pub weight: String,
     pub abilities: Vec<String>,
@@ -30,6 +31,7 @@ pub struct PokedexConfig {
     pub sprites_location: String,
     pub session: Arc<Mutex<Session>>,
     pub classes: Vec<String>,
+    pub confidence: f32,
 }
 
 pub fn validate_config() -> Result<PokedexConfig, PokedexError> {
@@ -67,11 +69,32 @@ pub fn validate_config() -> Result<PokedexConfig, PokedexError> {
     }
     let classes = load_classes(classes_path.unwrap())?;
 
+    let conf = config.get("model_confidence");
+    if conf.is_none() {
+        let mcerr = "Could not find key model_confidence in config, model threshold unable to be determined.";
+        return Err(PokedexError::MalformedConfig(mcerr.to_string()));
+    }
+
+    let confidence: f32 = match conf.unwrap().parse() {
+        Ok(num) => num,
+        Err(_) => {
+            let mcerr =
+                "Model confidence could not be parsed! Key model_confidence must be a valid float.";
+            return Err(PokedexError::MalformedConfig(mcerr.to_string()));
+        }
+    };
+
+    if confidence < 0.0 || confidence > 1.0 {
+        let mcerr = "Invalid model confidence! Key model_confidence must be between 0.0 and 1.0, inclusive.";
+        return Err(PokedexError::MalformedConfig(mcerr.to_string()));
+    }
+
     Ok(PokedexConfig {
         pokedex_json: entries,
         sprites_location: path.unwrap().to_string(),
         session: model,
         classes: classes,
+        confidence: confidence,
     })
 }
 
