@@ -5,6 +5,8 @@ use std::time::Instant;
 use noise::{self, Exponent, NoiseFn, Perlin};
 use rand::prelude::*;
 
+use crate::io::PokemonInfo;
+
 // Animation speed for updating noise
 const SPEED: f64 = 0.01;
 
@@ -15,7 +17,9 @@ pub struct PokemonDetailsState {
     pub noise_image: Option<iced::widget::image::Handle>,
     last_completed: Instant,
     pub palette: Vec<Rgb>,
-    random: u32
+    random: u32,
+    current_pokemon: Option<PokemonInfo>,
+    current_dex: Option<String>
 }
 
 impl PokemonDetailsState {
@@ -29,7 +33,9 @@ impl PokemonDetailsState {
             noise_image: None,
             last_completed: Instant::now(),
             palette: Vec::new(),
-            random
+            random,
+            current_pokemon: None,
+            current_dex: None
         }
     }
 
@@ -60,6 +66,16 @@ impl PokemonDetailsState {
     pub fn quantize(bytes: &[u8]) -> Vec<Rgb> {
         let loaded = load_img(bytes);
         return median_cut(loaded, MAX_ITERATIONS);
+    }
+
+    pub fn set_current_pokemon(&mut self, pokemon: Option<PokemonInfo>) {
+        self.current_pokemon = pokemon;
+        let random_index = rand::random_range(0..self.current_pokemon.as_ref().map_or(1, |p| p.dex_entries.len()));
+        self.current_dex = self.current_pokemon.as_ref().and_then(|p| p.dex_entries.iter().nth(random_index).map(|(_, v)| v.clone()));
+    }
+    
+    pub fn current_pokedex(&self) -> Option<&String> {
+        self.current_dex.as_ref()
     }
 }
 

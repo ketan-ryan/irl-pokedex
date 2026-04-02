@@ -22,7 +22,7 @@ tokio = {version = "1.48.0", features=["sync"]}
 url = "2.5.7"
 
 [target.'cfg(target_arch = "aarch64")'.dependencies]
-iced = { version = "0.14.0", default-features = false, features = ["advanced", "canvas", "tokio", "image", "tiny-skia", "wayland"] }
+iced = {version="0.14.0", default-features = false, features = ["advanced", "canvas", "tokio", "image", "tiny-skia", "wayland"] }
 openssl = { version = "0.10.75", features = ["vendored"] }
 ort = { git = "https://github.com/pykeio/ort.git", rev = "94417081c47f47f5a7d6a92ce94bb38fda10019f", default-features = false, features = [
     "load-dynamic",
@@ -31,5 +31,5 @@ ort = { git = "https://github.com/pykeio/ort.git", rev = "94417081c47f47f5a7d6a9
 ]}
 
 [target.'cfg(target_arch = "x86_64")'.dependencies]
-iced = { version = "0.14.0", default-features = false, features = ["advanced", "canvas", "tokio", "image", "wgpu"] }
+iced = {version="0.14.0", default-features = false, features = ["advanced", "canvas", "tokio", "image", "wgpu"] }
 ort = { git = "https://github.com/pykeio/ort.git", rev = "94417081c47f47f5a7d6a92ce94bb38fda10019f", features = ["download-binaries"]}

@@ -187,12 +187,6 @@ impl Home {
             }
             Message::Register(result) => {
                 Action::Register(result)
-                // Action::Run(Task::perform(
-                //     async move {
-                //         let mut session = model.lock().unwrap();
-                //         ml::classify_image(&mut session, path.to_str().unwrap())
-                //     }, |result| Message::ClassificationResult(result.map_err(|e| e.to_string())))
-                // )
             }
         }
     }

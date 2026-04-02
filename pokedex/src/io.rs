@@ -14,7 +14,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use crate::elements::gstreamer_stream::VideoFrame;
 use crate::{PokedexError, ml};
 
-#[derive(Deserialize, Debug)]
+#[derive(Clone, Deserialize, Debug)]
 pub struct PokemonInfo {
     pub number: String,
     pub r#type: String,

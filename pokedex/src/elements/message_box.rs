@@ -5,9 +5,13 @@ use iced::{
     advanced::{Widget, layout, renderer, widget},
 };
 
+use crate::elements::modal::SCALE_WIDTH;
+
 pub struct Panel<'a, Message> {
     content: Element<'a, Message>,
     width: Length,
+    height: Length,
+    scale_factor: f32,
 }
 
 impl<'a, Message> Panel<'a, Message> {
@@ -15,18 +19,31 @@ impl<'a, Message> Panel<'a, Message> {
         Self {
             content: content.into(),
             width: Length::Shrink,
+            height: Length::Shrink,
+            scale_factor: 1.0,
         }
     }
 
     pub fn width(mut self, width: impl Into<Length>) -> Self {
         self.width = width.into();
+        self.scale_factor = match self.width {
+            Length::Fill => 1.0,
+            Length::Shrink => 1.0,
+            Length::Fixed(w) => w / (SCALE_WIDTH),
+            Length::FillPortion(amount) => SCALE_WIDTH / (amount as f32),
+        };
+        self
+    }
+
+    pub fn height(mut self, height: impl Into<Length>) -> Self {
+        self.height = height.into();
         self
     }
 }
 
 impl<'a, Message> Widget<Message, Theme, Renderer> for Panel<'a, Message> {
     fn size(&self) -> Size<Length> {
-        Size::new(self.width, Length::Shrink)
+        Size::new(self.width, self.height)
     }
 
     fn layout(
@@ -36,12 +53,12 @@ impl<'a, Message> Widget<Message, Theme, Renderer> for Panel<'a, Message> {
         limits: &layout::Limits,
     ) -> layout::Node {
         let inner_padding = Padding {
-            top: 4.0,
-            bottom: 4.0,
-            left: 20.0,
-            right: 20.0,
+            top: 4.0 * self.scale_factor,
+            bottom: 4.0 * self.scale_factor,
+            left: 20.0 * self.scale_factor,
+            right: 20.0 * self.scale_factor,
         };
-        let limits = limits.width(self.width);
+        let limits = limits.width(self.width).height(self.height);
 
         let child_node = self.content.as_widget_mut().layout(
             &mut tree.children[0],
@@ -50,10 +67,14 @@ impl<'a, Message> Widget<Message, Theme, Renderer> for Panel<'a, Message> {
         );
 
         let child_size = child_node.size();
+        let node_height = match self.height {
+            Length::Fixed(h) => h,
+            _ => child_size.height + inner_padding.top + inner_padding.bottom,
+        };
         layout::Node::with_children(
             Size {
                 width: child_size.width,
-                height: child_size.height + inner_padding.top + inner_padding.bottom,
+                height: node_height,
             },
             vec![child_node.move_to(Point::new(0.0, inner_padding.top))],
         )
@@ -70,7 +91,7 @@ impl<'a, Message> Widget<Message, Theme, Renderer> for Panel<'a, Message> {
         viewport: &Rectangle,
     ) {
         let bounds = layout.bounds();
-        let inner_padding = 10.0;
+        let inner_padding = 7.0;
 
         // blue outer box
         renderer.fill_quad(
@@ -95,15 +116,15 @@ impl<'a, Message> Widget<Message, Theme, Renderer> for Panel<'a, Message> {
         renderer.fill_quad(
             renderer::Quad {
                 bounds: Rectangle {
-                    x: bounds.x + inner_padding * 5.0,
+                    x: bounds.x + inner_padding * 5.0 * self.scale_factor,
                     y: bounds.y + inner_padding / 2.0,
-                    width: bounds.width - inner_padding * 10.0,
+                    width: bounds.width - inner_padding * 10.0 * self.scale_factor,
                     height: bounds.height - inner_padding,
                 },
                 border: Border {
                     color: Color::BLACK,
                     width: 0.0,
-                    radius: 12.0.into(),
+                    radius: (12.0 * self.scale_factor).into(),
                 },
                 ..Default::default()
             },

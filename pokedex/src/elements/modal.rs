@@ -4,11 +4,102 @@ use iced::{Border, Color, Element, Length, Theme, Vector};
 
 use crate::elements::message_box::Panel;
 
+pub const SCALE_WIDTH: f32 = 600.0;
+const PIXEL_FONT: iced::Font = iced::Font::with_name("Open Sans Condensed Light");
+const MIN_FONT_SIZE: f32 = 10.0;
+const MAX_FONT_SIZE: f32 = 150.0;
+const AVERAGE_CHAR_WIDTH_RATIO: f32 = 0.56; // heuristic for monospace-like fonts
+
+/// Shrinks text to fit within max width and height, allowing for wrapping up to max_wrapped_lines.
+///
+/// # Arguments
+/// - `text`: The text to fit.
+/// - `requested_size`: The initial font size to try.
+/// - `max_width`: The maximum width available for the text.
+/// - `min_size`: The minimum font size to allow.
+/// - `max_wrapped_lines`: The maximum number of lines to allow when wrapping.
+/// - `max_height`: The maximum height available for the text.
+///
+/// # Returns
+/// The adjusted font size that fits within the constraints.
+pub fn shrink_text_to_fit(
+    text: &str,
+    requested_size: f32,
+    max_width: f32,
+    min_size: f32,
+    max_wrapped_lines: f32,
+    max_height: f32,
+) -> f32 {
+    if max_width <= 0.0 || max_height <= 0.0 {
+        return min_size.max(MIN_FONT_SIZE);
+    }
+
+    let chars = text.chars().count() as f32;
+    if chars == 0.0 {
+        return min_size.max(MIN_FONT_SIZE);
+    }
+
+    let mut size = requested_size.max(min_size).clamp(min_size, MAX_FONT_SIZE);
+
+    let line_count = |font_size: f32| {
+        let width = chars * font_size * AVERAGE_CHAR_WIDTH_RATIO;
+        (width / max_width).ceil().max(1.0)
+    };
+
+    let estimated_height = |font_size: f32, lines: f32| lines * font_size * 1.2;
+
+    while size > min_size
+        && (line_count(size) > max_wrapped_lines
+            || estimated_height(size, line_count(size)) > max_height)
+    {
+        size -= 1.0;
+    }
+
+    while size < MAX_FONT_SIZE
+        && line_count(size + 1.0) <= max_wrapped_lines
+        && estimated_height(size + 1.0, line_count(size + 1.0)) <= max_height
+    {
+        size += 1.0;
+    }
+
+    size.clamp(min_size, MAX_FONT_SIZE)
+}
+
+/// Creates a text widget that automatically adjusts its font size to fit within the specified width and height constraints.
+/// # Arguments
+/// - `content`: The text content to display.
+/// - `requested_size`: The initial font size to try.
+/// - `max_text_width`: The maximum width available for the text.
+/// - `max_wrapped_lines`: The maximum number of lines to allow when wrapping.
+/// - `max_text_height`: The maximum height available for the text.
+///
+/// # Returns
+/// An `iced::widget::Text` element with an adjusted font size that fits within the specified constraints.
+pub fn adaptive_text(
+    content: impl Into<String>,
+    requested_size: f32,
+    max_text_width: f32,
+    max_wrapped_lines: f32,
+    max_text_height: f32,
+) -> iced::widget::Text<'static> {
+    let content_string = content.into();
+    let fitted_size = shrink_text_to_fit(
+        &content_string,
+        requested_size,
+        max_text_width,
+        MIN_FONT_SIZE,
+        max_wrapped_lines,
+        max_text_height,
+    );
+    text(content_string).size(fitted_size)
+}
+
 pub fn modal<'a, Message: Clone + 'static>(
-    title: &'a str,
+    title: Option<String>,
     body: Element<'a, Message>,
     buttons: Vec<Button<'a, Message>>,
     width: f32,
+    height: f32,
 ) -> Element<'a, Message> {
     let mut elements: Vec<Element<Message>> = vec![];
     let mut buttons = buttons.into_iter().peekable();
@@ -20,30 +111,40 @@ pub fn modal<'a, Message: Clone + 'static>(
     }
     let button_row = row(elements).width(iced::Fill);
 
-    const PIXEL_FONT: iced::Font = iced::Font::with_name("Open Sans Light");
+    let scale_factor = width / SCALE_WIDTH;
 
-    let content = column![
-        text(title).size(30).font(PIXEL_FONT),
-        body,
-        Space::new().height(4),
-        button_row,
-    ]
-    .spacing(4)
-    .padding(iced::Padding {
-        top: 4.0,
-        bottom: 6.0,
-        left: 60.0,
-        right: 60.0,
-    });
+    // only add title if it is Some
+    let mut content_col = column![];
+    let mut top_padding = 4.0;
+    if let Some(t) = title {
+        content_col = content_col.push(
+            text(t)
+                .font(PIXEL_FONT)
+                .size(24.0 * scale_factor)
+                .color(Color::BLACK),
+        );
+    } else {
+        top_padding = 12.0;
+    }
+    let content = content_col
+        .push(container(body).center(Length::Fill))
+        .push(Space::new().height(4))
+        .push(button_row)
+        .spacing(4)
+        .padding(iced::Padding {
+            top: top_padding * scale_factor,
+            bottom: 6.0 * scale_factor,
+            left: 60.0 * (scale_factor / 1.25),
+            right: 60.0 * (scale_factor / 1.25),
+        })
+        .height(iced::Fill);
 
-    iced::widget::stack![
-        container(Panel::new(content).width(width))
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .align_x(iced::Center)
-            .align_y(iced::Center),
-    ]
-    .into()
+    container(Panel::new(content).width(width).height(height))
+        .width(Length::Fixed(width))
+        .height(Length::Fixed(height))
+        .align_x(iced::Center)
+        .align_y(iced::Center)
+        .into()
 }
 
 fn custom_button_style(theme: &Theme, status: button::Status) -> button::Style {

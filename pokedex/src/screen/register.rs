@@ -1,10 +1,12 @@
 use anyhow::anyhow;
 
-use iced::Length::Fill;
+use iced::Length::{self, Fill};
 use iced::animation::Animation;
-use iced::widget::{Space, button, column, container, row, text};
-use iced::{Color, Element, Subscription, Task, time};
+use iced::widget::{Space, button, column, container, row, stack, text};
+use iced::{Alignment, Color, Element, Subscription, Task, time};
 use iced_gif::Gif;
+
+use iced::{Background, ContentFit, Padding};
 
 use image;
 
@@ -12,7 +14,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use crate::elements::gstreamer_stream::VideoFrame;
-use crate::elements::modal::modal;
+use crate::elements::modal::{adaptive_text, modal};
 use crate::elements::pokedex_spinner::{PokedexSpinnerState, SpinnerCanvas};
 use crate::elements::pokemon_details::PokemonDetailsState;
 use crate::elements::register_pokemon::{RegisterCanvas, RegisterPokemonState};
@@ -58,7 +60,7 @@ pub struct Register {
     register_pokemon: RegisterPokemonState,
     reading_timer: Duration,
     failed_anim: Animation<f32>,
-    pokemon_details: PokemonDetailsState
+    pokemon_details: PokemonDetailsState,
 }
 
 #[derive(Debug, Clone)]
@@ -174,10 +176,9 @@ impl Register {
 
                 if self.state == State::ReadingEntry {
                     let mut details = self.pokemon_details.clone();
-                    return Action::Run(Task::perform(
-                        async move { details.tick() },
-                        |handle| Message::NoiseReady(handle.clone()),
-                    ));
+                    return Action::Run(Task::perform(async move { details.tick() }, |handle| {
+                        Message::NoiseReady(handle.clone())
+                    }));
                 }
 
                 Action::None
@@ -215,8 +216,12 @@ impl Register {
                     ))));
                 } else {
                     let cfg = self.config.clone();
+                    // TODO: change to class_idx
+                    let class_idx = rand::random_range(0..1136);
                     let pokemon: Option<&String> = cfg.classes.get(class_idx);
                     let loc = cfg.sprites_location.clone();
+                    self.pokemon_details
+                        .set_current_pokemon(cfg.pokedex_json.get(pokemon.unwrap()).cloned());
 
                     if pokemon.is_none() {
                         println!("Index {} OOB!", class_idx);
@@ -504,6 +509,7 @@ impl Register {
     }
 
     pub fn bottom_view(&self) -> Element<'_, Message> {
+        const FONT: iced::Font = iced::Font::with_name("Open Sans Condensed");
         let opacity = if self.state != State::ReadingEntry {
             0.5
         } else {
@@ -520,6 +526,7 @@ impl Register {
         ];
 
         if self.state == State::FailedRegistering {
+            //TODO: Investigate stutter
             let dex_but = button("Go to Pokédex")
                 .padding(10)
                 .on_press(Message::HomeToggled);
@@ -532,29 +539,34 @@ impl Register {
 
             let modal_width = self.failed_anim.interpolate_with(|v| v, Instant::now()) * 600.0;
             if modal_width > 0.0 {
-                elements.push(modal(
-                    "Pokédex Registration Failed",
-                    row![
-                        container(Gif::new(&self.unown_handle))
-                            .width(120)
-                            .height(120)
-                            .padding(iced::Padding {
-                                top: 30.0,
-                                bottom: 6.0,
-                                left: 16.0,
-                                right: 16.0
-                            }),
-                        text(t)
-                            .size(20)
-                            .width(iced::Fill)
-                            .align_x(iced::alignment::Horizontal::Right),
-                    ]
-                    .spacing(12)
-                    .align_y(iced::Center)
+                elements.push(
+                    container(modal(
+                        Some("Pokédex Registration Failed".to_string()),
+                        row![
+                            container(Gif::new(&self.unown_handle))
+                                .width(120)
+                                .height(120)
+                                .padding(iced::Padding {
+                                    top: 30.0,
+                                    bottom: 6.0,
+                                    left: 16.0,
+                                    right: 16.0
+                                }),
+                            text(t)
+                                .size(10)
+                                .width(iced::Fill)
+                                .align_x(iced::alignment::Horizontal::Right),
+                        ]
+                        .spacing(12)
+                        .align_y(iced::Center)
+                        .into(),
+                        vec![dex_but, ret_but],
+                        modal_width,
+                        220.0,
+                    ))
+                    .center(Length::Fill)
                     .into(),
-                    vec![dex_but, ret_but],
-                    modal_width,
-                ));
+                );
             }
         } else if self.state == State::ReadingEntry {
             if self.pokemon_details.noise_image.is_some() {
@@ -564,13 +576,130 @@ impl Register {
                 //     .or_else(|| self.pokemon_details.next_image.clone())
                 //     .unwrap_or_else(|| iced::widget::image::Handle::from_rgba(1, 1, vec![0,0,0,255]));
 
+                // Background
                 elements.push(
                     iced::widget::image(self.pokemon_details.noise_image.as_ref().unwrap())
                         .width(Fill)
                         .height(Fill)
                         .content_fit(iced::ContentFit::Cover)
                         .into(),
+                );
+
+                // sprite
+                let pokemon_image =
+                    iced::widget::image(self.register_pokemon.png_handle.as_ref().unwrap().clone())
+                        .width(Length::Fixed(300.0))
+                        .height(Length::Fixed(400.0))
+                        .content_fit(ContentFit::Contain);
+
+                // info modal
+                let info_with_ball = row![
+                    iced::widget::image(self.captured_frame.as_ref().unwrap().clone())
+                        .width(Length::Fixed(36.0))
+                        .height(Length::Fixed(36.0)),
+                    modal(
+                        Some("Top modal".to_string()),
+                        row![
+                            text("top desc")
+                                .size(10)
+                                .width(iced::Fill)
+                                .align_x(iced::alignment::Horizontal::Right),
+                        ]
+                        .spacing(12)
+                        .align_y(iced::Center)
+                        .into(),
+                        vec![],
+                        200.0,
+                        50.0,
+                    )
+                ]
+                .spacing(8)
+                .align_y(Alignment::Start);
+
+                let right_column = column![info_with_ball,].spacing(12).width(Length::Fill);
+
+                // place sprite next to info modal
+                let main_content = container(
+                    row![pokemon_image, right_column,]
+                        .spacing(16)
+                        .padding(20)
+                        .align_y(Alignment::Center),
                 )
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .style(|_| container::Style {
+                    background: None,
+                    ..Default::default()
+                });
+
+                // navbar
+                const BOTTOM_BAR_HEIGHT: f32 = 46.0;
+                const BOTTOM_BAR_MARGIN: f32 = 20.0;
+
+                let bottom_bar = container(
+                    row![
+                        button("✕").on_press(Message::HomeToggled),
+                        Space::new().width(iced::Fill),
+                        button("←").on_press(Message::HomeToggled),
+                        button("→").on_press(Message::HomeToggled),
+                    ]
+                    .padding(Padding::from([8, 16]))
+                    .align_y(Alignment::Center)
+                    .width(Length::Fill),
+                )
+                .width(Length::Fill)
+                .height(Length::Fixed(BOTTOM_BAR_HEIGHT))
+                .style(|_| container::Style {
+                    background: Some(Background::Color(Color::from_rgb(0.25, 0.25, 0.28))),
+                    ..Default::default()
+                });
+
+                // get pokedex entry
+                let pokedex_string = self
+                    .pokemon_details
+                    .current_pokedex()
+                    .cloned()
+                    .unwrap_or_else(|| {
+                        "Error: Unable to retrieve details for this Pokémon".to_string()
+                    });
+
+                // pokedex description modal
+                let description_text = if pokedex_string.starts_with("Error") {
+                    text(pokedex_string).size(16.0).width(iced::Fill)
+                } else {
+                    // magic numbers determined via trial and error
+                    adaptive_text(pokedex_string, 16.0, 300.0, 8.0, 100.0).width(iced::Fill)
+                };
+
+                let description_overlay = container(modal(
+                    None,
+                    row![
+                        description_text
+                            .font(FONT)
+                            .align_x(iced::alignment::Horizontal::Left),
+                    ]
+                    .spacing(12)
+                    .align_y(iced::Alignment::End)
+                    .into(),
+                    vec![],
+                    400.0,
+                    110.0,
+                ))
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .align_x(iced::Right)
+                .align_y(iced::Bottom)
+                .padding(Padding {
+                    top: 300.0,
+                    bottom: BOTTOM_BAR_HEIGHT + BOTTOM_BAR_MARGIN,
+                    left: 300.0,
+                    right: 5.0,
+                });
+
+                let content =
+                    stack![column![main_content, bottom_bar,], description_overlay].into();
+
+                elements.push(content)
             } else {
                 println!("Still waiting")
             }
