@@ -1,5 +1,6 @@
 // panel.rs
 use iced::advanced::Renderer as _;
+use iced::window::scale_factor;
 use iced::{
     Border, Color, Element, Length, Padding, Point, Rectangle, Renderer, Shadow, Size, Theme,
     advanced::{Widget, layout, renderer, widget},
@@ -117,9 +118,9 @@ impl<'a, Message> Widget<Message, Theme, Renderer> for Panel<'a, Message> {
             renderer::Quad {
                 bounds: Rectangle {
                     x: bounds.x + inner_padding * 5.0 * self.scale_factor,
-                    y: bounds.y + inner_padding / 2.0,
+                    y: bounds.y + inner_padding,
                     width: bounds.width - inner_padding * 10.0 * self.scale_factor,
-                    height: bounds.height - inner_padding,
+                    height: bounds.height - inner_padding * 2.0,
                 },
                 border: Border {
                     color: Color::BLACK,

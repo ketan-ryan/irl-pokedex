@@ -19,7 +19,7 @@ pub struct PokemonDetailsState {
     pub palette: Vec<Rgb>,
     random: u32,
     current_pokemon: Option<PokemonInfo>,
-    current_dex: Option<String>
+    current_dex: Option<String>,
 }
 
 impl PokemonDetailsState {
@@ -35,7 +35,7 @@ impl PokemonDetailsState {
             palette: Vec::new(),
             random,
             current_pokemon: None,
-            current_dex: None
+            current_dex: None,
         }
     }
 
@@ -68,27 +68,48 @@ impl PokemonDetailsState {
         return median_cut(loaded, MAX_ITERATIONS);
     }
 
-    pub fn set_current_pokemon(&mut self, pokemon: Option<PokemonInfo>) {
+    pub fn set_current_pokemon(&mut self, pokemon: Option<PokemonInfo>) -> Option<String> {
         self.current_pokemon = pokemon;
-        let random_index = rand::random_range(0..self.current_pokemon.as_ref().map_or(1, |p| p.dex_entries.len()));
-        self.current_dex = self.current_pokemon.as_ref().and_then(|p| p.dex_entries.iter().nth(random_index).map(|(_, v)| v.clone()));
+        let random_index = rand::random_range(
+            0..self
+                .current_pokemon
+                .as_ref()
+                .map_or(1, |p| p.dex_entries.len()),
+        );
+        self.current_dex = self.current_pokemon.as_ref().and_then(|p| {
+            p.dex_entries
+                .iter()
+                .nth(random_index)
+                .map(|(_, v)| v.clone())
+        });
+        self.current_dex.clone()
     }
-    
+
     pub fn current_pokedex(&self) -> Option<&String> {
         self.current_dex.as_ref()
+    }
+
+    pub fn current_pokemon(&self) -> Option<&PokemonInfo> {
+        self.current_pokemon.as_ref()
     }
 }
 
 /// Generates a noise texture and colors it using a color palette
 /// # Arguments
-/// * `width` the width of the noise image to generate 
+/// * `width` the width of the noise image to generate
 /// * `height` the height of the noise image to generate
 /// * `time` time scaled by speed, used to scroll the noise texture
 /// * `seed` a randomly generated seed for the perlin noise
-/// 
+///
 /// # Returns
 /// An [`iced::widget::image::Handle`] containing the noise texture at the current time
-fn build_noise_image(width: u32, height: u32, time: f64, palette: &[Rgb], seed: u32) -> iced::widget::image::Handle {
+fn build_noise_image(
+    width: u32,
+    height: u32,
+    time: f64,
+    palette: &[Rgb],
+    seed: u32,
+) -> iced::widget::image::Handle {
     let perlin = Perlin::new(seed);
     let exponent = Exponent::new(perlin).set_exponent(3.0);
 
@@ -132,7 +153,7 @@ pub type Rgb = [f64; 3];
 /// # Arguments
 /// * `color` the 3-channel color to clamp
 /// * `max_brightness` the maximum allowed brightness
-/// 
+///
 /// # Returns
 /// The color if its brightness < the threshold, or the scaled brightness
 fn clamp_brightness(color: Rgb, max_brightness: f64) -> Rgb {
@@ -148,7 +169,7 @@ fn clamp_brightness(color: Rgb, max_brightness: f64) -> Rgb {
 /// Given a palette of RGB colors, returns a palette sorted by hue
 /// # Arguments
 /// `palette` The list of RGB colors
-/// 
+///
 /// # Returns
 /// The original colors sorted by their hues
 fn sort_palette_by_hue(palette: &[Rgb]) -> Vec<Rgb> {
@@ -162,7 +183,7 @@ fn sort_palette_by_hue(palette: &[Rgb]) -> Vec<Rgb> {
 /// * `a` The start color
 /// * `b` The end color
 /// * `t` The amount to interpolate by
-/// 
+///
 /// # Returns
 /// A color between the original colors at the specified point
 fn lerp_color(a: &Rgb, b: &Rgb, t: f64) -> Rgb {
@@ -177,7 +198,7 @@ fn lerp_color(a: &Rgb, b: &Rgb, t: f64) -> Rgb {
 /// # Arguments
 /// * `value` A value between [0..1]
 /// * `palette` The color palette to use to find the output color
-/// 
+///
 /// # Returns
 /// An output color at the appropriate spot in the palette
 fn sample_palette(value: f64, palette: &[Rgb]) -> Rgb {
@@ -190,7 +211,7 @@ fn sample_palette(value: f64, palette: &[Rgb]) -> Rgb {
     }
 
     // Scale value into palette index space
-    let scaled = (value as f32) * (n-1) as f32;
+    let scaled = (value as f32) * (n - 1) as f32;
     let lo = (scaled.floor() as usize).min(n - 2);
     let hi = lo + 1;
     let t = scaled - lo as f32; // lerp factor
@@ -201,7 +222,7 @@ fn sample_palette(value: f64, palette: &[Rgb]) -> Rgb {
 /// Calculates the hue of a color from its RGB values
 /// # Arguments
 /// `c` The input RGB color
-/// 
+///
 /// # Returns
 /// The color's hue as a float between [0..1]
 fn hue_of(c: &Rgb) -> f64 {
@@ -228,11 +249,11 @@ fn hue_of(c: &Rgb) -> f64 {
 }
 
 /// Converts an image from a list of bytes to a list of RGB colors
-/// 
+///
 /// Resizes the image to a max size of 64x64, as more detail is unecessary for our use
-/// # Arguments 
+/// # Arguments
 /// `bytes` The image as a bytearray
-/// 
+///
 /// # Returns
 /// The image as a list of RGB colors
 fn load_img(bytes: &[u8]) -> Vec<Rgb> {
@@ -262,7 +283,7 @@ fn load_img(bytes: &[u8]) -> Vec<Rgb> {
 /// Finds the color channel with the largest range in the image, used for splitting the image in the median cut algorithm
 /// # Arguments
 /// `arr` The image as a list of RGB colors
-/// 
+///
 /// # Returns
 /// The index of the channel with the largest range (0 for red, 1 for green, 2 for blue)
 fn find_max_range(arr: &[Rgb]) -> usize {
@@ -287,7 +308,7 @@ fn find_max_range(arr: &[Rgb]) -> usize {
 }
 
 /// Performs the median cut algorithm to quantize the image to a smaller palette
-/// 
+///
 /// Implementation based on this article https://en.wikipedia.org/wiki/Median_cut
 /// # Arguments
 /// `arr` The image as a list of RGB colors

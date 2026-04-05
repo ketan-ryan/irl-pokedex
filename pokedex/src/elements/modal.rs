@@ -1,3 +1,5 @@
+use cosmic_text::Align;
+use gstreamer::Pad;
 // modal.rs
 use iced::widget::{Space, button, button::Button, column, container, row, text};
 use iced::{Border, Color, Element, Length, Theme, Vector};
@@ -10,24 +12,19 @@ const MIN_FONT_SIZE: f32 = 10.0;
 const MAX_FONT_SIZE: f32 = 150.0;
 const AVERAGE_CHAR_WIDTH_RATIO: f32 = 0.56; // heuristic for monospace-like fonts
 
+use iced::advanced::text::{Paragraph, Text as TextRenderer};
+use iced::{Font, Pixels, Size};
+
+use iced::widget::text as text_widget;
+
 /// Shrinks text to fit within max width and height, allowing for wrapping up to max_wrapped_lines.
-///
-/// # Arguments
-/// - `text`: The text to fit.
-/// - `requested_size`: The initial font size to try.
-/// - `max_width`: The maximum width available for the text.
-/// - `min_size`: The minimum font size to allow.
-/// - `max_wrapped_lines`: The maximum number of lines to allow when wrapping.
-/// - `max_height`: The maximum height available for the text.
-///
-/// # Returns
-/// The adjusted font size that fits within the constraints.
+/// Shrinks text to fit within max width and height, allowing for wrapping up to max_wrapped_lines.
 pub fn shrink_text_to_fit(
     text: &str,
     requested_size: f32,
     max_width: f32,
     min_size: f32,
-    max_wrapped_lines: f32,
+    max_wrapped_lines: usize,
     max_height: f32,
 ) -> f32 {
     if max_width <= 0.0 || max_height <= 0.0 {
@@ -41,46 +38,46 @@ pub fn shrink_text_to_fit(
 
     let mut size = requested_size.max(min_size).clamp(min_size, MAX_FONT_SIZE);
 
+    // More conservative estimation with padding for descenders
     let line_count = |font_size: f32| {
         let width = chars * font_size * AVERAGE_CHAR_WIDTH_RATIO;
         (width / max_width).ceil().max(1.0)
     };
 
-    let estimated_height = |font_size: f32, lines: f32| lines * font_size * 1.2;
+    // Line height is typically 1.3-1.4, add extra padding for descenders
+    let estimated_height = |font_size: f32, lines: f32| {
+        let line_height = font_size * 1.4; // More conservative than 1.2
+        lines * line_height + (font_size * 0.2) // Extra padding for descenders
+    };
 
+    // Shrink if too large
     while size > min_size
-        && (line_count(size) > max_wrapped_lines
+        && (line_count(size) > max_wrapped_lines as f32
             || estimated_height(size, line_count(size)) > max_height)
     {
-        size -= 1.0;
+        size -= 0.5; // Smaller increments
     }
 
+    // Grow back up if there's room - but leave a safety margin
     while size < MAX_FONT_SIZE
-        && line_count(size + 1.0) <= max_wrapped_lines
-        && estimated_height(size + 1.0, line_count(size + 1.0)) <= max_height
+        && line_count(size + 0.5) <= max_wrapped_lines as f32
+        && estimated_height(size + 0.5, line_count(size + 0.5)) <= (max_height * 0.95)
+    // 5% safety margin
     {
-        size += 1.0;
+        size += 0.5;
     }
 
     size.clamp(min_size, MAX_FONT_SIZE)
 }
 
-/// Creates a text widget that automatically adjusts its font size to fit within the specified width and height constraints.
-/// # Arguments
-/// - `content`: The text content to display.
-/// - `requested_size`: The initial font size to try.
-/// - `max_text_width`: The maximum width available for the text.
-/// - `max_wrapped_lines`: The maximum number of lines to allow when wrapping.
-/// - `max_text_height`: The maximum height available for the text.
-///
-/// # Returns
-/// An `iced::widget::Text` element with an adjusted font size that fits within the specified constraints.
+/// Creates a text widget that automatically adjusts its font size to fit
 pub fn adaptive_text(
     content: impl Into<String>,
     requested_size: f32,
     max_text_width: f32,
-    max_wrapped_lines: f32,
+    max_wrapped_lines: usize,
     max_text_height: f32,
+    font: Font,
 ) -> iced::widget::Text<'static> {
     let content_string = content.into();
     let fitted_size = shrink_text_to_fit(
@@ -91,7 +88,7 @@ pub fn adaptive_text(
         max_wrapped_lines,
         max_text_height,
     );
-    text(content_string).size(fitted_size)
+    text_widget(content_string).size(fitted_size).font(font)
 }
 
 pub fn modal<'a, Message: Clone + 'static>(
@@ -100,6 +97,7 @@ pub fn modal<'a, Message: Clone + 'static>(
     buttons: Vec<Button<'a, Message>>,
     width: f32,
     height: f32,
+    padding: Option<iced::Padding>,
 ) -> Element<'a, Message> {
     let mut elements: Vec<Element<Message>> = vec![];
     let mut buttons = buttons.into_iter().peekable();
@@ -124,19 +122,21 @@ pub fn modal<'a, Message: Clone + 'static>(
                 .color(Color::BLACK),
         );
     } else {
-        top_padding = 12.0;
+        top_padding = 14.0;
     }
+    let body_padding = padding.unwrap_or(iced::Padding {
+        top: top_padding * scale_factor,
+        bottom: 6.0 * scale_factor,
+        left: 60.0 * (scale_factor / 1.25),
+        right: 60.0 * (scale_factor / 1.25),
+    });
+
     let content = content_col
         .push(container(body).center(Length::Fill))
         .push(Space::new().height(4))
         .push(button_row)
         .spacing(4)
-        .padding(iced::Padding {
-            top: top_padding * scale_factor,
-            bottom: 6.0 * scale_factor,
-            left: 60.0 * (scale_factor / 1.25),
-            right: 60.0 * (scale_factor / 1.25),
-        })
+        .padding(body_padding)
         .height(iced::Fill);
 
     container(Panel::new(content).width(width).height(height))

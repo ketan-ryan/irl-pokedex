@@ -1,7 +1,8 @@
 use anyhow::{Result, anyhow};
 use config::Config;
 use ort::session::Session;
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer, Serialize};
+use strum_macros::{Display, EnumString};
 
 use std::collections::HashMap;
 use std::env;
@@ -14,15 +15,79 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use crate::elements::gstreamer_stream::VideoFrame;
 use crate::{PokedexError, ml};
 
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Display, EnumString)]
+#[strum(serialize_all = "lowercase")]
+pub enum PokemonType {
+    Normal,
+    Fire,
+    Water,
+    Grass,
+    Electric,
+    Ice,
+    Fighting,
+    Poison,
+    Ground,
+    Flying,
+    Psychic,
+    Bug,
+    Rock,
+    Ghost,
+    Dragon,
+    Dark,
+    Steel,
+    Fairy,
+    Unknown,
+}
+
+impl Default for PokemonType {
+    fn default() -> Self {
+        PokemonType::Unknown
+    }
+}
+
+fn deserialize_types<'de, D>(deserializer: D) -> Result<Vec<PokemonType>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    // 1. Get the raw string from JSON (e.g., "steel/fairy")
+    let s: String = Deserialize::deserialize(deserializer)?;
+
+    // 2. Split, parse, and collect
+    s.split('/')
+        .map(|part| {
+            // This now uses strum's generated FromStr
+            part.trim()
+                .to_lowercase()
+                .parse::<PokemonType>()
+                .map_err(|_| serde::de::Error::custom(format!("Unknown type: {}", part)))
+        })
+        .collect::<Result<Vec<PokemonType>, D::Error>>()
+}
+
 #[derive(Clone, Deserialize, Debug)]
 pub struct PokemonInfo {
     pub number: String,
-    pub r#type: String,
+    #[serde(rename = "type", deserialize_with = "deserialize_types")]
+    pub types: Vec<PokemonType>,
     pub species: String,
     pub height: String,
     pub weight: String,
     pub abilities: Vec<String>,
     pub dex_entries: HashMap<String, String>,
+}
+
+impl Default for PokemonInfo {
+    fn default() -> Self {
+        PokemonInfo {
+            number: "0000".to_string(),
+            types: vec![PokemonType::Unknown],
+            species: "???".to_string(),
+            height: "???".to_string(),
+            weight: "???".to_string(),
+            abilities: Vec::new(),
+            dex_entries: HashMap::new(),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -32,6 +97,13 @@ pub struct PokedexConfig {
     pub session: Arc<Mutex<Session>>,
     pub classes: Vec<String>,
     pub confidence: f32,
+}
+
+pub fn get_type_images(types: Vec<PokemonType>) -> Vec<String> {
+    types
+        .iter()
+        .map(|t| format!("assets/types/{}.png", t.to_string().to_lowercase()))
+        .collect()
 }
 
 pub fn validate_config() -> Result<PokedexConfig, PokedexError> {

@@ -14,11 +14,11 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use crate::elements::gstreamer_stream::VideoFrame;
-use crate::elements::modal::{adaptive_text, modal};
+use crate::elements::modal::{adaptive_text, modal, shrink_text_to_fit};
 use crate::elements::pokedex_spinner::{PokedexSpinnerState, SpinnerCanvas};
 use crate::elements::pokemon_details::PokemonDetailsState;
 use crate::elements::register_pokemon::{RegisterCanvas, RegisterPokemonState};
-use crate::io::{self, PokedexConfig};
+use crate::io::{self, PokedexConfig, PokemonType};
 use crate::ml;
 
 #[derive(Debug, PartialEq)]
@@ -61,6 +61,9 @@ pub struct Register {
     reading_timer: Duration,
     failed_anim: Animation<f32>,
     pokemon_details: PokemonDetailsState,
+    dex_entry_size: f32,
+    found_pokemon: Option<String>,
+    type_images: Vec<iced::widget::image::Handle>,
 }
 
 #[derive(Debug, Clone)]
@@ -91,6 +94,8 @@ pub struct ClassificationResults {
     offset: f32,
     img_bytes: Vec<u8>,
 }
+
+const FONT: iced::Font = iced::Font::with_name("Open Sans Condensed");
 
 impl Register {
     pub fn new(
@@ -125,6 +130,9 @@ impl Register {
                 register_pokemon: RegisterPokemonState::new(),
                 reading_timer: Duration::from_millis(0),
                 pokemon_details: PokemonDetailsState::new(),
+                dex_entry_size: 16.0,
+                found_pokemon: None,
+                type_images: vec![],
             },
             Task::done(Message::Start(frame)),
         )
@@ -219,9 +227,6 @@ impl Register {
                     // TODO: change to class_idx
                     let class_idx = rand::random_range(0..1136);
                     let pokemon: Option<&String> = cfg.classes.get(class_idx);
-                    let loc = cfg.sprites_location.clone();
-                    self.pokemon_details
-                        .set_current_pokemon(cfg.pokedex_json.get(pokemon.unwrap()).cloned());
 
                     if pokemon.is_none() {
                         println!("Index {} OOB!", class_idx);
@@ -231,8 +236,53 @@ impl Register {
                         ))));
                     }
 
+                    self.found_pokemon = pokemon.cloned();
+
+                    let loc = cfg.sprites_location.clone();
+                    let dex_entry = cfg.pokedex_json.get(pokemon.unwrap()).cloned();
+
+                    let current_dex = self
+                        .pokemon_details
+                        .set_current_pokemon(cfg.pokedex_json.get(pokemon.unwrap()).cloned());
+
+                    let failure_text = format!(
+                        "Failed to find information for Pokémon {}!",
+                        pokemon.unwrap_or(&"Unknown".to_string())
+                    );
+
+                    // Precalculate width of text once
+                    self.dex_entry_size = shrink_text_to_fit(
+                        &current_dex.unwrap_or(failure_text),
+                        16.0,
+                        300.0,
+                        8.0,
+                        8,
+                        100.0,
+                    );
+
+                    println!("{}", self.dex_entry_size);
+
                     let poke = pokemon.unwrap().to_string();
-                    // let species = self.config.pokedex_json.get(poke).unwrap().species;
+                    let type_images = io::get_type_images(
+                        self.config
+                            .pokedex_json
+                            .get(&poke)
+                            .cloned()
+                            .unwrap_or_default()
+                            .types
+                            .clone(),
+                    );
+
+                    self.type_images = type_images
+                        .iter()
+                        .map(|path| {
+                            iced::widget::image::Handle::from_bytes(
+                                std::fs::read(path).unwrap_or_else(|_| {
+                                    panic!("Failed to read type image at path: {}", path)
+                                }),
+                            )
+                        })
+                        .collect();
 
                     return Action::Run(Task::perform(
                         async move { Self::classify(poke, loc, false).map_err(|e| e.to_string()) },
@@ -509,7 +559,6 @@ impl Register {
     }
 
     pub fn bottom_view(&self) -> Element<'_, Message> {
-        const FONT: iced::Font = iced::Font::with_name("Open Sans Condensed");
         let opacity = if self.state != State::ReadingEntry {
             0.5
         } else {
@@ -563,6 +612,7 @@ impl Register {
                         vec![dex_but, ret_but],
                         modal_width,
                         220.0,
+                        None,
                     ))
                     .center(Length::Fill)
                     .into(),
@@ -570,12 +620,6 @@ impl Register {
             }
         } else if self.state == State::ReadingEntry {
             if self.pokemon_details.noise_image.is_some() {
-                // Always display current image while next is warming up in bg
-                // let handle = self.pokemon_details.noise_image
-                //     .clone()
-                //     .or_else(|| self.pokemon_details.next_image.clone())
-                //     .unwrap_or_else(|| iced::widget::image::Handle::from_rgba(1, 1, vec![0,0,0,255]));
-
                 // Background
                 elements.push(
                     iced::widget::image(self.pokemon_details.noise_image.as_ref().unwrap())
@@ -593,36 +637,210 @@ impl Register {
                         .content_fit(ContentFit::Contain);
 
                 // info modal
+                // background color
+                let light_blue = Color::from_rgba8(199, 243, 255, 0.7);
+                const FONT_SIZE: f32 = 16.0;
+
+                let info = self
+                    .pokemon_details
+                    .current_pokemon()
+                    .cloned()
+                    .unwrap_or_default();
+
+                // name and number
+                let number = info.number.clone();
+                let pokemon_name = capitalize_first_letter(
+                    self.found_pokemon.as_ref().unwrap_or(&"???".to_string()),
+                );
+
+                let top_section = container(
+                    row![
+                        // Number is always going to be 4 digits, give it a fixed width
+                        container(text(number).font(FONT).size(FONT_SIZE))
+                            .width(Length::Fixed(60.0))
+                            .align_x(iced::Alignment::Start),
+                        // Take all remaining space and centers the text
+                        container(
+                            text(pokemon_name)
+                                .font(FONT)
+                                .size(FONT_SIZE)
+                                // Disallow names with spaces from overflowing to next line
+                                .wrapping(iced::widget::text::Wrapping::None)
+                        )
+                        .width(Length::Fill)
+                        .align_x(iced::alignment::Horizontal::Center),
+                        // Duplicate the number container on the right for visual balance but keep it empty
+                        Space::new().width(Length::Fixed(60.0)),
+                    ]
+                    .align_y(iced::alignment::Vertical::Center)
+                    .padding(iced::Padding::new(0.0).top(10.0)),
+                )
+                .width(Length::Fill)
+                .height(Length::Fixed(35.0))
+                .padding(iced::Padding {
+                    top: 0.0,
+                    left: 6.0,
+                    right: 6.0,
+                    bottom: 0.0,
+                })
+                .style(move |_| container::Style {
+                    background: Some(Background::Color(light_blue)),
+                    ..Default::default()
+                });
+
+                // species and type images
+                let species = info.species.clone();
+
+                // Create images from handles, spacing them apart if necessary
+                let image_row = iced::widget::Row::with_children(
+                    self.type_images
+                        .iter()
+                        .map(|handle| {
+                            iced::widget::image(handle.clone())
+                                .width(Length::Fixed(48.0))
+                                .height(Length::Fixed(48.0))
+                                .into()
+                        })
+                        .collect::<Vec<Element<Message>>>(),
+                )
+                .spacing(10)
+                .align_y(iced::Alignment::Center);
+
+                let middle_section = column![
+                    container(
+                        text(species)
+                            .size(FONT_SIZE)
+                            .width(Length::Fill)
+                            .align_x(iced::alignment::Horizontal::Left)
+                            .font(FONT),
+                    )
+                    .width(Length::Fill)
+                    .padding(4),
+                    container(image_row)
+                        .width(Length::Fill)
+                        .align_x(Alignment::Center),
+                ]
+                .spacing(8)
+                .align_x(Alignment::Center)
+                .width(Length::Fill)
+                .height(Length::Fixed(58.0));
+
+                // height and weight
+                let height = info.height.clone();
+                let weight = info.weight.clone();
+                let bottom_section = column![
+                    // height row
+                    container(
+                        container(
+                            row![
+                                text("HT").size(FONT_SIZE).font(FONT),
+                                Space::new().width(Length::Fill),
+                                text(height).size(FONT_SIZE).font(FONT),
+                            ]
+                            .align_y(Alignment::Center),
+                        )
+                        .width(Length::Fill)
+                        .padding(Padding {
+                            top: -5.0,
+                            bottom: 2.0,
+                            left: 0.0,
+                            right: 0.0,
+                        })
+                        .style(move |_| container::Style {
+                            background: Some(Background::Color(light_blue)),
+                            border: iced::Border {
+                                color: Color::TRANSPARENT,
+                                width: 0.0,
+                                radius: 7.0.into(),
+                            },
+                            ..Default::default()
+                        }),
+                    )
+                    .width(Length::Fill)
+                    .height(Length::Fixed(8.0))
+                    .align_y(Alignment::Center),
+                    // weight row
+                    container(
+                        container(
+                            row![
+                                text("WT").size(FONT_SIZE).font(FONT),
+                                Space::new().width(Length::Fill),
+                                text(weight).size(FONT_SIZE).font(FONT),
+                            ]
+                            .align_y(Alignment::Start),
+                        )
+                        .width(Length::Fill)
+                        .padding(Padding {
+                            top: -5.0,
+                            bottom: 0.0,
+                            left: 0.0,
+                            right: 0.0,
+                        })
+                        .style(move |_| container::Style {
+                            background: Some(Background::Color(light_blue)),
+                            border: iced::Border {
+                                color: Color::TRANSPARENT,
+                                width: 0.0,
+                                radius: 7.0.into(),
+                            },
+                            ..Default::default()
+                        }),
+                    )
+                    .width(Length::Fill)
+                    .height(Length::Fixed(8.0))
+                    .align_y(Alignment::Start),
+                ]
+                .spacing(12)
+                .width(Length::Fill)
+                .height(Length::Fixed(52.0))
+                .padding(iced::Padding {
+                    top: 16.0,
+                    left: 6.0,
+                    right: 6.0,
+                    bottom: 0.0,
+                });
+
+                let modal_body = column![top_section, middle_section, bottom_section]
+                    .spacing(8)
+                    .width(Length::Fill)
+                    .height(Length::Fill);
+
                 let info_with_ball = row![
                     iced::widget::image(self.captured_frame.as_ref().unwrap().clone())
                         .width(Length::Fixed(36.0))
                         .height(Length::Fixed(36.0)),
                     modal(
-                        Some("Top modal".to_string()),
-                        row![
-                            text("top desc")
-                                .size(10)
-                                .width(iced::Fill)
-                                .align_x(iced::alignment::Horizontal::Right),
-                        ]
-                        .spacing(12)
-                        .align_y(iced::Center)
-                        .into(),
+                        None,
+                        modal_body.into(),
                         vec![],
-                        200.0,
-                        50.0,
+                        250.0,
+                        175.0,
+                        Some(iced::Padding {
+                            top: 4.0,
+                            bottom: 0.0,
+                            left: 14.5,
+                            right: 14.5,
+                        })
                     )
                 ]
                 .spacing(8)
                 .align_y(Alignment::Start);
 
-                let right_column = column![info_with_ball,].spacing(12).width(Length::Fill);
+                let right_column = column![info_with_ball,]
+                    .spacing(12)
+                    .width(Length::Fill)
+                    .align_x(Alignment::End);
 
                 // place sprite next to info modal
                 let main_content = container(
                     row![pokemon_image, right_column,]
                         .spacing(16)
-                        .padding(20)
+                        .padding(iced::Padding {
+                            top: 20.0,
+                            bottom: 120.0,
+                            left: 20.0,
+                            right: 12.0,
+                        })
                         .align_y(Alignment::Center),
                 )
                 .width(Length::Fill)
@@ -665,10 +883,13 @@ impl Register {
 
                 // pokedex description modal
                 let description_text = if pokedex_string.starts_with("Error") {
-                    text(pokedex_string).size(16.0).width(iced::Fill)
+                    text(pokedex_string).size(FONT_SIZE).width(iced::Fill)
                 } else {
                     // magic numbers determined via trial and error
-                    adaptive_text(pokedex_string, 16.0, 300.0, 8.0, 100.0).width(iced::Fill)
+                    text(pokedex_string)
+                        .size(self.dex_entry_size)
+                        .font(FONT)
+                        .width(iced::Fill)
                 };
 
                 let description_overlay = container(modal(
@@ -679,11 +900,12 @@ impl Register {
                             .align_x(iced::alignment::Horizontal::Left),
                     ]
                     .spacing(12)
-                    .align_y(iced::Alignment::End)
+                    .align_y(iced::Alignment::Center)
                     .into(),
                     vec![],
-                    400.0,
+                    420.0,
                     110.0,
+                    None,
                 ))
                 .width(Length::Fill)
                 .height(Length::Fill)
@@ -782,6 +1004,14 @@ impl Register {
             // );
         }
         iced::widget::Stack::with_children(elements).into()
+    }
+}
+
+fn capitalize_first_letter(s: &str) -> String {
+    let mut chars = s.chars();
+    match chars.next() {
+        None => String::new(),
+        Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
     }
 }
 
