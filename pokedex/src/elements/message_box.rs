@@ -1,6 +1,5 @@
 // panel.rs
 use iced::advanced::Renderer as _;
-use iced::window::scale_factor;
 use iced::{
     Border, Color, Element, Length, Padding, Point, Rectangle, Renderer, Shadow, Size, Theme,
     advanced::{Widget, layout, renderer, widget},

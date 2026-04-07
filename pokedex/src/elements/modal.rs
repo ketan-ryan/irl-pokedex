@@ -1,5 +1,3 @@
-use cosmic_text::Align;
-use gstreamer::Pad;
 // modal.rs
 use iced::widget::{Space, button, button::Button, column, container, row, text};
 use iced::{Border, Color, Element, Length, Theme, Vector};
@@ -12,12 +10,6 @@ const MIN_FONT_SIZE: f32 = 10.0;
 const MAX_FONT_SIZE: f32 = 150.0;
 const AVERAGE_CHAR_WIDTH_RATIO: f32 = 0.56; // heuristic for monospace-like fonts
 
-use iced::advanced::text::{Paragraph, Text as TextRenderer};
-use iced::{Font, Pixels, Size};
-
-use iced::widget::text as text_widget;
-
-/// Shrinks text to fit within max width and height, allowing for wrapping up to max_wrapped_lines.
 /// Shrinks text to fit within max width and height, allowing for wrapping up to max_wrapped_lines.
 pub fn shrink_text_to_fit(
     text: &str,
@@ -68,27 +60,6 @@ pub fn shrink_text_to_fit(
     }
 
     size.clamp(min_size, MAX_FONT_SIZE)
-}
-
-/// Creates a text widget that automatically adjusts its font size to fit
-pub fn adaptive_text(
-    content: impl Into<String>,
-    requested_size: f32,
-    max_text_width: f32,
-    max_wrapped_lines: usize,
-    max_text_height: f32,
-    font: Font,
-) -> iced::widget::Text<'static> {
-    let content_string = content.into();
-    let fitted_size = shrink_text_to_fit(
-        &content_string,
-        requested_size,
-        max_text_width,
-        MIN_FONT_SIZE,
-        max_wrapped_lines,
-        max_text_height,
-    );
-    text_widget(content_string).size(fitted_size).font(font)
 }
 
 pub fn modal<'a, Message: Clone + 'static>(

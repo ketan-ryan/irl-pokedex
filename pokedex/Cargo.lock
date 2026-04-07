@@ -3504,6 +3504,7 @@ dependencies = [
  "gstreamer",
  "gstreamer-app",
  "gstreamer-video",
+ "heck",
  "iced",
  "iced_gif",
  "image 0.25.9",

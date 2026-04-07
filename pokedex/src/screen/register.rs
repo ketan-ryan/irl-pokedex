@@ -1,24 +1,23 @@
-use anyhow::anyhow;
-
 use iced::Length::{self, Fill};
 use iced::animation::Animation;
 use iced::widget::{Space, button, column, container, row, stack, text};
 use iced::{Alignment, Color, Element, Subscription, Task, time};
+use iced::{Background, ContentFit, Padding};
 use iced_gif::Gif;
 
-use iced::{Background, ContentFit, Padding};
-
+use anyhow::anyhow;
+use heck::ToTitleCase;
 use image;
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use crate::elements::gstreamer_stream::VideoFrame;
-use crate::elements::modal::{adaptive_text, modal, shrink_text_to_fit};
+use crate::elements::modal::{modal, shrink_text_to_fit};
 use crate::elements::pokedex_spinner::{PokedexSpinnerState, SpinnerCanvas};
 use crate::elements::pokemon_details::PokemonDetailsState;
 use crate::elements::register_pokemon::{RegisterCanvas, RegisterPokemonState};
-use crate::io::{self, PokedexConfig, PokemonType};
+use crate::io::{self, PokedexConfig};
 use crate::ml;
 
 #[derive(Debug, PartialEq)]
@@ -28,6 +27,7 @@ enum State {
     FailedRegistering, // show error screen
     Classifying,       // running inference
     ReadingEntry,      // reading the dex entry - show detailed view
+    ShowRegistered,    // display "registered" on top screen
 }
 
 impl State {
@@ -38,9 +38,11 @@ impl State {
     }
 
     fn transitioning(&self) -> bool {
-        *self == State::Registered
-            || *self == State::FailedRegistering
-            || *self == State::ReadingEntry
+        *self != State::Registering && *self != State::Classifying
+    }
+
+    fn details_screen(&self) -> bool {
+        *self == State::ReadingEntry || *self == State::ShowRegistered
     }
 }
 
@@ -64,6 +66,9 @@ pub struct Register {
     dex_entry_size: f32,
     found_pokemon: Option<String>,
     type_images: Vec<iced::widget::image::Handle>,
+    pokeball_icon: iced::widget::image::Handle,
+    pokeball_gray: iced::widget::image::Handle,
+    pokeball_register_anim: Animation<f32>,
 }
 
 #[derive(Debug, Clone)]
@@ -96,6 +101,7 @@ pub struct ClassificationResults {
 }
 
 const FONT: iced::Font = iced::Font::with_name("Open Sans Condensed");
+const BALL_SIZE: f32 = 40.0;
 
 impl Register {
     pub fn new(
@@ -112,13 +118,19 @@ impl Register {
                 blurred_frame: None,
                 bottom_handle: bottom_handle,
                 fade: Animation::new(0.0)
-                    .duration(Duration::from_millis(300))
+                    .duration(Duration::from_millis(500))
                     .easing(iced::animation::Easing::EaseInOut),
                 bg_handle: iced::widget::image::Handle::from_bytes(
                     include_bytes!("../../assets/background.png").as_slice(),
                 ),
                 ring_handle: iced::widget::image::Handle::from_bytes(
                     include_bytes!("../../assets/ring.png").as_slice(),
+                ),
+                pokeball_icon: iced::widget::image::Handle::from_bytes(
+                    include_bytes!("../../assets/pokeball_icon.png").as_slice(),
+                ),
+                pokeball_gray: iced::widget::image::Handle::from_bytes(
+                    include_bytes!("../../assets/pokeball_icon_gray.png").as_slice(),
                 ),
                 unown_handle: iced_gif::Frames::from_bytes(
                     include_bytes!("../../assets/unown-interrogation.gif").to_vec(),
@@ -133,6 +145,9 @@ impl Register {
                 dex_entry_size: 16.0,
                 found_pokemon: None,
                 type_images: vec![],
+                pokeball_register_anim: Animation::new(6.0)
+                    .duration(Duration::from_millis(3000))
+                    .easing(iced::animation::Easing::EaseInQuint),
             },
             Task::done(Message::Start(frame)),
         )
@@ -175,14 +190,31 @@ impl Register {
 
                     // TODO: Replace with time of audio clip
                     // ex: "Pikachu, the electric mouse pokemon"
-                    if self.state != State::ReadingEntry
+                    if !self.state.details_screen()
                         && self.reading_timer > Duration::from_millis(1000)
                     {
                         return Action::Run(Task::done(Message::ReadEntry));
                     }
+
+                    // show ring around pokeball icon and animate registered text
+                    // println!(
+                    //     "{} {}",
+                    //     self.state == State::ReadingEntry,
+                    //     self.pokeball_register_anim
+                    //         .interpolate_with(|v| v, Instant::now())
+                    // );
+                    if self.state == State::ReadingEntry
+                        && self
+                            .pokeball_register_anim
+                            .interpolate_with(|v| v, Instant::now())
+                            < 2.0
+                    {
+                        self.state = State::ShowRegistered;
+                        self.spinner_state.start_register();
+                    }
                 }
 
-                if self.state == State::ReadingEntry {
+                if self.state.details_screen() {
                     let mut details = self.pokemon_details.clone();
                     return Action::Run(Task::perform(async move { details.tick() }, |handle| {
                         Message::NoiseReady(handle.clone())
@@ -239,7 +271,6 @@ impl Register {
                     self.found_pokemon = pokemon.cloned();
 
                     let loc = cfg.sprites_location.clone();
-                    let dex_entry = cfg.pokedex_json.get(pokemon.unwrap()).cloned();
 
                     let current_dex = self
                         .pokemon_details
@@ -334,7 +365,9 @@ impl Register {
             Message::ReadEntry => {
                 self.state = State::ReadingEntry;
 
+                println!("Starting register anim");
                 self.fade.go_mut(0.0, Instant::now());
+                self.pokeball_register_anim.go_mut(1.0, Instant::now());
                 self.spinner_state.end_register();
                 self.register_pokemon.fade_out();
 
@@ -552,6 +585,11 @@ impl Register {
                 RegisterCanvas::new(&self.register_pokemon),
                 SpinnerCanvas::new(&self.spinner_state),
             ];
+        } else if self.state == State::ShowRegistered {
+            elements = vec![
+                // captured image, un-blurred
+                iced::widget::image(self.captured_frame.as_ref().unwrap()).into(),
+            ];
         } else {
             println!("{:?}", self.state);
         }
@@ -618,7 +656,7 @@ impl Register {
                     .into(),
                 );
             }
-        } else if self.state == State::ReadingEntry {
+        } else if self.state.details_screen() {
             if self.pokemon_details.noise_image.is_some() {
                 // Background
                 elements.push(
@@ -630,11 +668,14 @@ impl Register {
                 );
 
                 // sprite
-                let pokemon_image =
+                let pokemon_image = container(
                     iced::widget::image(self.register_pokemon.png_handle.as_ref().unwrap().clone())
                         .width(Length::Fixed(300.0))
                         .height(Length::Fixed(400.0))
-                        .content_fit(ContentFit::Contain);
+                        .content_fit(ContentFit::Contain)
+                        .opacity(1.0 - self.fade.interpolate_with(|v| v, Instant::now())),
+                )
+                .padding(iced::Padding::new(0.0).left(20.0));
 
                 // info modal
                 // background color
@@ -649,9 +690,11 @@ impl Register {
 
                 // name and number
                 let number = info.number.clone();
-                let pokemon_name = capitalize_first_letter(
-                    self.found_pokemon.as_ref().unwrap_or(&"???".to_string()),
-                );
+                let pokemon_name = self
+                    .found_pokemon
+                    .as_ref()
+                    .unwrap_or(&"???".to_string())
+                    .to_title_case();
 
                 let top_section = container(
                     row![
@@ -805,42 +848,109 @@ impl Register {
                     .width(Length::Fill)
                     .height(Length::Fill);
 
-                let info_with_ball = row![
-                    iced::widget::image(self.captured_frame.as_ref().unwrap().clone())
-                        .width(Length::Fixed(36.0))
-                        .height(Length::Fixed(36.0)),
-                    modal(
-                        None,
-                        modal_body.into(),
-                        vec![],
-                        250.0,
-                        175.0,
-                        Some(iced::Padding {
-                            top: 4.0,
-                            bottom: 0.0,
-                            left: 14.5,
-                            right: 14.5,
-                        })
+                let ball_scale = self
+                    .pokeball_register_anim
+                    .interpolate_with(|v| v, Instant::now());
+
+                let current_size = BALL_SIZE * ball_scale;
+
+                // Blue square
+                let blue_square = container(Space::new())
+                    .width(BALL_SIZE)
+                    .height(BALL_SIZE)
+                    .style(move |_| container::Style {
+                        background: Some(Background::Color(Color::from_rgb8(45, 190, 255))),
+                        border: iced::Border {
+                            radius: 10.0.into(),
+                            ..Default::default()
+                        },
+                        ..Default::default()
+                    });
+
+                let gray_img = iced::widget::image(self.pokeball_gray.clone())
+                    .width(BALL_SIZE)
+                    .height(BALL_SIZE)
+                    .content_fit(ContentFit::Fill);
+
+                // "Timer" - give the pokeball a few seconds to show up
+                let ball_opacity = if ball_scale > 5.0 { 0.0 } else { 1.0 };
+
+                // Pokeball icon
+                let ball_img = iced::widget::image(self.pokeball_icon.clone())
+                    .width(current_size)
+                    .height(current_size)
+                    .content_fit(ContentFit::Fill)
+                    .opacity(ball_opacity);
+
+                let ball_bg = blue_square;
+
+                let ring_opacity: f32 = if self.state == State::ShowRegistered {
+                    1.2 - self.spinner_state.current_register_scale()
+                } else {
+                    0.0
+                };
+
+                let ball_pos = 40.0;
+                let ring_size = self.spinner_state.current_register_scale() * 100.0;
+
+                let info_with_ball = stack![
+                    // Base layer with layout
+                    row![
+                        ball_bg,
+                        modal(
+                            None,
+                            modal_body.into(),
+                            vec![],
+                            250.0,
+                            175.0,
+                            Some(iced::Padding {
+                                top: 4.0,
+                                bottom: 0.0,
+                                left: 14.5,
+                                right: 14.5,
+                            })
+                        )
+                    ]
+                    .spacing(8)
+                    .align_y(Alignment::Start),
+                    gray_img,
+                    // ring pulses in
+                    container(
+                        iced::widget::image(&self.ring_handle)
+                            .width(Length::Fixed(ring_size))
+                            .height(Length::Fixed(ring_size))
+                            .opacity(ring_opacity)
+                            .content_fit(ContentFit::Contain)
                     )
-                ]
-                .spacing(8)
-                .align_y(Alignment::Start);
+                    .padding(iced::Padding {
+                        top: (ball_pos - ring_size) / 2.0,
+                        left: (ball_pos - ring_size) / 2.0,
+                        ..Default::default()
+                    })
+                    .width(Length::Shrink)
+                    .height(Length::Shrink),
+                    // ,
+                    // Floating layer with scaled image
+                    container(ball_img)
+                        .width(Length::Shrink)
+                        .height(Length::Shrink)
+                ];
 
                 let right_column = column![info_with_ball,]
                     .spacing(12)
                     .width(Length::Fill)
+                    .padding(iced::Padding {
+                        top: 20.0,
+                        bottom: 120.0,
+                        left: 20.0,
+                        right: 12.0,
+                    })
                     .align_x(Alignment::End);
 
                 // place sprite next to info modal
                 let main_content = container(
                     row![pokemon_image, right_column,]
                         .spacing(16)
-                        .padding(iced::Padding {
-                            top: 20.0,
-                            bottom: 120.0,
-                            left: 20.0,
-                            right: 12.0,
-                        })
                         .align_y(Alignment::Center),
                 )
                 .width(Length::Fill)
@@ -918,100 +1028,29 @@ impl Register {
                     right: 5.0,
                 });
 
-                let content =
-                    stack![column![main_content, bottom_bar,], description_overlay].into();
+                let content = container(stack![
+                    column![main_content, bottom_bar,],
+                    description_overlay
+                ])
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .style(|_| container::Style {
+                    background: Some(iced::Background::Color(Color::from_rgba8(
+                        0,
+                        0,
+                        0,
+                        self.fade.interpolate_with(|v| v, Instant::now()),
+                    ))),
+                    ..Default::default()
+                })
+                .into();
 
                 elements.push(content)
             } else {
                 println!("Still waiting")
             }
-            // elements.push(
-            //     DetailsCanvas::new(&self.pokemon_details)
-            //     // column![
-            //     //     // main content area
-            //     //     row![
-            //     //         // left - sprite, full column height
-            //     //         container(
-            //     //             Gif::new(&self.unown_handle)
-            //     //                 .width(iced::Fill)
-            //     //                 .height(iced::Fill)
-            //     //         )
-            //     //         .width(iced::FillPortion(1))
-            //     //         .height(iced::Fill),
-            //     //         // middle - empty top, dex entry bottom
-            //     //         column![
-            //     //             Space::new().height(iced::FillPortion(2)),
-            //     //             container(text("&self.dex_text"))
-            //     //                 .width(iced::Fill)
-            //     //                 .height(iced::FillPortion(1))
-            //     //                 .padding(12)
-            //     //                 .style(|_| container::Style {
-            //     //                     border: iced::Border {
-            //     //                         color: Color::BLACK,
-            //     //                         width: 2.0,
-            //     //                         radius: 4.0.into(),
-            //     //                     },
-            //     //                     background: Some(iced::Background::Color(Color::WHITE)),
-            //     //                     ..Default::default()
-            //     //                 }),
-            //     //         ]
-            //     //         .width(iced::FillPortion(1))
-            //     //         .height(iced::Fill),
-            //     //         // right - info box centered vertically
-            //     //         container(
-            //     //             container(text("&self.info_text"))
-            //     //                 .width(iced::Fill)
-            //     //                 .padding(12)
-            //     //                 .style(|_| container::Style {
-            //     //                     border: iced::Border {
-            //     //                         color: Color::BLACK,
-            //     //                         width: 2.0,
-            //     //                         radius: 4.0.into(),
-            //     //                     },
-            //     //                     background: Some(iced::Background::Color(Color::WHITE)),
-            //     //                     ..Default::default()
-            //     //                 })
-            //     //         )
-            //     //         .width(iced::FillPortion(1))
-            //     //         .height(iced::Fill)
-            //     //         .align_y(iced::Center),
-            //     //     ]
-            //     //     .height(iced::FillPortion(6)),
-            //     //     // bottom bar - half height
-            //     //     container(
-            //     //         row![
-            //     //             button("X").on_press(Message::HomeToggled),
-            //     //             Space::new().width(iced::Fill),
-            //     //             button("A").on_press(Message::HomeToggled),
-            //     //             button("B").on_press(Message::HomeToggled),
-            //     //         ]
-            //     //         .spacing(8)
-            //     //         .padding(8)
-            //     //         .align_y(iced::Center)
-            //     //     )
-            //     //     .width(iced::Fill)
-            //     //     .height(iced::FillPortion(1))
-            //     //     .style(|_| container::Style {
-            //     //         background: Some(iced::Background::Color(Color::from_rgb(
-            //     //             0.15, 0.15, 0.15
-            //     //         ))),
-            //     //         ..Default::default()
-            //     //     }),
-            //     // ]
-            //     // .height(iced::Fill)
-            //     // .width(iced::Fill)
-            //     // .into(),
-            // );
         }
         iced::widget::Stack::with_children(elements).into()
-    }
-}
-
-fn capitalize_first_letter(s: &str) -> String {
-    let mut chars = s.chars();
-    match chars.next() {
-        None => String::new(),
-        Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
     }
 }
 

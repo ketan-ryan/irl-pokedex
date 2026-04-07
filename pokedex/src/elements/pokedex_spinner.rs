@@ -14,7 +14,7 @@ pub struct PokedexSpinnerState {
     pub cache: canvas::Cache,
     register_circle: Animation<f32>,
     fading_out: bool,
-    faded_out: bool
+    faded_out: bool,
 }
 
 impl PokedexSpinnerState {
@@ -33,7 +33,7 @@ impl PokedexSpinnerState {
             scale,
             register_circle: register_scale,
             fading_out: false,
-            faded_out: false
+            faded_out: false,
         }
     }
 
@@ -151,7 +151,7 @@ fn draw_spinner(frame: &mut Frame, cx: f32, cy: f32, radius: f32, state: &Pokede
         // arc length: TAU / n. Each arc is 1/n circle
         // gap between: TAU / n. n gaps evenly spaced
         let mut opacity = ((angle - 0.0) / 0.5).clamp(0.0, 1.0);
-        
+
         // Fade out
         let multiplier: f32 = match state.fading_out {
             true => state.current_register_scale(),
@@ -180,7 +180,12 @@ fn draw_spinner(frame: &mut Frame, cx: f32, cy: f32, radius: f32, state: &Pokede
                 [TAU / 6.0, TAU / 16.0, TAU / 20.0].as_slice(),
                 TAU / 3.0,
                 -angle * 1.8,
-                Color::from_rgba(140.0 / 255.0, 213.0 / 255.0, 229.0 / 255.0, opacity * multiplier),
+                Color::from_rgba(
+                    140.0 / 255.0,
+                    213.0 / 255.0,
+                    229.0 / 255.0,
+                    opacity * multiplier,
+                ),
             );
         }
         if angle > 0.7 {
