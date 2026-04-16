@@ -15,4 +15,4 @@ mf = default form; can be uk (unkown), md (male), fd (female), mo (male-variant)
 first n = default form; can be g (gigantamax)
 second n = default form; can be r (shiny)
 
-note pokemon after #898 were obtained from pokemondb not projectpokemon so img types are different and no variants
+note pokemon after #898 were obtained from bulbapedia wiki (hence the enhancer folder) and there are some extra forms we grabbed as well to make sure we got all variants (hisui, megas before 898)
