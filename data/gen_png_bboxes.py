@@ -71,7 +71,7 @@ def process_image(path: Path, classes: list[str], viz_path: Path, min_alpha: int
     center_x = ((bbox["x"] + bbox["x2"]) / 2.0) / w
     center_y = ((bbox["y"] + bbox["y2"]) / 2.0) / h
     width = (bbox["x2"] - bbox["x"]) / w
-    height = (bbox["x2"] - bbox["x"]) / h
+    height = (bbox["y2"] - bbox["y"]) / h
 
     parent = str(path.parent.name)
     # remove leading numbers
