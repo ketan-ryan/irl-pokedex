@@ -1,7 +1,8 @@
+use iced::Alignment::Center;
 use iced::Length::{self, Fill};
 use iced::animation::Animation;
 use iced::widget::{Space, button, column, container, row, stack, text};
-use iced::{Alignment, Color, Element, Subscription, Task, time};
+use iced::{Alignment, Color, Element, Radians, Subscription, Task, time};
 use iced::{Background, ContentFit, Padding};
 use iced_gif::Gif;
 
@@ -9,6 +10,7 @@ use anyhow::anyhow;
 use heck::ToTitleCase;
 use image;
 
+use std::f32::consts::PI;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -19,6 +21,14 @@ use crate::elements::pokemon_details::PokemonDetailsState;
 use crate::elements::register_pokemon::{RegisterCanvas, RegisterPokemonState};
 use crate::io::{self, PokedexConfig};
 use crate::ml;
+
+#[derive(Debug, PartialEq)]
+enum RegisteredState {
+    WhiteBars,
+    BlueExpanding,
+    Text,
+    Finished,
+}
 
 #[derive(Debug, PartialEq)]
 enum State {
@@ -46,6 +56,85 @@ impl State {
     }
 }
 
+/// Move animation state for registered screen to its own
+/// struct for organization
+#[derive(Debug)]
+struct TopScreenRegister {
+    state: RegisteredState,
+    white_glow: iced::widget::image::Handle,
+    blue_glow: iced::widget::image::Handle,
+    white_anim: Animation<f32>,
+    blue_anim: Animation<f32>,
+    text_anim: Animation<f32>,
+}
+
+impl TopScreenRegister {
+    pub fn new() -> Self {
+        Self {
+            state: RegisteredState::WhiteBars,
+            white_glow: iced::widget::image::Handle::from_bytes(
+                include_bytes!("../../assets/white_glow.png").as_slice(),
+            ),
+            blue_glow: iced::widget::image::Handle::from_bytes(
+                include_bytes!("../../assets/blue_glow.png").as_slice(),
+            ),
+            white_anim: Animation::new(0.0).duration(Duration::from_millis(200)),
+            blue_anim: Animation::new(0.0)
+                .duration(Duration::from_millis(1000))
+                .easing(iced::animation::Easing::EaseOutQuad),
+            text_anim: Animation::new(0.0).duration(Duration::from_millis(300)),
+        }
+    }
+
+    pub fn tick(&mut self) {
+        match self.state {
+            RegisteredState::WhiteBars => {
+                if self.get_current_white() >= 1.0 {
+                    self.start_blue();
+                }
+            }
+            RegisteredState::BlueExpanding => {
+                if self.get_current_blue() >= 1.0 {
+                    self.start_text();
+                }
+            }
+            RegisteredState::Text => {
+                if self.get_current_text() >= 1.0 {
+                    self.state = RegisteredState::Finished;
+                }
+            }
+            _ => (),
+        }
+    }
+
+    fn start_blue(&mut self) {
+        self.state = RegisteredState::BlueExpanding;
+        self.blue_anim.go_mut(2.0, Instant::now());
+    }
+
+    fn start_text(&mut self) {
+        self.state = RegisteredState::Text;
+        self.text_anim.go_mut(1.0, Instant::now());
+    }
+
+    pub fn start(&mut self) {
+        self.state = RegisteredState::WhiteBars;
+        self.white_anim.go_mut(1.0, Instant::now());
+    }
+
+    pub fn get_current_white(&self) -> f32 {
+        self.white_anim.interpolate_with(|v| v, Instant::now())
+    }
+
+    pub fn get_current_blue(&self) -> f32 {
+        self.blue_anim.interpolate_with(|v| v, Instant::now())
+    }
+
+    pub fn get_current_text(&self) -> f32 {
+        self.text_anim.interpolate_with(|v| v, Instant::now())
+    }
+}
+
 #[derive(Debug)]
 pub struct Register {
     config: Arc<PokedexConfig>,
@@ -59,6 +148,8 @@ pub struct Register {
     ring_handle: iced::widget::image::Handle,
     spinner_state: PokedexSpinnerState,
     failed_classification: Option<String>,
+
+    // dex entry screen
     register_pokemon: RegisterPokemonState,
     reading_timer: Duration,
     failed_anim: Animation<f32>,
@@ -66,9 +157,12 @@ pub struct Register {
     dex_entry_size: f32,
     found_pokemon: Option<String>,
     type_images: Vec<iced::widget::image::Handle>,
+
+    // registering to pokedex
     pokeball_icon: iced::widget::image::Handle,
     pokeball_gray: iced::widget::image::Handle,
     pokeball_register_anim: Animation<f32>,
+    top_register: TopScreenRegister,
 }
 
 #[derive(Debug, Clone)]
@@ -148,6 +242,7 @@ impl Register {
                 pokeball_register_anim: Animation::new(6.0)
                     .duration(Duration::from_millis(3000))
                     .easing(iced::animation::Easing::EaseInQuint),
+                top_register: TopScreenRegister::new(),
             },
             Task::done(Message::Start(frame)),
         )
@@ -173,6 +268,10 @@ impl Register {
             Message::Tick(duration) => {
                 self.spinner_state.tick();
 
+                if self.state == State::ShowRegistered {
+                    self.top_register.tick();
+                }
+
                 if self.state.transitioning() {
                     if self.register_pokemon.current_full_fade() < 1.0 {
                         self.register_pokemon.tick();
@@ -197,12 +296,7 @@ impl Register {
                     }
 
                     // show ring around pokeball icon and animate registered text
-                    // println!(
-                    //     "{} {}",
-                    //     self.state == State::ReadingEntry,
-                    //     self.pokeball_register_anim
-                    //         .interpolate_with(|v| v, Instant::now())
-                    // );
+
                     if self.state == State::ReadingEntry
                         && self
                             .pokeball_register_anim
@@ -211,6 +305,7 @@ impl Register {
                     {
                         self.state = State::ShowRegistered;
                         self.spinner_state.start_register();
+                        self.top_register.start();
                     }
                 }
 
@@ -256,8 +351,7 @@ impl Register {
                     ))));
                 } else {
                     let cfg = self.config.clone();
-                    // TODO: change to class_idx
-                    let class_idx = rand::random_range(0..1136);
+                    // let class_idx = rand::random_range(0..1136);
                     let pokemon: Option<&String> = cfg.classes.get(class_idx);
 
                     if pokemon.is_none() {
@@ -328,12 +422,12 @@ impl Register {
                 let is_error_set = self.failed_classification.is_some();
                 // if we are here, err is Some
                 self.failed_classification = err;
-                self.state = State::FailedRegistering;
 
                 let cfg = self.config.clone();
                 let loc = cfg.sprites_location.clone();
 
                 if !is_error_set {
+                    self.state = State::FailedRegistering;
                     return Action::Run(Task::perform(
                         async move {
                             Self::classify("missingno".to_string(), loc, true)
@@ -545,19 +639,25 @@ impl Register {
                 SpinnerCanvas::new(&self.spinner_state),
             ];
         } else if self.state.registering() {
-            elements = vec![
-                // captured image, un-blurred
-                iced::widget::image(self.captured_frame.as_ref().unwrap()).into(),
-                // fade in blurred image
+            let current_fade = self.fade.interpolate_with(|v| v, Instant::now());
+            // Unblurred frame, if visible
+            if current_fade < 1.0 {
+                elements.push(iced::widget::image(self.captured_frame.as_ref().unwrap()).into())
+            }
+            // fade in blurred image
+            elements.push(
                 iced::widget::image(self.blurred_frame.as_ref().unwrap())
-                    .opacity(self.fade.interpolate_with(|v| v, Instant::now()))
+                    .opacity(current_fade)
                     .into(),
-                // still show spinner
+            );
+
+            // still show spinner
+            elements.push(
                 iced::widget::image(&self.bg_handle)
                     .scale(self.spinner_state.current_scale())
                     .into(),
-                SpinnerCanvas::new(&self.spinner_state),
-            ];
+            );
+            elements.push(SpinnerCanvas::new(&self.spinner_state));
 
             if self.state == State::Registered || self.state == State::FailedRegistering {
                 // ring pulses in
@@ -586,10 +686,108 @@ impl Register {
                 SpinnerCanvas::new(&self.spinner_state),
             ];
         } else if self.state == State::ShowRegistered {
+            let glow_offset: f32 = 20.0;
+            let white_progress = self.top_register.get_current_white();
             elements = vec![
                 // captured image, un-blurred
-                iced::widget::image(self.captured_frame.as_ref().unwrap()).into(),
+                container(stack![
+                    iced::widget::image(self.captured_frame.as_ref().unwrap())
+                        .opacity(white_progress),
+                ])
+                .style(|_| iced::widget::container::Style {
+                    background: Some(iced::Background::Color(Color::WHITE)),
+                    ..Default::default()
+                })
+                .into(),
             ];
+
+            // white flash before blue fades in, two halves
+            if white_progress < 1.0 {
+                elements.push(
+                    iced::widget::column![
+                        iced::widget::image(self.top_register.white_glow.clone())
+                            .opacity(white_progress)
+                            .width(Length::Fixed(640.0))
+                            .height(Length::Fill)
+                            .content_fit(ContentFit::Cover),
+                        iced::widget::Space::new()
+                            .height(Length::Fixed(440.0 - (50.0 * white_progress)))
+                            .width(Length::Fill),
+                    ]
+                    .padding(iced::Padding::new(0.0).top(glow_offset))
+                    .into(),
+                );
+                elements.push(
+                    iced::widget::column![
+                        iced::widget::image(self.top_register.white_glow.clone())
+                            .opacity(white_progress)
+                            .rotation(Radians(PI))
+                            .width(Length::Fixed(640.0))
+                            .height(Length::Fill)
+                            .content_fit(ContentFit::Cover),
+                        iced::widget::Space::new()
+                            .height(Length::Fixed(350.0 + (50.0 * white_progress)))
+                            .width(Length::Fill),
+                    ]
+                    .padding(iced::Padding::new(0.0).top(glow_offset))
+                    .into(),
+                );
+            }
+
+            // blue glow
+            let blue_progress = self.top_register.get_current_blue();
+            let half_width = 42.0; // half png's height
+            if blue_progress > 0.0 {
+                let opacity = if blue_progress < 1.0 {
+                    blue_progress
+                } else {
+                    1.0 - blue_progress
+                };
+
+                elements.push(
+                    iced::widget::column![
+                        iced::widget::image(self.top_register.blue_glow.clone())
+                            .opacity(opacity)
+                            .width(Length::Fixed(640.0))
+                            .height(Length::Fixed(half_width * 2.0 * blue_progress))
+                            .content_fit(ContentFit::Cover),
+                    ]
+                    .padding(
+                        iced::Padding::new(0.0)
+                            .top(glow_offset + half_width * (1.0 - blue_progress) / 2.0),
+                    )
+                    .into(),
+                );
+                elements.push(
+                    iced::widget::column![
+                        iced::widget::image(self.top_register.blue_glow.clone())
+                            .width(Length::Fixed(640.0))
+                            .height(Length::Fixed(82.0))
+                            .filter_method(iced::widget::image::FilterMethod::Linear)
+                            .content_fit(ContentFit::Cover),
+                    ]
+                    .padding(iced::Padding::new(0.0).top(glow_offset + 0.0))
+                    .into(),
+                )
+            }
+
+            // registration text
+            let text_progress = self.top_register.get_current_text();
+            if text_progress > 0.0 {
+                let text_color = 1.0 - text_progress;
+                elements.push(
+                    iced::widget::container(
+                        iced::widget::text("Registration complete!")
+                            .font(FONT)
+                            .size(24.0)
+                            .color(Color::from_rgb(text_color, text_color, text_color)),
+                    )
+                    .width(640.0)
+                    .center_x(Fill)
+                    .padding(iced::Padding::new(0.0).top(40.0))
+                    .into(),
+                )
+            }
         } else {
             println!("{:?}", self.state);
         }
@@ -640,7 +838,7 @@ impl Register {
                                     right: 16.0
                                 }),
                             text(t)
-                                .size(10)
+                                .size(18)
                                 .width(iced::Fill)
                                 .align_x(iced::alignment::Horizontal::Right),
                         ]
