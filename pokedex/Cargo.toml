@@ -10,7 +10,6 @@ cosmic-text = "0.18.2"
 gstreamer = "0.24.4"
 gstreamer-app = "0.24.4"
 gstreamer-video = "0.24.4"
-heck = "0.5.0"
 iced_gif = "0.14.0"
 image = { version = "0.25.9", features = ["default-formats"] }
 include_assets = "1.0.0"

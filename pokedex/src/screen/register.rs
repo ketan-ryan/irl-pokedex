@@ -1,4 +1,3 @@
-use iced::Alignment::Center;
 use iced::Length::{self, Fill};
 use iced::animation::Animation;
 use iced::widget::{Space, button, column, container, row, stack, text};
@@ -7,7 +6,6 @@ use iced::{Background, ContentFit, Padding};
 use iced_gif::Gif;
 
 use anyhow::anyhow;
-use heck::ToTitleCase;
 use image;
 
 use std::f32::consts::PI;
@@ -66,6 +64,7 @@ struct TopScreenRegister {
     white_anim: Animation<f32>,
     blue_anim: Animation<f32>,
     text_anim: Animation<f32>,
+    name_size: f32,
 }
 
 impl TopScreenRegister {
@@ -83,6 +82,7 @@ impl TopScreenRegister {
                 .duration(Duration::from_millis(1000))
                 .easing(iced::animation::Easing::EaseOutQuad),
             text_anim: Animation::new(0.0).duration(Duration::from_millis(300)),
+            name_size: 16.0,
         }
     }
 
@@ -353,7 +353,6 @@ impl Register {
                     let cfg = self.config.clone();
                     // let class_idx = rand::random_range(0..1136);
                     let pokemon: Option<&String> = cfg.classes.get(class_idx);
-
                     if pokemon.is_none() {
                         println!("Index {} OOB!", class_idx);
                         return Action::Run(Task::done(Message::FailedClassification(Some(
@@ -362,13 +361,26 @@ impl Register {
                         ))));
                     }
 
-                    self.found_pokemon = pokemon.cloned();
+                    // Some pokemon have different names in the class map and pokedex json,
+                    // depending on how they were generated
+                    let mapped: Option<&String> = cfg.name_maps.get(pokemon.unwrap());
+                    let pokemon_name = &if mapped.is_some() {
+                        mapped.unwrap()
+                    } else {
+                        pokemon.unwrap()
+                    }
+                    .to_lowercase();
+
+                    self.top_register.name_size =
+                        shrink_text_to_fit(pokemon_name, 16.0, 154.0, 10.0, 1, 28.0);
+
+                    self.found_pokemon = Some(pokemon_name.to_string());
 
                     let loc = cfg.sprites_location.clone();
 
                     let current_dex = self
                         .pokemon_details
-                        .set_current_pokemon(cfg.pokedex_json.get(pokemon.unwrap()).cloned());
+                        .set_current_pokemon(cfg.pokedex_json.get(pokemon_name).cloned());
 
                     let failure_text = format!(
                         "Failed to find information for Pokémon {}!",
@@ -385,13 +397,12 @@ impl Register {
                         100.0,
                     );
 
-                    println!("{}", self.dex_entry_size);
-
-                    let poke = pokemon.unwrap().to_string();
+                    // pokemon name, for the sake of grabbing images
+                    let poke = pokemon.unwrap().to_string().to_lowercase();
                     let type_images = io::get_type_images(
                         self.config
                             .pokedex_json
-                            .get(&poke)
+                            .get(pokemon_name)
                             .cloned()
                             .unwrap_or_default()
                             .types
@@ -888,11 +899,8 @@ impl Register {
 
                 // name and number
                 let number = info.number.clone();
-                let pokemon_name = self
-                    .found_pokemon
-                    .as_ref()
-                    .unwrap_or(&"???".to_string())
-                    .to_title_case();
+                let pokemon_name =
+                    to_proper_case(self.found_pokemon.as_ref().unwrap_or(&"???".to_string()));
 
                 let top_section = container(
                     row![
@@ -904,12 +912,12 @@ impl Register {
                         container(
                             text(pokemon_name)
                                 .font(FONT)
-                                .size(FONT_SIZE)
-                                // Disallow names with spaces from overflowing to next line
+                                .size(self.top_register.name_size) // Disallow names with spaces from overflowing to next line
                                 .wrapping(iced::widget::text::Wrapping::None)
                         )
                         .width(Length::Fill)
-                        .align_x(iced::alignment::Horizontal::Center),
+                        .align_y(iced::alignment::Vertical::Top)
+                        .align_x(iced::alignment::Horizontal::Left),
                         // Duplicate the number container on the right for visual balance but keep it empty
                         Space::new().width(Length::Fixed(60.0)),
                     ]
@@ -1193,7 +1201,6 @@ impl Register {
                 let description_text = if pokedex_string.starts_with("Error") {
                     text(pokedex_string).size(FONT_SIZE).width(iced::Fill)
                 } else {
-                    // magic numbers determined via trial and error
                     text(pokedex_string)
                         .size(self.dex_entry_size)
                         .font(FONT)
@@ -1268,4 +1275,23 @@ async fn blur_image(frame: Arc<VideoFrame>) -> iced::widget::image::Handle {
     let pixels = blurred.into_raw();
 
     iced::widget::image::Handle::from_rgba(frame.width, frame.height, pixels)
+}
+
+// Capitalize the start of words
+fn to_proper_case(s: &str) -> String {
+    let mut result = String::new();
+    let mut capitalize_next = true;
+
+    for c in s.chars() {
+        if c.is_whitespace() || c == '-' || c == '_' {
+            result.push(c);
+            capitalize_next = true;
+        } else if capitalize_next {
+            result.extend(c.to_uppercase());
+            capitalize_next = false;
+        } else {
+            result.push(c);
+        }
+    }
+    result
 }

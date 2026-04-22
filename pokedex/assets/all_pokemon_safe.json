@@ -1098,9 +1098,9 @@
     "Rotom Frost",
     "Rotom Fan",
     "Rotom Mow",
-    "Dialga Origin Form",
-    "Palkia Origin Form",
-    "Giratina Altered Form",
+    "Dialga Origin Forme",
+    "Palkia Origin Forme",
+    "Giratina Altered Forme",
     "Shaymin Sky Forme",
     "Darmanitan Zen Mode",
     "Darmanitan (Galarian) Zen Mode",
@@ -1110,7 +1110,7 @@
     "Enamorus Therian Forme",
     "Kyurem White",
     "Kyurem Black",
-    "Meloetta Pirouette Form",
+    "Meloetta Pirouette Forme",
     "Zygarde 10% Forme",
     "Zygarde Complete Forme",
     "Hoopa Unbound",
@@ -1121,7 +1121,6 @@
     "Necrozma Dusk Mane",
     "Necrozma Dawn Wings",
     "Ultra Necrozma",
-    "Eternatus Eternamax Form",
     "Ursaluna Bloodmoon",
     "Palafin Hero Form",
     "Tatsugiri Droopy Form",
@@ -1134,5 +1133,7 @@
     "Terapagos Stellar Form",
     "Lycanroc Midnight Form",
     "Calyrex Ice Rider",
-    "Calyrex Shadow Rider"
+    "Calyrex Shadow Rider",
+    "Zacian Crowned Sword",
+    "Zamazenta Crowned Shield"
 ]

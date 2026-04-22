@@ -97,6 +97,7 @@ pub struct PokedexConfig {
     pub session: Arc<Mutex<Session>>,
     pub classes: Vec<String>,
     pub confidence: f32,
+    pub name_maps: HashMap<String, String>,
 }
 
 pub fn get_type_images(types: Vec<PokemonType>) -> Vec<String> {
@@ -161,12 +162,24 @@ pub fn validate_config() -> Result<PokedexConfig, PokedexError> {
         return Err(PokedexError::MalformedConfig(mcerr.to_string()));
     }
 
+    // we can proceed without this, some pokemon just will have issues getting dex info
+    // the map resolves discrepancies between image names and pokedex.json keys
+    // TODO: logging
+    let mut name_maps: HashMap<String, String> = HashMap::new();
+    let name_loc = config.get("name_maps");
+    if name_loc.is_some() {
+        name_maps = load_name_maps(name_loc.unwrap());
+    } else {
+        println!("No name maps found");
+    }
+
     Ok(PokedexConfig {
         pokedex_json: entries,
         sprites_location: path.unwrap().to_string(),
         session: model,
         classes: classes,
         confidence: confidence,
+        name_maps,
     })
 }
 
@@ -190,7 +203,15 @@ pub fn load_dex_entries(filename: &str) -> Result<HashMap<String, PokemonInfo>, 
         _ => PokedexError::MalformedPokedex(e.to_string()),
     })?;
 
-    serde_json::from_str(&dex).map_err(|e| PokedexError::MalformedPokedex(e.to_string()))
+    serde_json::from_str(&dex)
+        .map_err(|e| PokedexError::MalformedPokedex(e.to_string()))
+        .map(|raw_map: HashMap<String, PokemonInfo>| {
+            // lowercase pokemon name for comparisons
+            raw_map
+                .into_iter()
+                .map(|(k, v)| (k.to_lowercase(), v))
+                .collect::<HashMap<String, PokemonInfo>>()
+        })
 }
 
 pub fn load_classes(filename: &str) -> Result<Vec<String>, PokedexError> {
@@ -201,6 +222,26 @@ pub fn load_classes(filename: &str) -> Result<Vec<String>, PokedexError> {
     })?;
 
     serde_json::from_str(&classes).map_err(|e| PokedexError::MalformedClasses(e.to_string()))
+}
+
+pub fn load_name_maps(filename: &str) -> HashMap<String, String> {
+    // If we couldn't get a local path, an error would have been thrown by the time this gets called
+    let maps_path = get_local_path().unwrap().join(filename);
+    let maps = std::fs::read_to_string(maps_path);
+    if maps.is_ok() {
+        println!("Got maps");
+        let res = serde_json::from_str(&maps.unwrap());
+        if res.is_ok() {
+            println!("Parsed maps json");
+            return res.unwrap();
+        } else {
+            println!("Failed to parse maps json");
+        }
+    } else {
+        println!("Failed to find maps");
+    }
+
+    return HashMap::new();
 }
 
 pub fn load_png(sprite_folder: String, pokemon_name: &str) -> Result<Vec<u8>, anyhow::Error> {

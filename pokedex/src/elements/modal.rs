@@ -35,7 +35,6 @@ pub fn shrink_text_to_fit(
         let width = chars * font_size * AVERAGE_CHAR_WIDTH_RATIO;
         (width / max_width).ceil().max(1.0)
     };
-
     // Line height is typically 1.3-1.4, add extra padding for descenders
     let estimated_height = |font_size: f32, lines: f32| {
         let line_height = font_size * 1.4; // More conservative than 1.2
