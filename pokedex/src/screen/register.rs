@@ -72,10 +72,10 @@ impl TopScreenRegister {
         Self {
             state: RegisteredState::WhiteBars,
             white_glow: iced::widget::image::Handle::from_bytes(
-                include_bytes!("../../assets/white_glow.png").as_slice(),
+                include_bytes!("../../assets/register_screen/white_glow.png").as_slice(),
             ),
             blue_glow: iced::widget::image::Handle::from_bytes(
-                include_bytes!("../../assets/blue_glow.png").as_slice(),
+                include_bytes!("../../assets/register_screen/blue_glow.png").as_slice(),
             ),
             white_anim: Animation::new(0.0).duration(Duration::from_millis(200)),
             blue_anim: Animation::new(0.0)
@@ -215,19 +215,20 @@ impl Register {
                     .duration(Duration::from_millis(500))
                     .easing(iced::animation::Easing::EaseInOut),
                 bg_handle: iced::widget::image::Handle::from_bytes(
-                    include_bytes!("../../assets/background.png").as_slice(),
+                    include_bytes!("../../assets/register_screen/background.png").as_slice(),
                 ),
                 ring_handle: iced::widget::image::Handle::from_bytes(
-                    include_bytes!("../../assets/ring.png").as_slice(),
+                    include_bytes!("../../assets/register_screen/ring.png").as_slice(),
                 ),
                 pokeball_icon: iced::widget::image::Handle::from_bytes(
-                    include_bytes!("../../assets/pokeball_icon.png").as_slice(),
+                    include_bytes!("../../assets/register_screen/pokeball_icon.png").as_slice(),
                 ),
                 pokeball_gray: iced::widget::image::Handle::from_bytes(
-                    include_bytes!("../../assets/pokeball_icon_gray.png").as_slice(),
+                    include_bytes!("../../assets/register_screen/pokeball_icon_gray.png")
+                        .as_slice(),
                 ),
                 unown_handle: iced_gif::Frames::from_bytes(
-                    include_bytes!("../../assets/unown-interrogation.gif").to_vec(),
+                    include_bytes!("../../assets/register_screen/unown-interrogation.gif").to_vec(),
                 )
                 .unwrap(),
                 spinner_state: PokedexSpinnerState::new(),
