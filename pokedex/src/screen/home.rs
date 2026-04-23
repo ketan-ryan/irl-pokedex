@@ -1,36 +1,41 @@
-use iced::{Center, Color, Element, Event, Fill, Subscription, Task, time};
 use iced::event::{self, Status};
 use iced::keyboard::{Event::KeyPressed, Key, key::Named};
-use iced::animation::Animation;
-use iced::widget::{column, container, text, stack, canvas::Canvas};
+use iced::widget::{container, mouse_area, stack, text};
+use iced::{Color, Element, Event, Subscription, Task, time};
 
-use image;
-
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use crate::elements::gstreamer_stream::{VideoError, VideoFrame, gstreamer_stream};
 use crate::elements::loading_screen::{QuadCanvas, QuadState};
-use crate::elements::pokedex_spinner::{SpinnerCanvas, PokedexSpinnerState};
 use crate::grid::Grid;
 use crate::io;
 
+#[derive(Debug, PartialEq)]
+enum State {
+    Loading, // waiting for camera
+    Loaded,  // getting frames
+}
+
+impl State {
+    fn should_get_frames(&self) -> bool {
+        *self == State::Loading || *self == State::Loaded
+    }
+}
 
 #[derive(Debug)]
 pub struct Home {
-    processing: bool,
+    state: State,
+    bottom_handle: iced::widget::image::Handle,
+    bottom_pressed_handle: iced::widget::image::Handle,
+    pressed: bool,
     grid: Grid,
     last_frame_handle: Option<iced::widget::image::Handle>,
     last_frame: Option<VideoFrame>,
-    loading: bool,
     quad_state: QuadState,
-    time: f32,
+    time: Instant,
     gstreamer_error: Option<String>,
-    captured_frame: Option<iced::widget::image::Handle>,
     frame_save_error: Option<String>,
-    classifying: bool,
-    fade: Animation<f32>,
-    bg_handle: iced::widget::image::Handle,
-    spinner_state: PokedexSpinnerState
 }
 
 #[derive(Debug, Clone)]
@@ -38,100 +43,94 @@ pub enum Message {
     HomeToggled,
     Refresh, // TODO: use this to try restarting camera if error
     Tick(Duration),
+    BottomPressed,
+    BottomReleased,
     FrameReceived(VideoFrame),
     GSTError(VideoError),
     IOInput(IOAction),
     FrameSaveError(Option<String>),
-    Classify,
-    Blurred(iced::widget::image::Handle)
+    Register(Arc<VideoFrame>),
 }
 
 pub enum Action {
     None,
     GoHome,
+    Register(Arc<VideoFrame>),
     RedrawWindows,
     Run(Task<Message>),
 }
 
 #[derive(Debug, Clone)]
 pub enum IOAction {
-    TakePicture
+    TakePicture,
 }
 
 impl Home {
-    pub fn new() -> (Self, Task<Message>) {
+    pub fn new(bottom_handle: iced::widget::image::Handle) -> (Self, Task<Message>) {
         println!("New home created");
         (
             Self {
-                processing: false,
+                state: State::Loading,
+                bottom_handle: bottom_handle,
+                bottom_pressed_handle: iced::widget::image::Handle::from_bytes(
+                    include_bytes!("../../assets/bottom_screen_pressed.png").as_slice(),
+                ),
+                pressed: false,
                 grid: Grid::new(),
                 last_frame_handle: None,
                 last_frame: None,
-                loading: true,
                 quad_state: QuadState::new(),
-                time: 0.0,
+                time: Instant::now(),
                 gstreamer_error: None,
-                captured_frame: None,
                 frame_save_error: None,
-                classifying: false,
-                fade: Animation::new(0.0)
-                    .duration(Duration::from_millis(300))
-                    .easing(iced::animation::Easing::EaseInOut),
-                bg_handle: iced::widget::image::Handle::from_bytes(
-                    include_bytes!("../../assets/background.png").as_slice()
-                ),
-                spinner_state: PokedexSpinnerState::new()
             },
-            Task::none()
+            Task::none(),
         )
     }
 
     pub fn update(&mut self, msg: Message) -> Action {
         match msg {
-            Message::HomeToggled => {
-                self.processing = true;
-                Action::None
-            }
-            Message::Refresh => {
-                Action::GoHome
-            }
-            Message::Tick(duration) => {
+            Message::HomeToggled => Action::None,
+            Message::Refresh => Action::GoHome,
+            Message::Tick(_) => {
                 self.grid.tick();
 
-                if self.quad_state.is_loading() 
-                    || self.quad_state.is_finishing() 
-                    || !self.quad_state.finished_spinning() 
-                    && self.gstreamer_error.is_none()
+                if self.state == State::Loading
+                    || self.quad_state.is_finishing()
+                    || !self.quad_state.finished_spinning() && self.gstreamer_error.is_none()
                 {
                     self.quad_state.tick();
-                } else {
-                    self.loading = false;
-                }
-                
-                self.time += duration.as_secs_f32();
-                if self.time > 3.0 && !self.quad_state.is_finishing() && self.quad_state.is_loading() {
-                    self.quad_state.set_loaded();
-                }
-
-                if self.classifying {
-                    self.spinner_state.tick();
                 }
 
                 Action::RedrawWindows
             }
-            Message::FrameReceived(frame) => {
-                self.last_frame = Some(frame.clone());
-
-                self.last_frame_handle = Some(iced::widget::image::Handle::from_rgba(
-                    frame.width,
-                    frame.height,
-                    frame.data
-                ));
-                
-                if self.quad_state.is_loading() {
-                    self.quad_state.set_loaded();
+            Message::BottomPressed => {
+                if self.state != State::Loading {
+                    self.pressed = true;
                 }
-                
+                Action::None
+            }
+            Message::BottomReleased => {
+                self.pressed = false;
+                Action::None
+            }
+            Message::FrameReceived(frame) => {
+                // TODO move this to async task
+                if self.time.elapsed() > Duration::from_secs_f32(0.5) {
+                    self.last_frame = Some(frame.clone());
+
+                    self.last_frame_handle = Some(iced::widget::image::Handle::from_rgba(
+                        frame.width,
+                        frame.height,
+                        frame.data,
+                    ));
+
+                    if self.state == State::Loading {
+                        self.state = State::Loaded;
+                        self.quad_state.set_loaded();
+                    }
+                }
+
                 Action::None
             }
             Message::GSTError(error) => {
@@ -148,37 +147,36 @@ impl Home {
                     }
                 }
                 Action::None
-            },
+            }
             Message::IOInput(action) => {
                 match action {
                     IOAction::TakePicture => {
-                        if self.classifying {
-                            return Action::None
+                        if !self.state.should_get_frames() {
+                            return Action::None;
                         }
-                        if let Some(frame) = self.last_frame.clone() {                           
+                        if let Some(frame) = self.last_frame.clone() {
+                            let res = Arc::new(frame.clone());
                             return Action::Run(Task::batch([
-                                Task::perform(Self::blur_image(frame.clone()), Message::Blurred),
+                                // Task::perform(Self::blur_image(frame.clone()), Message::Blurred),
                                 Task::perform(
                                     async move {
                                         // Save image to a temp staging area while we classify it
                                         // If classification succeeds: move to appropriate folder
                                         // Else: Do nothing, staging area will be recreated on next capture
-                                        
-                                        io::save_frame(&frame)
-                                            .map_err(|e| e.to_string())
+                                        io::save_frame(&frame).map_err(|e| e.to_string())
                                     },
-                                    |result| match result {
-                                        Ok(()) => Message::Classify,
-                                        Err(e) => Message::FrameSaveError(Some(e))
+                                    move |result| match result {
+                                        Ok(..) => Message::Register(Arc::clone(&res)),
+                                        Err(e) => Message::FrameSaveError(Some(e)),
                                     },
-                                )
-                            ])
-                        )};
-                    },
+                                ),
+                            ]));
+                        };
+                    }
                 }
 
                 Action::None
-            },
+            }
             Message::FrameSaveError(err) => {
                 if let Some(error) = err {
                     self.frame_save_error = Some(error);
@@ -186,51 +184,29 @@ impl Home {
                 };
 
                 Action::None
-            },
-            Message::Classify => {
-                self.classifying = true;
-                Action::None
-            },
-            Message::Blurred(handle) => {
-                self.captured_frame = Some(handle);
-
-                self.fade.go_mut(1.0, Instant::now());
-                self.spinner_state.set_time();
-
-                Action::None
+            }
+            Message::Register(result) => {
+                Action::Register(result)
             }
         }
-    }    
-
-    async fn blur_image(frame: VideoFrame) -> iced::widget::image::Handle {
-        let buff: image::ImageBuffer<image::Rgba<u8>, Vec<u8>> = image::ImageBuffer::from_vec(
-            frame.width, 
-            frame.height, 
-            frame.data.clone()
-        ).unwrap();
-        let blurred = image::imageops::fast_blur(&buff, 10.0);
-        let pixels = blurred.into_raw();
-        
-        iced::widget::image::Handle::from_rgba(frame.width, frame.height, pixels)
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        let camera_subscription = if self.gstreamer_error.is_none() && !self.classifying {
-            Subscription::run(gstreamer_stream).map(|result| match result {
-                Ok(frame) => Message::FrameReceived(frame),
-                Err(e) => Message::GSTError(e)
-            })
-        } else {
-            Subscription::none()
-        };
+        let camera_subscription =
+            if self.gstreamer_error.is_none() && self.state.should_get_frames() {
+                Subscription::run(gstreamer_stream).map(|result| match result {
+                    Ok(frame) => Message::FrameReceived(frame),
+                    Err(e) => Message::GSTError(e),
+                })
+            } else {
+                Subscription::none()
+            };
 
         Subscription::batch([
-            // tick screen for updates ~120fps
-            time::every(Duration::from_millis(8))
+            // tick screen for updates ~60fps
+            time::every(Duration::from_millis(16))
                 .map(|arg0: std::time::Instant| Message::Tick(arg0.elapsed())),
-
             camera_subscription,
-
             // TODO: Will need custom subscription / event to handle rpi IO
             event::listen_with(|event, status, _| match (event, status) {
                 (
@@ -247,74 +223,47 @@ impl Home {
 
     pub fn top_view(&self) -> Element<'_, Message> {
         if self.gstreamer_error.is_some() {
-            text(format!("Error opening camera! Try rebooting or check with a developer.")).into()
-        }
-        else if self.classifying && self.captured_frame.is_some(){
-            stack![
-                iced::widget::image(self.captured_frame.as_ref().unwrap())
-                .opacity(self.fade.interpolate_with(|v|v, Instant::now())),
-
-                iced::widget::image(self.bg_handle.clone())
-                    .scale(self.spinner_state.current_scale()),
-                SpinnerCanvas::new(&self.spinner_state),
-
-                // // cutout: centered 8px strip of the blurred bg drawn over everything
-                // TODO: test clipping when iced updates with tinyskia fix
-                // iced::widget::container(
-                //     iced::widget::container(
-                //         iced::widget::image(self.captured_frame.as_ref().unwrap())
-                //             .content_fit(iced::ContentFit::Cover)
-                //             .width(iced::Fill)
-                //             .height(iced::Fill)
-                //     )
-                //     .width(iced::Fill)
-                //     .height(40)
-                //     .clip(true)
-                // )
-                // .width(iced::Fill)
-                // .height(iced::Fill)
-                // .align_y(iced::Center)
-
-            ].into()
-        }
-        else if let Some(handle) = &self.last_frame_handle {
+            text(format!(
+                "Error opening camera! Try rebooting or check with a developer."
+            ))
+            .into()
+        } else if let Some(handle) = &self.last_frame_handle {
             stack![
                 iced::widget::image(handle),
                 QuadCanvas::new(&self.quad_state),
-            ].into()
+            ]
+            .into()
         } else {
             QuadCanvas::new(&self.quad_state)
         }
     }
 
     pub fn bottom_view(&self) -> Element<'_, Message> {
-        let new_window_button =
-            text(format!("bottom window home screen"));
+        let opacity = if self.state == State::Loading {
+            0.5
+        } else {
+            1.0
+        };
+        let handle = if self.pressed {
+            &self.bottom_pressed_handle
+        } else {
+            &self.bottom_handle
+        };
 
-        let main = column![new_window_button]
-            .spacing(50)
-            .width(Fill)
-            .align_x(Center)
-            .width(200);
-
-        let stack = stack![
-            Canvas::new(&self.grid)
-                .width(Fill)
-                .height(Fill),
-
-            main,
-        ];
-
-        container(stack)
-        .width(iced::Length::Fill)
-        .height(iced::Length::Fill)
-        .style( |_| iced::widget::container::Style {
-            background: Some(iced::Background::Color(Color::from_rgb(1.0, 162.0 / 255.0, 0.0))),
-            text_color: Some(Color::BLACK),
-            border: Default::default(),
-            shadow: Default::default(),
-            snap: Default::default()
-        })
-        .into()    
+        stack![
+            // warmup render so there's no flash while it loads the image
+            iced::widget::image(&self.bottom_pressed_handle).opacity(0.0),
+            mouse_area(
+                container(iced::widget::image(handle).opacity(opacity)).style(|_| {
+                    iced::widget::container::Style {
+                        background: Some(iced::Background::Color(Color::BLACK)),
+                        ..Default::default()
+                    }
+                })
+            )
+            .on_press(Message::BottomPressed)
+            .on_release(Message::BottomReleased)
+        ]
+        .into()
     }
 }
