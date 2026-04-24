@@ -1,5 +1,6 @@
 use anyhow::{Result, anyhow};
 use config::Config;
+use log::{debug, trace, warn};
 use ort::session::Session;
 use serde::{Deserialize, Deserializer, Serialize};
 use strum_macros::{Display, EnumString};
@@ -170,7 +171,7 @@ pub fn validate_config() -> Result<PokedexConfig, PokedexError> {
     if name_loc.is_some() {
         name_maps = load_name_maps(name_loc.unwrap());
     } else {
-        println!("No name maps found");
+        warn!("No name maps found, assuming perfect match between image names and pokedex keys");
     }
 
     Ok(PokedexConfig {
@@ -229,16 +230,16 @@ pub fn load_name_maps(filename: &str) -> HashMap<String, String> {
     let maps_path = get_local_path().unwrap().join(filename);
     let maps = std::fs::read_to_string(maps_path);
     if maps.is_ok() {
-        println!("Got maps");
+        debug!("Got name maps file");
         let res = serde_json::from_str(&maps.unwrap());
         if res.is_ok() {
-            println!("Parsed maps json");
+            trace!("Successfully parsed maps json");
             return res.unwrap();
         } else {
-            println!("Failed to parse maps json");
+            warn!("Failed to parse name maps json - proceeding without it.");
         }
     } else {
-        println!("Failed to find maps");
+        warn!("Failed to find name maps json - proceeding without it.");
     }
 
     return HashMap::new();
@@ -311,7 +312,7 @@ pub fn save_frame(frame: &VideoFrame) -> Result<(), image::ImageError> {
     let name = now.to_string() + ".png";
 
     let out_path = &staging_area.join(name);
-    println!("{:?}", out_path);
+    debug!("Saved frame to {:?}", out_path);
     image::save_buffer_with_format(
         out_path,
         &frame.data,

@@ -1,3 +1,5 @@
+use log::error;
+
 use iced::futures::SinkExt;
 use iced::futures::Stream;
 use iced::futures::channel::mpsc::Sender;
@@ -115,7 +117,7 @@ pub fn gstreamer_stream() -> impl Stream<Item = Result<VideoFrame, VideoError>> 
                             break;
                         }
                         MessageView::Error(err) => {
-                            eprintln!("GStreamer error: {}", err.error());
+                            error!("GStreamer error: {}", err.error());
                             let _ = gst_tx.send(Some(Err(VideoError::PipelineError(
                                 err.error().to_string(),
                             ))));
@@ -133,7 +135,7 @@ pub fn gstreamer_stream() -> impl Stream<Item = Result<VideoFrame, VideoError>> 
                 let value = gst_rx.borrow().clone();
                 if let Some(result) = value {
                     if tx.send(result).await.is_err() {
-                        eprintln!("Failed to send frame");
+                        error!("Failed to send frame over GStreamer channel");
                         break;
                     }
                 }

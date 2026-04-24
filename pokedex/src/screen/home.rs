@@ -1,3 +1,5 @@
+use log::{debug, error, warn};
+
 use iced::event::{self, Status};
 use iced::keyboard::{Event::KeyPressed, Key, key::Named};
 use iced::widget::{container, mouse_area, stack, text};
@@ -67,7 +69,7 @@ pub enum IOAction {
 
 impl Home {
     pub fn new(bottom_handle: iced::widget::image::Handle) -> (Self, Task<Message>) {
-        println!("New home created");
+        debug!("New home created");
         (
             Self {
                 state: State::Loading,
@@ -136,12 +138,12 @@ impl Home {
             Message::GSTError(error) => {
                 match error {
                     VideoError::Eos => {
-                        eprintln!("stream ended");
+                        warn!("GStreamer stream ended!");
                         // TODO: restart pipeline, show placeholder, etc
                         self.gstreamer_error = Some("EOS".to_string());
                     }
                     VideoError::PipelineError(msg) => {
-                        eprintln!("gstreamer error: {}", msg);
+                        error!("GStreamer error: {}", msg);
                         // TODO: show error state in UI
                         self.gstreamer_error = Some(msg);
                     }
@@ -179,15 +181,13 @@ impl Home {
             }
             Message::FrameSaveError(err) => {
                 if let Some(error) = err {
+                    error!("Error saving frame: {:?}", &error);
                     self.frame_save_error = Some(error);
-                    eprintln!("{:?}", self.frame_save_error);
                 };
 
                 Action::None
             }
-            Message::Register(result) => {
-                Action::Register(result)
-            }
+            Message::Register(result) => Action::Register(result),
         }
     }
 
