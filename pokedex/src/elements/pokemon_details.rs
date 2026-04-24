@@ -276,7 +276,6 @@ fn load_img(bytes: &[u8]) -> Vec<Rgb> {
         .map(|p| [p.0[0] as f64, p.0[1] as f64, p.0[2] as f64])
         .collect();
 
-    println!("Image loaded");
     pixels
 }
 

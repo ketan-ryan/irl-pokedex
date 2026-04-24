@@ -7,6 +7,7 @@ use iced_gif::Gif;
 
 use anyhow::anyhow;
 use image;
+use log::{debug, error, trace};
 
 use std::f32::consts::PI;
 use std::sync::Arc;
@@ -203,7 +204,7 @@ impl Register {
         frame: Arc<VideoFrame>,
         bottom_handle: iced::widget::image::Handle,
     ) -> (Self, Task<Message>) {
-        println!("Open register");
+        debug!("Open register");
         (
             Self {
                 state: State::Classifying,
@@ -338,13 +339,14 @@ impl Register {
             }
             Message::ClassificationResult(result) => {
                 if result.is_err() {
-                    println!("{:?}", &result);
+                    error!("Failed classification: {:?}", &result);
 
                     return Action::Run(Task::done(Message::FailedClassification(Some(
                         result.as_ref().err().unwrap().to_string(),
                     ))));
                 }
-                println!("{:?}", result.as_ref());
+
+                debug!("{:?}", result.as_ref());
                 let (class_idx, conf) = result.unwrap();
                 if conf < self.config.confidence {
                     return Action::Run(Task::done(Message::FailedClassification(Some(
@@ -355,7 +357,7 @@ impl Register {
                     // let class_idx = rand::random_range(0..1136);
                     let pokemon: Option<&String> = cfg.classes.get(class_idx);
                     if pokemon.is_none() {
-                        println!("Index {} OOB!", class_idx);
+                        error!("Index {} OOB!", class_idx);
                         return Action::Run(Task::done(Message::FailedClassification(Some(
                             "Pokémon index out of bounds - likely an issue with the class list."
                                 .to_string(),
@@ -471,7 +473,6 @@ impl Register {
             Message::ReadEntry => {
                 self.state = State::ReadingEntry;
 
-                println!("Starting register anim");
                 self.fade.go_mut(0.0, Instant::now());
                 self.pokeball_register_anim.go_mut(1.0, Instant::now());
                 self.spinner_state.end_register();
@@ -485,7 +486,7 @@ impl Register {
                 Action::None
             }
             Message::Quantized(colors) => {
-                println!("Quantized to {} buckets", &colors.len());
+                debug!("Quantized to {} buckets", &colors.len());
                 self.pokemon_details.set_palette(colors);
 
                 Action::None
@@ -801,7 +802,7 @@ impl Register {
                 )
             }
         } else {
-            println!("{:?}", self.state);
+            trace!("{:?}", self.state);
         }
         iced::widget::Stack::with_children(elements).into()
     }
@@ -1253,7 +1254,7 @@ impl Register {
 
                 elements.push(content)
             } else {
-                println!("Still waiting")
+                debug!("Still waiting on noise generation");
             }
         }
         iced::widget::Stack::with_children(elements).into()

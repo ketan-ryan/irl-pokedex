@@ -4,8 +4,10 @@ mod ml;
 mod screen;
 
 use elements::grid;
+use flexi_logger::{self, Cleanup, Criterion, FileSpec, Logger, Naming, WriteMode};
 use gstreamer::glib::num_processors;
 use include_assets::{NamedArchive, include_dir};
+use log::error;
 use screen::Screen;
 use screen::home;
 
@@ -25,6 +27,33 @@ fn main() -> iced::Result {
         .num_threads((num_processors() as usize).saturating_sub(2)) // leave 2 cores for iced + OS
         .build_global()
         .unwrap();
+
+    let filter_string = "warn, pokedex=trace";
+
+    let logger_result = Logger::try_with_str(filter_string)
+        .unwrap() // This unwrap is usually safe as it only parses the string
+        .log_to_file(FileSpec::default().directory("logs"))
+        .duplicate_to_stdout(flexi_logger::Duplicate::All)
+        .write_mode(WriteMode::Direct)
+        .rotate(
+            Criterion::Age(flexi_logger::Age::Day), // create a new file daily
+            Naming::Timestamps,
+            Cleanup::KeepLogFiles(7), // keep at most a week's worth
+        )
+        .start();
+
+    match logger_result {
+        Ok(_logger_handle) => {
+            log::info!("Logger initialized successfully!");
+        }
+        Err(e) => {
+            // Let the program start, just won't have logs
+            eprintln!(
+                "WARNING: Logger failed to start. Continuing without file logging. Error: {}",
+                e
+            );
+        }
+    }
 
     iced::daemon(App::new, App::update, App::view)
         .subscription(App::subscription)
@@ -191,6 +220,7 @@ impl App {
                 self.config = Some(Arc::new(cfg));
             }
             Err(e) => {
+                error!("{}", &e);
                 self.error = Some(e);
             }
         }

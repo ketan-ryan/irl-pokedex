@@ -25,3 +25,4 @@ target
 **/mutants.out*/
 
 .vscode/
+logs/
