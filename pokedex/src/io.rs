@@ -1,10 +1,12 @@
 use anyhow::{Result, anyhow};
 use config::Config;
-use log::{debug, trace, warn};
+use log::{debug, error, trace, warn};
 use ort::session::Session;
 use serde::{Deserialize, Deserializer, Serialize};
 use strum_macros::{Display, EnumString};
+use tokio;
 
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::env;
 use std::fs;
@@ -91,6 +93,8 @@ impl Default for PokemonInfo {
     }
 }
 
+const LOCAL_DEX_NAME: &str = "local_pokedex.json";
+
 #[derive(Debug)]
 pub struct PokedexConfig {
     pub pokedex_json: HashMap<String, PokemonInfo>,
@@ -99,6 +103,7 @@ pub struct PokedexConfig {
     pub classes: Vec<String>,
     pub confidence: f32,
     pub name_maps: HashMap<String, String>,
+    pub local_dex: RefCell<Vec<String>>,
 }
 
 pub fn get_type_images(types: Vec<PokemonType>) -> Vec<String> {
@@ -165,13 +170,20 @@ pub fn validate_config() -> Result<PokedexConfig, PokedexError> {
 
     // we can proceed without this, some pokemon just will have issues getting dex info
     // the map resolves discrepancies between image names and pokedex.json keys
-    // TODO: logging
     let mut name_maps: HashMap<String, String> = HashMap::new();
     let name_loc = config.get("name_maps");
     if name_loc.is_some() {
         name_maps = load_name_maps(name_loc.unwrap());
     } else {
         warn!("No name maps found, assuming perfect match between image names and pokedex keys");
+    }
+
+    let local_dex_path = config.get("local_dex_path");
+    let dex_res = read_or_create_dex(local_dex_path);
+    if dex_res.is_err() {
+        return Err(PokedexError::MalformedPokedex(
+            "Fatal error loading local pokedex".to_string(),
+        ));
     }
 
     Ok(PokedexConfig {
@@ -181,6 +193,7 @@ pub fn validate_config() -> Result<PokedexConfig, PokedexError> {
         classes: classes,
         confidence: confidence,
         name_maps,
+        local_dex: dex_res.unwrap(),
     })
 }
 
@@ -323,4 +336,79 @@ pub fn save_frame(frame: &VideoFrame) -> Result<(), image::ImageError> {
     )?;
 
     Ok(())
+}
+
+pub fn read_or_create_dex(path: Option<&String>) -> Result<RefCell<Vec<String>>, anyhow::Error> {
+    let out_path = if path.is_none() {
+        debug!(
+            "No local pokedex path in config, falling back to {}",
+            LOCAL_DEX_NAME
+        );
+        &LOCAL_DEX_NAME.to_owned()
+    } else {
+        trace!("Loading local pokedex from {}", &path.unwrap());
+        path.unwrap()
+    };
+
+    let path = get_local_path()?.join(out_path);
+
+    // If there's nothing there, we'll create it
+    let local_dex = match std::fs::read_to_string(&path) {
+        Ok(success) => {
+            trace!("Reading pokedex from: {:?}", &path);
+            success
+        }
+        Err(e) => {
+            debug!(
+                "Unable to find local dex {:?}, writing to file {:?}",
+                e.to_string(),
+                &path
+            );
+            std::fs::write(path, "[]")?;
+            "[]".to_string()
+        }
+    };
+
+    let map: Vec<String> = serde_json::from_str(&local_dex).map_err(|e| {
+        warn!("Error parsing local pokedex: {}", e.to_string());
+        PokedexError::MalformedPokedex(e.to_string())
+    })?;
+
+    return Ok(RefCell::new(map));
+}
+
+pub async fn update_dex(pokemon_list: Vec<String>) {
+    // If we get here, all these functions have been checked,
+    // so we should be safe to unwrap
+    let config = load_settings().unwrap();
+    let local_dex_path = config.get("local_dex_path");
+
+    let out_path = if local_dex_path.is_none() {
+        debug!(
+            "No local pokedex path in config, falling back to {}",
+            LOCAL_DEX_NAME
+        );
+        &LOCAL_DEX_NAME.to_owned()
+    } else {
+        trace!("Loading local pokedex from {}", &local_dex_path.unwrap());
+        local_dex_path.unwrap()
+    };
+
+    let path = get_local_path().unwrap().join(out_path);
+    let updated_json = match serde_json::to_string_pretty(&pokemon_list) {
+        Ok(json) => {
+            trace!("Parsed pokedex json to {}", json);
+            json
+        }
+        Err(e) => {
+            error!("Failed to parse local pokedex list: {}", e.to_string());
+            return;
+        }
+    };
+
+    if let Err(e) = tokio::fs::write(path, updated_json).await {
+        error!("Failed to update local pokedex! {}", e.to_string());
+    } else {
+        debug!("Successfully updated local pokedex json.");
+    }
 }
