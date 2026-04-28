@@ -164,6 +164,10 @@ pub struct Register {
     pokeball_gray: iced::widget::image::Handle,
     pokeball_register_anim: Animation<f32>,
     top_register: TopScreenRegister,
+    // whether we are registering to dex for the first time this session
+    first_register: bool,
+    // will be true if we looked in the json and we saw an entry
+    already_registered: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -179,6 +183,7 @@ pub enum Message {
     ReadEntry,
     NoiseReady(Option<iced::widget::image::Handle>),
     Quantized(Vec<[f64; 3]>),
+    UpdatedLocalDex,
 }
 
 pub enum Action {
@@ -245,6 +250,8 @@ impl Register {
                     .duration(Duration::from_millis(3000))
                     .easing(iced::animation::Easing::EaseInQuint),
                 top_register: TopScreenRegister::new(),
+                first_register: false,
+                already_registered: false,
             },
             Task::done(Message::Start(frame)),
         )
@@ -298,7 +305,6 @@ impl Register {
                     }
 
                     // show ring around pokeball icon and animate registered text
-
                     if self.state == State::ReadingEntry
                         && self
                             .pokeball_register_anim
@@ -474,9 +480,36 @@ impl Register {
                 self.state = State::ReadingEntry;
 
                 self.fade.go_mut(0.0, Instant::now());
-                self.pokeball_register_anim.go_mut(1.0, Instant::now());
                 self.spinner_state.end_register();
                 self.register_pokemon.fade_out();
+
+                if !self
+                    .config
+                    .local_dex
+                    .borrow()
+                    .contains(&self.found_pokemon.as_ref().unwrap())
+                    && !self.first_register
+                {
+                    self.pokeball_register_anim.go_mut(1.0, Instant::now());
+                    self.first_register = true;
+                    self.config
+                        .local_dex
+                        .borrow_mut()
+                        .push(self.found_pokemon.as_ref().unwrap().to_string());
+
+                    let list: Vec<String> = self.config.local_dex.borrow().clone();
+
+                    return Action::Run(Task::perform(
+                        async move { io::update_dex(list).await },
+                        |_| Message::UpdatedLocalDex,
+                    ));
+                } else {
+                    trace!(
+                        "Skipping registration for {} as it is already registered",
+                        &self.found_pokemon.as_ref().unwrap()
+                    );
+                    self.already_registered = true;
+                }
 
                 Action::None
             }
@@ -489,6 +522,10 @@ impl Register {
                 debug!("Quantized to {} buckets", &colors.len());
                 self.pokemon_details.set_palette(colors);
 
+                Action::None
+            }
+            Message::UpdatedLocalDex => {
+                debug!("Got updated local dex message");
                 Action::None
             }
         }
@@ -1056,9 +1093,12 @@ impl Register {
                     .width(Length::Fill)
                     .height(Length::Fill);
 
-                let ball_scale = self
-                    .pokeball_register_anim
-                    .interpolate_with(|v| v, Instant::now());
+                let ball_scale = if self.already_registered {
+                    1.0
+                } else {
+                    self.pokeball_register_anim
+                        .interpolate_with(|v| v, Instant::now())
+                };
 
                 let current_size = BALL_SIZE * ball_scale;
 
