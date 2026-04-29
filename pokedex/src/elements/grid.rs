@@ -1,5 +1,5 @@
 use iced::widget::canvas::{self, Geometry};
-use iced::{Rectangle, Renderer, Theme, mouse, Point};
+use iced::{Point, Rectangle, Renderer, Theme, mouse};
 
 #[derive(Debug)]
 pub struct Grid {
@@ -11,7 +11,7 @@ impl Grid {
     pub fn new() -> Self {
         Self {
             offset: Vector::new(0.0, 0.0),
-            cache: canvas::Cache::new()
+            cache: canvas::Cache::new(),
         }
     }
 
@@ -30,9 +30,7 @@ pub struct Vector {
 
 impl Vector {
     pub fn new(x: f32, y: f32) -> Self {
-        Self {
-            x,y
-        }
+        Self { x, y }
     }
 }
 
@@ -45,7 +43,7 @@ impl<Message> canvas::Program<Message> for Grid {
         renderer: &Renderer,
         _theme: &Theme,
         bounds: Rectangle,
-        _cursor: mouse::Cursor
+        _cursor: mouse::Cursor,
     ) -> Vec<Geometry> {
         let geo = self.cache.draw(renderer, bounds.size(), |frame| {
             let spacing = 10.0;
@@ -57,10 +55,7 @@ impl<Message> canvas::Program<Message> for Grid {
             let mut x = -x_offset;
             while x < bounds.width {
                 frame.stroke(
-                    &canvas::Path::line(
-                        Point::new(x, 0.0),
-                        Point::new(x, bounds.height),
-                    ),
+                    &canvas::Path::line(Point::new(x, 0.0), Point::new(x, bounds.height)),
                     canvas::Stroke {
                         width: 1.0,
                         ..Default::default()
@@ -73,10 +68,7 @@ impl<Message> canvas::Program<Message> for Grid {
             let mut y = -y_offset;
             while y < bounds.height {
                 frame.stroke(
-                    &canvas::Path::line(
-                        Point::new(0.0, y),
-                        Point::new(bounds.width, y),
-                    ),
+                    &canvas::Path::line(Point::new(0.0, y), Point::new(bounds.width, y)),
                     canvas::Stroke {
                         width: 1.0,
                         ..Default::default()
@@ -85,7 +77,6 @@ impl<Message> canvas::Program<Message> for Grid {
                 y += spacing;
             }
         });
-
 
         vec![geo]
     }
