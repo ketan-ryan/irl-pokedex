@@ -60,6 +60,7 @@ pub enum Action {
     Register(Arc<VideoFrame>),
     RedrawWindows,
     Run(Task<Message>),
+    BrowsePokedex,
 }
 
 #[derive(Debug, Clone)]
@@ -109,6 +110,7 @@ impl Home {
             Message::BottomPressed => {
                 if self.state != State::Loading {
                     self.pressed = true;
+                    return Action::BrowsePokedex;
                 }
                 Action::None
             }
