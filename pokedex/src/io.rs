@@ -5,6 +5,7 @@ use ort::session::Session;
 use serde::{Deserialize, Deserializer, Serialize};
 use strum_macros::{Display, EnumString};
 use tokio;
+use tokio::io::AsyncReadExt;
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -94,6 +95,8 @@ impl Default for PokemonInfo {
 }
 
 const LOCAL_DEX_NAME: &str = "local_pokedex.json";
+const SAVED_IMGS_DIR: &str = "saved_images";
+const STAGING_DIR: &str = "staging";
 
 #[derive(Debug)]
 pub struct PokedexConfig {
@@ -104,6 +107,7 @@ pub struct PokedexConfig {
     pub confidence: f32,
     pub name_maps: HashMap<String, String>,
     pub local_dex: RefCell<Vec<String>>,
+    pub saved_imgs_dir: String,
 }
 
 pub fn get_type_images(types: Vec<PokemonType>) -> Vec<String> {
@@ -186,6 +190,14 @@ pub fn validate_config() -> Result<PokedexConfig, PokedexError> {
         ));
     }
 
+    let saved_images_path = config.get("saved_images_path");
+    let imgs_res = read_or_create_images_dir(saved_images_path);
+    if imgs_res.is_err() {
+        return Err(PokedexError::FatalError(
+            "Fatal error creating images dir".to_string(),
+        ));
+    }
+
     Ok(PokedexConfig {
         pokedex_json: entries,
         sprites_location: path.unwrap().to_string(),
@@ -194,6 +206,7 @@ pub fn validate_config() -> Result<PokedexConfig, PokedexError> {
         confidence: confidence,
         name_maps,
         local_dex: dex_res.unwrap(),
+        saved_imgs_dir: imgs_res.unwrap(),
     })
 }
 
@@ -311,7 +324,7 @@ pub fn save_frame(frame: &VideoFrame) -> Result<(), image::ImageError> {
     let path = get_local_path().map_err(|e| {
         image::ImageError::IoError(io::Error::new(io::ErrorKind::Other, e.to_string()))
     })?;
-    let staging_area = path.join("staging");
+    let staging_area = path.join(STAGING_DIR);
 
     // remove dir could error if dir isn't present - ignore
     let _ = fs::remove_dir_all(&staging_area);
@@ -377,10 +390,8 @@ pub fn read_or_create_dex(path: Option<&String>) -> Result<RefCell<Vec<String>>,
     return Ok(RefCell::new(map));
 }
 
-pub async fn update_dex(pokemon_list: Vec<String>) {
-    // If we get here, all these functions have been checked,
-    // so we should be safe to unwrap
-    let config = load_settings().unwrap();
+pub async fn update_dex(pokemon_list: Vec<String>) -> Result<(), anyhow::Error> {
+    let config = load_settings()?;
     let local_dex_path = config.get("local_dex_path");
 
     let out_path = if local_dex_path.is_none() {
@@ -394,21 +405,93 @@ pub async fn update_dex(pokemon_list: Vec<String>) {
         local_dex_path.unwrap()
     };
 
-    let path = get_local_path().unwrap().join(out_path);
+    let path = get_local_path()?.join(out_path);
     let updated_json = match serde_json::to_string_pretty(&pokemon_list) {
         Ok(json) => {
             trace!("Parsed pokedex json to {}", json);
             json
         }
-        Err(e) => {
-            error!("Failed to parse local pokedex list: {}", e.to_string());
-            return;
-        }
+        Err(e) => return Err(PokedexError::UpdateDexFailure(e.to_string()).into()),
     };
 
-    if let Err(e) = tokio::fs::write(path, updated_json).await {
-        error!("Failed to update local pokedex! {}", e.to_string());
+    tokio::fs::write(path, updated_json)
+        .await
+        .map_err(|e| e.into())
+}
+
+pub fn read_or_create_images_dir(path: Option<&String>) -> Result<String, anyhow::Error> {
+    let out_path = if path.is_none() {
+        debug!(
+            "No saved images path in config, falling back to {}",
+            SAVED_IMGS_DIR
+        );
+        &SAVED_IMGS_DIR.to_owned()
     } else {
-        debug!("Successfully updated local pokedex json.");
+        trace!("Found saved images dir: {}", &path.unwrap());
+        path.unwrap()
+    };
+
+    let path = get_local_path()?.join(out_path);
+
+    // Creates the folder and any missing parents.
+    // If it already exists, it does nothing and returns Ok(()).
+    fs::create_dir_all(&path)?;
+
+    Ok(path.to_str().expect("Failed to read path").to_owned())
+}
+
+pub async fn add_dex_img(dex_path: String, pokemon_name: String) -> Result<(), anyhow::Error> {
+    let imgs_path = get_local_path()?.join(STAGING_DIR);
+
+    let dex_buf: PathBuf = dex_path.into();
+    trace!("Looking for dex images in {:?}", imgs_path);
+
+    let mut entries = tokio::fs::read_dir(&imgs_path).await?;
+    let img_path: PathBuf;
+    if let Some(entry) = entries.next_entry().await? {
+        img_path = entry.path();
+        trace!("Found path to be {:?}", img_path);
+    } else {
+        return Err(PokedexError::SaveDexImgError(
+            "Staging dir is empty! No image to save.".to_string(),
+        )
+        .into());
     }
+
+    let save_dir = dex_buf.join(pokemon_name);
+    tokio::fs::create_dir_all(&save_dir).await?;
+    trace!("Saving image to {:?}", save_dir);
+
+    let dest = save_dir.join(&img_path.file_name().unwrap());
+    tokio::fs::copy(imgs_path.join(&img_path), &dest).await?;
+
+    debug!("Moved image to {:?}", dest);
+    Ok(())
+}
+
+pub async fn get_dex_images(
+    dex_path: &PathBuf,
+    pokemon_name: String,
+) -> Result<Vec<Vec<u8>>, anyhow::Error> {
+    let imgs_dir = dex_path.join(pokemon_name);
+    let mut read_dir = tokio::fs::read_dir(imgs_dir).await?;
+    let mut entries = Vec::new();
+
+    while let Some(entry) = read_dir.next_entry().await? {
+        let path = entry.path();
+        let mut current_entry = Vec::new();
+
+        trace!("Found file {:?}", &path);
+
+        if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("png") {
+            let mut file = tokio::fs::File::open(&path).await?;
+            file.read_to_end(&mut current_entry).await?;
+        } else {
+            debug!("Skipping file {:?}", &path);
+        }
+
+        entries.push(current_entry);
+    }
+
+    Ok(entries)
 }

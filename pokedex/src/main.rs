@@ -73,6 +73,8 @@ pub enum PokedexError {
     ModelError(String),
     ClassesNotFound(String),
     MalformedClasses(String),
+    UpdateDexFailure(String),
+    SaveDexImgError(String),
 }
 
 impl std::error::Error for PokedexError {}
@@ -100,6 +102,12 @@ impl std::fmt::Display for PokedexError {
             }
             PokedexError::MalformedClasses(e) => {
                 write!(f, "Could not parse Pokemon classes list: {}", e)
+            }
+            PokedexError::UpdateDexFailure(e) => {
+                write!(f, "Error updating pokedex: {}", e)
+            }
+            PokedexError::SaveDexImgError(e) => {
+                write!(f, "Failed to save image to local dex: {}", e)
             }
         }
     }
