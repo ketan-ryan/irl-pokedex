@@ -1,5 +1,6 @@
 use iced::Length::{self, Fill};
 use iced::animation::Animation;
+use iced::futures::FutureExt;
 use iced::widget::{Space, button, column, container, row, stack, text};
 use iced::{Alignment, Color, Element, Radians, Subscription, Task, time};
 use iced::{Background, ContentFit, Padding};
@@ -183,7 +184,7 @@ pub enum Message {
     ReadEntry,
     NoiseReady(Option<iced::widget::image::Handle>),
     Quantized(Vec<[f64; 3]>),
-    UpdatedLocalDex,
+    UpdatedLocalDex(Result<(), String>),
 }
 
 pub enum Action {
@@ -483,26 +484,22 @@ impl Register {
                 self.spinner_state.end_register();
                 self.register_pokemon.fade_out();
 
-                if !self
-                    .config
-                    .local_dex
-                    .borrow()
-                    .contains(&self.found_pokemon.as_ref().unwrap())
-                    && !self.first_register
-                {
+                let found = self.found_pokemon.as_ref().unwrap().clone();
+
+                if !self.config.local_dex.borrow().contains(&found) && !self.first_register {
                     self.pokeball_register_anim.go_mut(1.0, Instant::now());
                     self.first_register = true;
-                    self.config
-                        .local_dex
-                        .borrow_mut()
-                        .push(self.found_pokemon.as_ref().unwrap().to_string());
+                    self.config.local_dex.borrow_mut().push(found.to_string());
 
                     let list: Vec<String> = self.config.local_dex.borrow().clone();
+                    let saved_imgs_dir: String = self.config.saved_imgs_dir.clone();
 
-                    return Action::Run(Task::perform(
-                        async move { io::update_dex(list).await },
-                        |_| Message::UpdatedLocalDex,
-                    ));
+                    return Action::Run(Task::batch(vec![
+                        Task::future(io::add_dex_img(saved_imgs_dir, found))
+                            .map(|res| Message::UpdatedLocalDex(res.map_err(|e| e.to_string()))),
+                        Task::future(io::update_dex(list))
+                            .map(|res| Message::UpdatedLocalDex(res.map_err(|e| e.to_string()))),
+                    ]));
                 } else {
                     trace!(
                         "Skipping registration for {} as it is already registered",
@@ -524,8 +521,10 @@ impl Register {
 
                 Action::None
             }
-            Message::UpdatedLocalDex => {
-                debug!("Got updated local dex message");
+            Message::UpdatedLocalDex(res) => {
+                if res.is_err() {
+                    error!("Error with async dex ops: {}", res.unwrap_err())
+                }
                 Action::None
             }
         }

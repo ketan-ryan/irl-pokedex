@@ -1,5 +1,7 @@
-pokedex_location: "../../assets/pokedex.json"
+pokedex_location: "../../assets/resources/pokedex.json"
 sprites_location: "../../../data/registering_sprites"
-model_location: "../../assets/yolo26n-cls.onnx"
-classes_location: "../../assets/all_pokemon_safe.json"
+model_location: "../../assets/resources/yolo26n-cls.onnx"
+classes_location: "../../assets/resources/all_pokemon_safe.json"
 model_confidence: 0.05
+name_maps: "../../assets/resources/name_maps.json"
+local_dex_path: "local_pokedex.json"
