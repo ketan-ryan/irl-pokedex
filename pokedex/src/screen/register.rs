@@ -485,6 +485,7 @@ impl Register {
                 self.register_pokemon.fade_out();
 
                 let found = self.found_pokemon.as_ref().unwrap().clone();
+                let saved_imgs_dir: String = self.config.saved_imgs_dir.clone();
 
                 if !self.config.local_dex.borrow().contains(&found) && !self.first_register {
                     self.pokeball_register_anim.go_mut(1.0, Instant::now());
@@ -492,7 +493,6 @@ impl Register {
                     self.config.local_dex.borrow_mut().push(found.to_string());
 
                     let list: Vec<String> = self.config.local_dex.borrow().clone();
-                    let saved_imgs_dir: String = self.config.saved_imgs_dir.clone();
 
                     return Action::Run(Task::batch(vec![
                         Task::future(io::add_dex_img(saved_imgs_dir, found))
@@ -506,9 +506,11 @@ impl Register {
                         &self.found_pokemon.as_ref().unwrap()
                     );
                     self.already_registered = true;
+                    return Action::Run(
+                        Task::future(io::add_dex_img(saved_imgs_dir, found))
+                            .map(|res| Message::UpdatedLocalDex(res.map_err(|e| e.to_string()))),
+                    );
                 }
-
-                Action::None
             }
             Message::NoiseReady(handle) => {
                 self.pokemon_details.update_noise_handle(handle);
