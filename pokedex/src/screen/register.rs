@@ -852,7 +852,8 @@ impl Register {
                             text(t)
                                 .size(18)
                                 .width(iced::Fill)
-                                .align_x(iced::alignment::Horizontal::Right),
+                                .align_x(iced::alignment::Horizontal::Right)
+                                .color(Color::BLACK),
                         ]
                         .spacing(12)
                         .align_y(iced::Center)
