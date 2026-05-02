@@ -5,7 +5,7 @@ use iced::advanced::graphics::core::widget;
 use iced::event::{self, Status};
 use iced::keyboard::{Event::KeyPressed, Key, key::Named};
 use iced::widget::scrollable::{Direction, Scrollbar};
-use iced::widget::{Canvas, Id, Scrollable, operation, stack};
+use iced::widget::{Id, Scrollable, operation, stack};
 use iced::{
     Border, Color, Element, Event, Length, Subscription, Task, Theme,
     widget::{Space, canvas, column, container, image, image::Handle, row, scrollable, text},
@@ -20,9 +20,6 @@ use crate::{
     elements::grid::Grid,
     io::{self, PokedexConfig, PokemonInfo},
 };
-// enum State {
-
-// }
 
 #[derive(Debug)]
 pub struct PokedexBrowser {
@@ -86,6 +83,22 @@ impl PokedexBrowser {
         let load_task =
             image_cache.update_visible_range(config.as_ref().sprites_location.clone(), 0, 20);
 
+        let top_scroll_id = Id::unique();
+        let bot_scroll_id = Id::unique();
+
+        // Initialize bottom scroll to show items 10+ (offset by 10 rows * 45px = 450px)
+        const ROW_HEIGHT: f32 = 45.0;
+        const TOP_SCREEN_ITEMS: usize = 10;
+        let initial_bot_offset = TOP_SCREEN_ITEMS as f32 * ROW_HEIGHT;
+
+        let bot_init_scroll = operation::scroll_to(
+            bot_scroll_id.clone(),
+            scrollable::AbsoluteOffset {
+                x: 0.0,
+                y: initial_bot_offset,
+            },
+        );
+
         let state = Self {
             config,
             grid: Grid::new(),
@@ -95,11 +108,11 @@ impl PokedexBrowser {
             image_cache,
             scroll_offset: 0.0,
             items_per_page: 10,
-            top_scroll_id: Id::unique(),
-            bot_scroll_id: Id::unique(),
+            top_scroll_id,
+            bot_scroll_id,
         };
 
-        (state, load_task)
+        (state, Task::batch(vec![load_task, bot_init_scroll]))
     }
 
     pub fn update(&mut self, msg: Message) -> Action {
@@ -115,22 +128,29 @@ impl PokedexBrowser {
             Message::Scrolled(viewport) => {
                 debug!("Scrolled");
                 const ROW_HEIGHT: f32 = 45.0;
+                const TOP_SCREEN_ITEMS: usize = 10;
+                const BOT_OFFSET: f32 = TOP_SCREEN_ITEMS as f32 * ROW_HEIGHT;
 
-                // Bottom scroll offset becomes our total offset + the top screen height
-                self.scroll_offset = viewport.absolute_offset().y;
-                // self.scroll_offset = bottom_scroll + TOP_SCREEN_HEIGHT;
+                // Bottom scrollable's absolute position
+                let bot_scroll_pos = viewport.absolute_offset().y;
+
+                // Top scrollable should be offset behind by BOT_OFFSET
+                let top_scroll_pos = bot_scroll_pos - BOT_OFFSET;
+
+                // Store the top position as our canonical scroll_offset
+                self.scroll_offset = top_scroll_pos;
 
                 // Synchronize top scrollable to match
                 let sync_cmd = operation::scroll_to(
                     self.top_scroll_id.clone(),
                     scrollable::AbsoluteOffset {
                         x: 0.0,
-                        y: self.scroll_offset,
+                        y: top_scroll_pos,
                     },
                 );
 
-                // Update visible range for image loading
-                let start_index = (self.scroll_offset / ROW_HEIGHT).round() as usize;
+                // Update visible range for image loading based on top scroll position
+                let start_index = (top_scroll_pos / ROW_HEIGHT).max(0.0).round() as usize;
                 let end_index = start_index + (self.items_per_page * 2); // Both screens
                 let load_cmd = self.image_cache.update_visible_range(
                     self.config.sprites_location.clone(),
@@ -174,15 +194,11 @@ impl PokedexBrowser {
     }
 
     fn scroll(&self, amount: f32) -> Task<Message> {
-        let top_scroll = iced::widget::operation::scroll_by(
-            self.top_scroll_id.clone(),
-            scrollable::AbsoluteOffset { x: 0.0, y: amount },
-        );
-        let bot_scroll = iced::widget::operation::scroll_by(
+        // Only scroll the bottom scrollable - the Scrolled message will sync the top
+        iced::widget::operation::scroll_by(
             self.bot_scroll_id.clone(),
             scrollable::AbsoluteOffset { x: 0.0, y: amount },
-        );
-        return Task::batch(vec![top_scroll, bot_scroll]);
+        )
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
@@ -276,23 +292,13 @@ impl PokedexBrowser {
         const ROW_HEIGHT: f32 = 45.0;
         const TOP_SCREEN_ITEMS: usize = 10;
 
-        // Calculate which items should be visible on bottom screen
-        let start_index = (self.scroll_offset / ROW_HEIGHT).floor() as usize + TOP_SCREEN_ITEMS;
-
-        // Build the items for bottom screen
+        // Build the FULL list for bottom screen (same as top)
+        // The scrollable needs to contain all items so scroll positions match
         let items: Vec<Element<Message>> = self
             .image_cache
             .pokemon_order
             .iter()
-            .enumerate()
-            .skip(start_index)
-            .take(
-                self.image_cache
-                    .pokemon_order
-                    .len()
-                    .saturating_sub(start_index),
-            )
-            .map(|(idx, name)| {
+            .map(|name| {
                 let info = self.pokemon_data.get(name).unwrap();
                 let is_owned = self.owned_pokemon.contains(name);
                 self.render_pokemon_item(name, info, is_owned)
@@ -302,7 +308,7 @@ impl PokedexBrowser {
         let content = column(items).spacing(5);
         stack![
             container(
-                scrollable(content.spacing(5))
+                scrollable(content)
                     .id(self.bot_scroll_id.clone())
                     .on_scroll(Message::Scrolled)
                     .height(Length::Fill),
