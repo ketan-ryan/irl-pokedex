@@ -4,6 +4,8 @@ use std::{collections::HashMap, time::Instant};
 use iced::advanced::graphics::core::widget;
 use iced::event::{self, Status};
 use iced::keyboard::{Event::KeyPressed, Key, key::Named};
+use iced::widget::scrollable::{Direction, Scrollbar};
+use iced::widget::{Canvas, Id, Scrollable, operation, stack};
 use iced::{
     Border, Color, Element, Event, Length, Subscription, Task, Theme,
     widget::{Space, canvas, column, container, image, image::Handle, row, scrollable, text},
@@ -12,6 +14,7 @@ use iced::{
 
 use log::{debug, error, trace};
 
+use crate::elements::registered_icon::{IconState, RegisteredIconWidget};
 use crate::screen::register;
 use crate::{
     elements::grid::Grid,
@@ -32,7 +35,8 @@ pub struct PokedexBrowser {
     image_cache: ImageCache,
     scroll_offset: f32,
     items_per_page: usize,
-    scroll_id: widget::Id,
+    top_scroll_id: widget::Id,
+    bot_scroll_id: widget::Id,
 }
 
 #[derive(Debug, Clone)]
@@ -54,6 +58,379 @@ pub enum Action {
 pub enum IOAction {
     ScrollUp,
     ScrollDown,
+    Left,
+    Right,
+}
+
+impl PokedexBrowser {
+    pub fn new(
+        config: Arc<PokedexConfig>,
+        pokemon_data: HashMap<String, PokemonInfo>,
+        owned_pokemon: std::collections::HashSet<String>,
+    ) -> (Self, Task<Message>) {
+        let mut pokemon_names: Vec<String> = pokemon_data.keys().cloned().collect();
+
+        pokemon_names.retain(|name| config.classes.contains(name));
+
+        // Sort by pokemon number for better ordering
+        pokemon_names.sort_by_key(|name| {
+            pokemon_data
+                .get(name)
+                .and_then(|info| info.number.parse::<u32>().ok())
+                .unwrap_or(9999)
+        });
+
+        let mut image_cache = ImageCache::new(pokemon_names, 15);
+
+        // Initial load command
+        let load_task =
+            image_cache.update_visible_range(config.as_ref().sprites_location.clone(), 0, 20);
+
+        let state = Self {
+            config,
+            grid: Grid::new(),
+            last_tick: Instant::now(),
+            pokemon_data,
+            owned_pokemon,
+            image_cache,
+            scroll_offset: 0.0,
+            items_per_page: 10,
+            top_scroll_id: Id::unique(),
+            bot_scroll_id: Id::unique(),
+        };
+
+        (state, load_task)
+    }
+
+    pub fn update(&mut self, msg: Message) -> Action {
+        match msg {
+            Message::Tick(now) => {
+                let dt = now - self.last_tick;
+                self.last_tick = now;
+
+                self.grid.tick(dt);
+
+                Action::None
+            }
+            Message::Scrolled(viewport) => {
+                debug!("Scrolled");
+                const ROW_HEIGHT: f32 = 45.0;
+
+                // Bottom scroll offset becomes our total offset + the top screen height
+                self.scroll_offset = viewport.absolute_offset().y;
+                // self.scroll_offset = bottom_scroll + TOP_SCREEN_HEIGHT;
+
+                // Synchronize top scrollable to match
+                let sync_cmd = operation::scroll_to(
+                    self.top_scroll_id.clone(),
+                    scrollable::AbsoluteOffset {
+                        x: 0.0,
+                        y: self.scroll_offset,
+                    },
+                );
+
+                // Update visible range for image loading
+                let start_index = (self.scroll_offset / ROW_HEIGHT).round() as usize;
+                let end_index = start_index + (self.items_per_page * 2); // Both screens
+                let load_cmd = self.image_cache.update_visible_range(
+                    self.config.sprites_location.clone(),
+                    start_index,
+                    end_index,
+                );
+
+                Action::Run(Task::batch(vec![sync_cmd, load_cmd]))
+            }
+            Message::ImageLoaded(name, handle) => {
+                debug!("Loaded {}", name);
+                self.image_cache.insert(name, handle);
+                Action::None
+            }
+            Message::ImageLoadFailed(name) => {
+                error!("Failed to load image for: {}", name);
+                Action::None
+            }
+            Message::IOInput(action) => {
+                const SCROLL_AMOUNT: f32 = 45.0;
+                match action {
+                    IOAction::ScrollUp => {
+                        debug!("Got scroll up event");
+                        return Action::Run(self.scroll(-SCROLL_AMOUNT));
+                    }
+                    IOAction::ScrollDown => {
+                        debug!("Got scroll down event");
+                        return Action::Run(self.scroll(SCROLL_AMOUNT));
+                    }
+                    IOAction::Left => {
+                        debug!("Got hard scroll up event");
+                        return Action::Run(self.scroll(SCROLL_AMOUNT * -10.0));
+                    }
+                    IOAction::Right => {
+                        debug!("Got hard scroll down event");
+                        return Action::Run(self.scroll(SCROLL_AMOUNT * 10.0));
+                    }
+                };
+            }
+        }
+    }
+
+    fn scroll(&self, amount: f32) -> Task<Message> {
+        let top_scroll = iced::widget::operation::scroll_by(
+            self.top_scroll_id.clone(),
+            scrollable::AbsoluteOffset { x: 0.0, y: amount },
+        );
+        let bot_scroll = iced::widget::operation::scroll_by(
+            self.bot_scroll_id.clone(),
+            scrollable::AbsoluteOffset { x: 0.0, y: amount },
+        );
+        return Task::batch(vec![top_scroll, bot_scroll]);
+    }
+
+    pub fn subscription(&self) -> Subscription<Message> {
+        // tick screen for updates ~60fps
+        // time::every(Duration::from_millis(16)).map(Message::Tick)
+
+        Subscription::batch([
+            window::frames().map(Message::Tick),
+            // TODO: Will need custom subscription / event to handle rpi IO
+            event::listen_with(|event, status, _| match (event, status) {
+                (
+                    Event::Keyboard(KeyPressed {
+                        key: Key::Named(Named::ArrowUp),
+                        ..
+                    }),
+                    Status::Ignored,
+                ) => Some(Message::IOInput(IOAction::ScrollUp)),
+                (
+                    Event::Keyboard(KeyPressed {
+                        key: Key::Named(Named::ArrowDown),
+                        ..
+                    }),
+                    Status::Ignored,
+                ) => Some(Message::IOInput(IOAction::ScrollDown)),
+                (
+                    Event::Keyboard(KeyPressed {
+                        key: Key::Named(Named::ArrowLeft),
+                        ..
+                    }),
+                    Status::Ignored,
+                ) => Some(Message::IOInput(IOAction::Left)),
+                (
+                    Event::Keyboard(KeyPressed {
+                        key: Key::Named(Named::ArrowRight),
+                        ..
+                    }),
+                    Status::Ignored,
+                ) => Some(Message::IOInput(IOAction::Right)),
+                _ => None,
+            }),
+        ])
+    }
+
+    pub fn top_view(&self) -> Element<'_, Message> {
+        const ROW_HEIGHT: f32 = 45.0;
+        const TOP_SCREEN_ITEMS: usize = 10;
+
+        // Calculate which items should be visible on top screen
+        let start_index = (self.scroll_offset / ROW_HEIGHT).floor() as usize;
+
+        // Build the items for top screen
+        let items: Vec<Element<Message>> = self
+            .image_cache
+            .pokemon_order
+            .iter()
+            .enumerate()
+            .skip(start_index)
+            .take(TOP_SCREEN_ITEMS)
+            .map(|(idx, name)| {
+                let info = self.pokemon_data.get(name).unwrap();
+                let is_owned = self.owned_pokemon.contains(name);
+                self.render_pokemon_item(name, info, is_owned)
+            })
+            .collect();
+
+        let content = column(items).spacing(5);
+
+        stack![
+            container(
+                Scrollable::new(content)
+                    .direction(Direction::Vertical(Scrollbar::hidden()))
+                    .id(self.top_scroll_id.clone())
+                    .height(Length::Fill)
+                    .width(Length::Fill)
+            )
+            .style(|_| iced::widget::container::Style {
+                background: Some(iced::Background::Color(Color::from_rgb8(140, 213, 229))),
+                ..Default::default()
+            })
+            .padding(iced::Padding {
+                top: 20.0,
+                bottom: 20.0,
+                right: 10.0,
+                ..Default::default()
+            })
+        ]
+        .into()
+    }
+
+    pub fn bottom_view(&self) -> Element<'_, Message> {
+        const ROW_HEIGHT: f32 = 45.0;
+        const TOP_SCREEN_ITEMS: usize = 10;
+
+        // Calculate which items should be visible on bottom screen
+        let start_index = (self.scroll_offset / ROW_HEIGHT).floor() as usize + TOP_SCREEN_ITEMS;
+
+        // Build the items for bottom screen
+        let items: Vec<Element<Message>> = self
+            .image_cache
+            .pokemon_order
+            .iter()
+            .enumerate()
+            .skip(start_index)
+            .take(
+                self.image_cache
+                    .pokemon_order
+                    .len()
+                    .saturating_sub(start_index),
+            )
+            .map(|(idx, name)| {
+                let info = self.pokemon_data.get(name).unwrap();
+                let is_owned = self.owned_pokemon.contains(name);
+                self.render_pokemon_item(name, info, is_owned)
+            })
+            .collect();
+
+        let content = column(items).spacing(5);
+        stack![
+            container(
+                scrollable(content.spacing(5))
+                    .id(self.bot_scroll_id.clone())
+                    .on_scroll(Message::Scrolled)
+                    .height(Length::Fill),
+            )
+            .style(|_| iced::widget::container::Style {
+                background: Some(iced::Background::Color(Color::from_rgb8(140, 213, 229))),
+                ..Default::default()
+            })
+            .padding(iced::Padding {
+                top: 20.0,
+                bottom: 20.0,
+                right: 10.0,
+                ..Default::default()
+            })
+        ]
+        .into()
+    }
+
+    fn render_pokemon_item(
+        &'_ self,
+        name: &str,
+        info: &PokemonInfo,
+        is_owned: bool,
+    ) -> Element<'_, Message> {
+        const IMG_SIZE: f32 = 20.0;
+        let mut item_row = row!().spacing(3).align_y(iced::Alignment::Center);
+
+        // Add image or placeholder
+        if let Some(handle) = self.image_cache.get(name) {
+            item_row = item_row.push(image(handle).width(IMG_SIZE).height(IMG_SIZE));
+        } else if self.image_cache.is_loading(name) {
+            // Show loading indicator
+            item_row = item_row.push(
+                container(text("Loading..."))
+                    .width(IMG_SIZE)
+                    .height(IMG_SIZE)
+                    .center(Length::Fill),
+            );
+        } else {
+            // Show placeholder
+            item_row = item_row.push(Space::new().width(IMG_SIZE).height(IMG_SIZE));
+        }
+
+        // Owned indicator
+        let state = if info.number.parse::<i32>().unwrap() % 2 == 0 {
+            IconState::Registered
+        } else {
+            IconState::Unregistered
+        };
+        let shape = RegisteredIconWidget::new(state);
+
+        item_row = item_row.push(container(
+            canvas::Canvas::new(shape)
+                .width(Length::Fixed(20.0))
+                .height(Length::Fixed(20.0)),
+        ));
+
+        // Pokemon info
+        let info_column = column![
+            text(format!(
+                "{}\t{}",
+                info.number,
+                register::to_proper_case(name)
+            ))
+            .size(14),
+        ]
+        .spacing(2);
+
+        item_row = item_row.push(info_column);
+
+        row![
+            Space::new().width(Length::FillPortion(1)),
+            container(item_row)
+                .padding(10)
+                .width(Length::FillPortion(1))
+                .style(if is_owned {
+                    Self::owned_style
+                } else {
+                    Self::normal_style
+                })
+        ]
+        .into()
+    }
+
+    pub fn is_owned(&self, pokemon_name: &str) -> bool {
+        self.owned_pokemon.contains(pokemon_name)
+    }
+
+    pub fn normal_style(theme: &Theme) -> container::Style {
+        const LIGHT_BLUE: Color = Color::from_rgb8(45, 190, 255);
+        container::Style {
+            background: Some(Color::from_rgb(1.0, 1.0, 1.0).into()), // DS-style Blue
+            border: Border {
+                radius: 12.0.into(),
+                width: 0.0,
+                color: Color::TRANSPARENT,
+            },
+            text_color: Some(Color::BLACK),
+            ..Default::default()
+        }
+    }
+
+    pub fn selected_style(theme: &Theme) -> container::Style {
+        container::Style {
+            background: Some(Color::from_rgb(0.2, 0.5, 0.9).into()), // DS-style Blue
+            border: Border {
+                radius: 5.0.into(),
+                width: 2.0,
+                color: Color::from_rgb(0.1, 0.3, 0.7),
+            },
+            text_color: Some(Color::WHITE),
+            ..Default::default()
+        }
+    }
+
+    pub fn owned_style(theme: &Theme) -> container::Style {
+        container::Style {
+            background: Some(iced::Background::Color(iced::Color::from_rgb(
+                0.9, 1.0, 0.9,
+            ))),
+            border: iced::Border {
+                color: iced::Color::from_rgb(0.2, 0.8, 0.2),
+                width: 2.0,
+                radius: 8.0.into(),
+            },
+            ..Default::default()
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -199,335 +576,5 @@ impl ImageCache {
     /// Check if an image is currently loading
     pub fn is_loading(&self, pokemon_name: &str) -> bool {
         self.loading.read().unwrap().contains(pokemon_name)
-    }
-}
-
-impl PokedexBrowser {
-    pub fn new(
-        config: Arc<PokedexConfig>,
-        pokemon_data: HashMap<String, PokemonInfo>,
-        owned_pokemon: std::collections::HashSet<String>,
-    ) -> (Self, Task<Message>) {
-        let mut pokemon_names: Vec<String> = pokemon_data.keys().cloned().collect();
-
-        pokemon_names.retain(|name| config.classes.contains(name));
-
-        // Sort by pokemon number for better ordering
-        pokemon_names.sort_by_key(|name| {
-            pokemon_data
-                .get(name)
-                .and_then(|info| info.number.parse::<u32>().ok())
-                .unwrap_or(9999)
-        });
-
-        let mut image_cache = ImageCache::new(pokemon_names, 15);
-
-        // Initial load command
-        let load_task =
-            image_cache.update_visible_range(config.as_ref().sprites_location.clone(), 0, 10);
-
-        let state = Self {
-            config,
-            grid: Grid::new(),
-            last_tick: Instant::now(),
-            pokemon_data,
-            owned_pokemon,
-            image_cache,
-            scroll_offset: 0.0,
-            items_per_page: 10,
-            scroll_id: "scrollable".into(),
-        };
-
-        (state, load_task)
-    }
-
-    pub fn update(&mut self, msg: Message) -> Action {
-        match msg {
-            Message::Tick(now) => {
-                let dt = now - self.last_tick;
-                self.last_tick = now;
-
-                self.grid.tick(dt);
-
-                Action::None
-            }
-            Message::Scrolled(viewport) => {
-                const ROW_HEIGHT: f32 = 45.0;
-
-                // Get the actual scroll offset (viewport gives you the absolute position)
-                let scroll_offset = viewport.absolute_offset().y;
-
-                // Calculate which row is at the top of the visible area
-                let start_index = (scroll_offset / ROW_HEIGHT).round() as usize;
-
-                let visible_rows = 10;
-                let end_index = start_index + visible_rows;
-
-                self.scroll_offset = scroll_offset;
-                Action::Run(self.image_cache.update_visible_range(
-                    self.config.sprites_location.clone(),
-                    start_index,
-                    end_index,
-                ))
-            }
-            Message::ImageLoaded(name, handle) => {
-                debug!("Loaded {}", name);
-                self.image_cache.insert(name, handle);
-                Action::None
-            }
-            Message::ImageLoadFailed(name) => {
-                error!("Failed to load image for: {}", name);
-                Action::None
-            }
-            Message::IOInput(action) => {
-                const SCROLL_AMOUNT: f32 = 45.0;
-                match action {
-                    IOAction::ScrollUp => {
-                        debug!("Got scroll up event");
-                        return Action::Run(iced::widget::operation::scroll_by(
-                            self.scroll_id.clone(),
-                            scrollable::AbsoluteOffset {
-                                x: 0.0,
-                                y: -SCROLL_AMOUNT,
-                            },
-                        ));
-                    }
-                    IOAction::ScrollDown => {
-                        debug!("Got scroll down event");
-                        return Action::Run(iced::widget::operation::scroll_by(
-                            self.scroll_id.clone(),
-                            scrollable::AbsoluteOffset {
-                                x: 0.0,
-                                y: SCROLL_AMOUNT,
-                            },
-                        ));
-                    }
-                };
-            }
-        }
-    }
-
-    pub fn subscription(&self) -> Subscription<Message> {
-        // tick screen for updates ~60fps
-        // time::every(Duration::from_millis(16)).map(Message::Tick)
-
-        Subscription::batch([
-            window::frames().map(Message::Tick),
-            // TODO: Will need custom subscription / event to handle rpi IO
-            event::listen_with(|event, status, _| match (event, status) {
-                (
-                    Event::Keyboard(KeyPressed {
-                        key: Key::Named(Named::ArrowUp),
-                        ..
-                    }),
-                    Status::Ignored,
-                ) => Some(Message::IOInput(IOAction::ScrollUp)),
-                (
-                    Event::Keyboard(KeyPressed {
-                        key: Key::Named(Named::ArrowDown),
-                        ..
-                    }),
-                    Status::Ignored,
-                ) => Some(Message::IOInput(IOAction::ScrollDown)),
-                _ => None,
-            }),
-        ])
-    }
-
-    pub fn top_view(&self) -> Element<'_, Message> {
-        const ROW_HEIGHT: f32 = 45.0;
-
-        // Calculate visible range
-        let start_index = (self.scroll_offset / ROW_HEIGHT).round() as usize;
-        let end_index = start_index + self.items_per_page;
-
-        // Apply buffer to rendering range (match the buffer_size from ImageCache)
-        let buffer_size = self.image_cache.buffer_size;
-        let render_start = start_index.saturating_sub(buffer_size);
-        let render_end = (end_index + buffer_size).min(self.image_cache.pokemon_order.len());
-
-        // Add spacer for items before visible range
-        let top_spacer_height = render_start as f32 * ROW_HEIGHT;
-
-        // Render only the visible + buffer items
-        let visible_items: Vec<Element<Message>> = self
-            .image_cache
-            .pokemon_order
-            .iter()
-            .skip(render_start)
-            .take(render_end - render_start)
-            .map(|name| {
-                let info = self.pokemon_data.get(name).unwrap();
-                let is_owned = self.owned_pokemon.contains(name);
-
-                self.render_pokemon_item(name, info, is_owned)
-            })
-            .collect();
-
-        // Calculate bottom spacer for items after visible range
-        let bottom_spacer_height =
-            (self.image_cache.pokemon_order.len() - render_end) as f32 * ROW_HEIGHT;
-
-        // Build the column with spacers
-        let mut content = column!().spacing(5);
-
-        // Top spacer to maintain scroll position
-        if top_spacer_height > 0.0 {
-            content = content.push(Space::new().width(Length::Fill).height(top_spacer_height));
-        }
-
-        // Add visible items
-        for item in visible_items {
-            content = content.push(item);
-        }
-
-        // Bottom spacer to maintain total height
-        if bottom_spacer_height > 0.0 {
-            content = content.push(
-                Space::new()
-                    .width(Length::Fill)
-                    .height(bottom_spacer_height),
-            );
-        }
-
-        container(
-            scrollable(content.spacing(5))
-                .id(self.scroll_id.clone())
-                .on_scroll(Message::Scrolled)
-                .height(Length::Fill),
-        )
-        .padding(iced::Padding {
-            top: 20.0,
-            bottom: 20.0,
-            ..Default::default()
-        })
-        .into()
-    }
-
-    fn render_pokemon_item(
-        &'_ self,
-        name: &str,
-        info: &PokemonInfo,
-        is_owned: bool,
-    ) -> Element<'_, Message> {
-        const IMG_SIZE: f32 = 20.0;
-        let mut item_row = row!().spacing(3).align_y(iced::Alignment::Center);
-
-        debug!("Rendering {} {}", info.number, name);
-
-        // Add image or placeholder
-        if let Some(handle) = self.image_cache.get(name) {
-            item_row = item_row.push(image(handle).width(IMG_SIZE).height(IMG_SIZE));
-        } else if self.image_cache.is_loading(name) {
-            // Show loading indicator
-            item_row = item_row.push(
-                container(text("Loading..."))
-                    .width(IMG_SIZE)
-                    .height(IMG_SIZE)
-                    .center(Length::Fill),
-            );
-        } else {
-            // Show placeholder
-            item_row = item_row.push(Space::new().width(IMG_SIZE).height(IMG_SIZE));
-        }
-
-        // Pokemon info
-        let info_column = column![
-            text(format!(
-                "{}\t{}",
-                info.number,
-                register::to_proper_case(name)
-            ))
-            .size(14),
-        ]
-        .spacing(2);
-
-        item_row = item_row.push(info_column);
-
-        // Owned indicator
-        if is_owned {
-            item_row = item_row.push(
-                container(text("✓ Owned").size(16))
-                    .padding(5)
-                    .style(Self::selected_style),
-            );
-        }
-
-        row![
-            Space::new().width(Length::FillPortion(2)),
-            container(item_row)
-                .padding(10)
-                .width(Length::FillPortion(1))
-                .style(if is_owned {
-                    Self::owned_style
-                } else {
-                    Self::normal_style
-                })
-        ]
-        .into()
-    }
-
-    pub fn is_owned(&self, pokemon_name: &str) -> bool {
-        self.owned_pokemon.contains(pokemon_name)
-    }
-
-    pub fn bottom_view(&self) -> Element<'_, Message> {
-        container(
-            canvas::Canvas::new(&self.grid)
-                .width(Length::Fill)
-                .height(Length::Fill),
-        )
-        .style(|_| iced::widget::container::Style {
-            background: Some(iced::Background::Color(Color::from_rgb(
-                1.0,
-                162.0 / 255.0,
-                0.0,
-            ))),
-            text_color: Some(Color::BLACK),
-            border: Default::default(),
-            shadow: Default::default(),
-            snap: Default::default(),
-        })
-        .into()
-    }
-
-    pub fn normal_style(theme: &Theme) -> container::Style {
-        container::Style {
-            background: Some(Color::from_rgb(0.2, 0.3, 0.5).into()), // DS-style Blue
-            border: Border {
-                radius: 5.0.into(),
-                width: 2.0,
-                color: Color::from_rgb(0.1, 0.3, 0.7),
-            },
-            text_color: Some(Color::WHITE),
-            ..Default::default()
-        }
-    }
-
-    pub fn selected_style(theme: &Theme) -> container::Style {
-        container::Style {
-            background: Some(Color::from_rgb(0.2, 0.5, 0.9).into()), // DS-style Blue
-            border: Border {
-                radius: 5.0.into(),
-                width: 2.0,
-                color: Color::from_rgb(0.1, 0.3, 0.7),
-            },
-            text_color: Some(Color::WHITE),
-            ..Default::default()
-        }
-    }
-
-    pub fn owned_style(theme: &Theme) -> container::Style {
-        container::Style {
-            background: Some(iced::Background::Color(iced::Color::from_rgb(
-                0.9, 1.0, 0.9,
-            ))),
-            border: iced::Border {
-                color: iced::Color::from_rgb(0.2, 0.8, 0.2),
-                width: 2.0,
-                radius: 8.0.into(),
-            },
-            ..Default::default()
-        }
     }
 }
