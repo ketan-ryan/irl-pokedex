@@ -906,13 +906,14 @@ impl Register {
                 let top_section = container(
                     row![
                         // Number is always going to be 4 digits, give it a fixed width
-                        container(text(number).font(FONT).size(FONT_SIZE))
+                        container(text(number).font(FONT).size(FONT_SIZE).color(Color::BLACK))
                             .width(Length::Fixed(60.0))
                             .align_x(iced::Alignment::Start),
                         // Take all remaining space and centers the text
                         container(
                             text(pokemon_name)
                                 .font(FONT)
+                                .color(Color::BLACK)
                                 .size(self.top_register.name_size) // Disallow names with spaces from overflowing to next line
                                 .wrapping(iced::widget::text::Wrapping::None)
                         )
@@ -962,7 +963,8 @@ impl Register {
                             .size(FONT_SIZE)
                             .width(Length::Fill)
                             .align_x(iced::alignment::Horizontal::Left)
-                            .font(FONT),
+                            .font(FONT)
+                            .color(Color::BLACK),
                     )
                     .width(Length::Fill)
                     .padding(4),
@@ -983,9 +985,9 @@ impl Register {
                     container(
                         container(
                             row![
-                                text("HT").size(FONT_SIZE).font(FONT),
+                                text("HT").size(FONT_SIZE).font(FONT).color(Color::BLACK),
                                 Space::new().width(Length::Fill),
-                                text(height).size(FONT_SIZE).font(FONT),
+                                text(height).size(FONT_SIZE).font(FONT).color(Color::BLACK),
                             ]
                             .align_y(Alignment::Center),
                         )
@@ -1013,9 +1015,9 @@ impl Register {
                     container(
                         container(
                             row![
-                                text("WT").size(FONT_SIZE).font(FONT),
+                                text("WT").size(FONT_SIZE).font(FONT).color(Color::BLACK),
                                 Space::new().width(Length::Fill),
-                                text(weight).size(FONT_SIZE).font(FONT),
+                                text(weight).size(FONT_SIZE).font(FONT).color(Color::BLACK),
                             ]
                             .align_y(Alignment::Start),
                         )
@@ -1200,12 +1202,16 @@ impl Register {
 
                 // pokedex description modal
                 let description_text = if pokedex_string.starts_with("Error") {
-                    text(pokedex_string).size(FONT_SIZE).width(iced::Fill)
+                    text(pokedex_string)
+                        .size(FONT_SIZE)
+                        .width(iced::Fill)
+                        .color(Color::BLACK)
                 } else {
                     text(pokedex_string)
                         .size(self.dex_entry_size)
                         .font(FONT)
                         .width(iced::Fill)
+                        .color(Color::BLACK)
                 };
 
                 let description_overlay = container(modal(
@@ -1213,6 +1219,7 @@ impl Register {
                     row![
                         description_text
                             .font(FONT)
+                            .color(Color::BLACK)
                             .align_x(iced::alignment::Horizontal::Left),
                     ]
                     .spacing(12)
