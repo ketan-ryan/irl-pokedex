@@ -1,6 +1,5 @@
 use iced::Length::{self, Fill};
 use iced::animation::Animation;
-use iced::futures::FutureExt;
 use iced::widget::{Space, button, column, container, row, stack, text};
 use iced::{Alignment, Color, Element, Radians, Subscription, Task, time};
 use iced::{Background, ContentFit, Padding};
@@ -1329,7 +1328,7 @@ async fn blur_image(frame: Arc<VideoFrame>) -> iced::widget::image::Handle {
 }
 
 // Capitalize the start of words
-fn to_proper_case(s: &str) -> String {
+pub fn to_proper_case(s: &str) -> String {
     let mut result = String::new();
     let mut capitalize_next = true;
 

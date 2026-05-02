@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use iced::widget::canvas::{self, Geometry};
 use iced::{Point, Rectangle, Renderer, Theme, mouse};
 
@@ -15,10 +17,15 @@ impl Grid {
         }
     }
 
-    pub fn tick(&mut self) {
+    pub fn tick(&mut self, dt: Duration) {
         self.cache.clear();
-        self.offset.x += 0.25;
-        self.offset.y += 0.25;
+
+        // px per second
+        let speed = 20.0;
+        let seconds = dt.as_secs_f32();
+
+        self.offset.x += speed * seconds;
+        self.offset.y += speed * seconds;
     }
 }
 

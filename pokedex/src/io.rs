@@ -1,6 +1,6 @@
 use anyhow::{Result, anyhow};
 use config::Config;
-use log::{debug, error, trace, warn};
+use log::{debug, trace, warn};
 use ort::session::Session;
 use serde::{Deserialize, Deserializer, Serialize};
 use strum_macros::{Display, EnumString};

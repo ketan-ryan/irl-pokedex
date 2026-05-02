@@ -10,7 +10,6 @@ use std::time::{Duration, Instant};
 
 use crate::elements::gstreamer_stream::{VideoError, VideoFrame, gstreamer_stream};
 use crate::elements::loading_screen::{QuadCanvas, QuadState};
-use crate::grid::Grid;
 use crate::io;
 
 #[derive(Debug, PartialEq)]
@@ -31,7 +30,6 @@ pub struct Home {
     bottom_handle: iced::widget::image::Handle,
     bottom_pressed_handle: iced::widget::image::Handle,
     pressed: bool,
-    grid: Grid,
     last_frame_handle: Option<iced::widget::image::Handle>,
     last_frame: Option<VideoFrame>,
     quad_state: QuadState,
@@ -42,9 +40,7 @@ pub struct Home {
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    HomeToggled,
-    Refresh, // TODO: use this to try restarting camera if error
-    Tick(Duration),
+    Tick,
     BottomPressed,
     BottomReleased,
     FrameReceived(VideoFrame),
@@ -56,7 +52,6 @@ pub enum Message {
 
 pub enum Action {
     None,
-    GoHome,
     Register(Arc<VideoFrame>),
     RedrawWindows,
     Run(Task<Message>),
@@ -79,7 +74,6 @@ impl Home {
                     include_bytes!("../../assets/bottom_screen_pressed.png").as_slice(),
                 ),
                 pressed: false,
-                grid: Grid::new(),
                 last_frame_handle: None,
                 last_frame: None,
                 quad_state: QuadState::new(),
@@ -93,11 +87,7 @@ impl Home {
 
     pub fn update(&mut self, msg: Message) -> Action {
         match msg {
-            Message::HomeToggled => Action::None,
-            Message::Refresh => Action::GoHome,
-            Message::Tick(_) => {
-                self.grid.tick();
-
+            Message::Tick => {
                 if self.state == State::Loading
                     || self.quad_state.is_finishing()
                     || !self.quad_state.finished_spinning() && self.gstreamer_error.is_none()
@@ -206,8 +196,7 @@ impl Home {
 
         Subscription::batch([
             // tick screen for updates ~60fps
-            time::every(Duration::from_millis(16))
-                .map(|arg0: std::time::Instant| Message::Tick(arg0.elapsed())),
+            time::every(Duration::from_millis(16)).map(|_| Message::Tick),
             camera_subscription,
             // TODO: Will need custom subscription / event to handle rpi IO
             event::listen_with(|event, status, _| match (event, status) {

@@ -3,7 +3,6 @@ mod io;
 mod ml;
 mod screen;
 
-use elements::grid;
 use flexi_logger::{self, Cleanup, Criterion, FileSpec, Logger, Naming, WriteMode};
 use gstreamer::glib::num_processors;
 use include_assets::{NamedArchive, include_dir};
@@ -172,7 +171,6 @@ impl App {
 
                 match home.update(message) {
                     home::Action::None => Task::none(),
-                    home::Action::GoHome => Task::none(),
                     home::Action::Register(result) => Task::done(Message::OpenRegister(result)),
                     home::Action::Run(task) => task.map(Message::Home),
                     home::Action::RedrawWindows => Task::none(),
@@ -273,7 +271,18 @@ impl App {
     }
 
     fn open_browser(&mut self) -> Task<Message> {
-        let (browser, task) = screen::PokedexBrowser::new();
+        let (browser, task) = screen::PokedexBrowser::new(
+            Arc::clone(self.config.as_ref().unwrap()),
+            self.config.as_ref().unwrap().pokedex_json.clone(),
+            self.config
+                .as_ref()
+                .unwrap()
+                .local_dex
+                .borrow()
+                .iter()
+                .cloned()
+                .collect(),
+        );
         self.screen = Screen::PokedexBrowser(browser);
         task.map(Message::PokedexBrowser)
     }
