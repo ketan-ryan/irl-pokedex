@@ -1,30 +1,39 @@
 use iced::widget::Canvas;
-use iced::widget::canvas::{self, Frame, Geometry, Program};
 use iced::widget::canvas::path::{Arc, Builder};
+use iced::widget::canvas::{self, Frame, Geometry, Program};
 use iced::{Animation, Color, Element, Point, Radians, Rectangle, Renderer, Theme, Vector};
 use std::f32::consts::TAU;
-use std::time::{Instant, Duration};
+use std::time::{Duration, Instant};
 
-use crate::screen::home::Message;
-
+use crate::screen::register::Message;
 
 #[derive(Debug)]
-pub struct PokedexSpinnerState { 
+pub struct PokedexSpinnerState {
     pub time: Instant,
     pub scale: Animation<f32>,
     pub cache: canvas::Cache,
+    register_circle: Animation<f32>,
+    fading_out: bool,
+    faded_out: bool,
 }
 
 impl PokedexSpinnerState {
     pub fn new() -> Self {
         let scale = Animation::new(0.0f32)
-        .duration(Duration::from_millis(600))
-        .easing(iced::animation::Easing::EaseOut);
-        
+            .duration(Duration::from_millis(600))
+            .easing(iced::animation::Easing::EaseOut);
+
+        let register_scale = Animation::new(0.0f32)
+            .duration(Duration::from_millis(800))
+            .easing(iced::animation::Easing::EaseOut);
+
         Self {
             time: Instant::now(),
             cache: canvas::Cache::new(),
             scale,
+            register_circle: register_scale,
+            fading_out: false,
+            faded_out: false,
         }
     }
 
@@ -33,21 +42,36 @@ impl PokedexSpinnerState {
         self.scale.go_mut(1.0, Instant::now());
     }
 
+    pub fn start_register(&mut self) {
+        self.register_circle.go_mut(1.2, Instant::now());
+    }
+
+    pub fn end_register(&mut self) {
+        self.register_circle.go_mut(0.0, Instant::now());
+        self.fading_out = true;
+    }
+
     pub fn current_scale(&self) -> f32 {
         self.scale.interpolate_with(|v| v, Instant::now())
     }
 
+    pub fn current_register_scale(&self) -> f32 {
+        self.register_circle.interpolate_with(|v| v, Instant::now())
+    }
+
     pub fn tick(&mut self) {
         self.cache.clear();
+
+        if self.fading_out && self.current_register_scale() == 0.0 {
+            self.faded_out = true;
+        }
     }
 }
 
 pub struct SpinnerCanvas;
 
 impl SpinnerCanvas {
-    pub fn new<'a>(
-        state: &'a PokedexSpinnerState,
-    ) -> Element<'a, Message> {
+    pub fn new<'a>(state: &'a PokedexSpinnerState) -> Element<'a, Message> {
         Canvas::new(SpinnerCanvasProgram { state })
             .width(iced::Fill)
             .height(iced::Fill)
@@ -81,14 +105,35 @@ impl<'a> Program<Message> for SpinnerCanvasProgram<'a> {
 
         let geometry = self.state.cache.draw(renderer, bounds.size(), |frame| {
             // above cutout
-            frame.with_clip(Rectangle::new(origin, iced::Size::new(bounds.width, cutout_top)), |frame| {
-                draw_spinner(frame, cx, cy, bounds.width.min(bounds.height) / 2.0, &self.state);
-            });
+            frame.with_clip(
+                Rectangle::new(origin, iced::Size::new(bounds.width, cutout_top)),
+                |frame| {
+                    draw_spinner(
+                        frame,
+                        cx,
+                        cy,
+                        bounds.width.min(bounds.height) / 2.0,
+                        &self.state,
+                    );
+                },
+            );
 
             // below cutout
-            frame.with_clip(Rectangle::new(Point::new(origin.x,origin.y +  cutout_bottom), iced::Size::new(bounds.width, bounds.height - cutout_bottom)), |frame| {
-                draw_spinner(frame, cx, cy, bounds.width.min(bounds.height) / 2.0, &self.state);
-            });    
+            frame.with_clip(
+                Rectangle::new(
+                    Point::new(origin.x, origin.y + cutout_bottom),
+                    iced::Size::new(bounds.width, bounds.height - cutout_bottom),
+                ),
+                |frame| {
+                    draw_spinner(
+                        frame,
+                        cx,
+                        cy,
+                        bounds.width.min(bounds.height) / 2.0,
+                        &self.state,
+                    );
+                },
+            );
         });
         vec![geometry]
     }
@@ -106,49 +151,76 @@ fn draw_spinner(frame: &mut Frame, cx: f32, cy: f32, radius: f32, state: &Pokede
         // arc length: TAU / n. Each arc is 1/n circle
         // gap between: TAU / n. n gaps evenly spaced
         let mut opacity = ((angle - 0.0) / 0.5).clamp(0.0, 1.0);
+
+        // Fade out
+        let multiplier: f32 = match state.fading_out {
+            true => state.current_register_scale(),
+            false => 1.0,
+        };
+
         opacity = 0.7 * opacity.clamp(0.0, 1.0);
         draw_arcs(
-            frame, cx, cy, 
-            radius - 60.0, 
-            [TAU / 4.0; 3].as_slice(), 
-            TAU / 3.0, 
-            angle * 2.0, 
-            Color::from_rgba(1.0, 1.0, 1.0, opacity)
+            frame,
+            cx,
+            cy,
+            radius - 60.0,
+            [TAU / 4.0; 3].as_slice(),
+            TAU / 3.0,
+            angle * 2.0,
+            Color::from_rgba(1.0, 1.0, 1.0, opacity * multiplier),
         );
         if angle > 0.35 {
             let mut opacity = ((angle - 0.35) / 0.5).clamp(0.0, 1.0);
             opacity = 0.7 * opacity.clamp(0.0, 1.0);
             draw_arcs(
-                frame, cx, cy, 
-                radius - 87.0, 
-                [TAU / 6.0, TAU / 16.0, TAU / 20.0].as_slice(), 
-                TAU / 3.0, 
-                -angle * 1.8, 
-                Color::from_rgba(140.0 / 255.0, 213.0 / 255.0, 229.0 / 255.0, opacity)
+                frame,
+                cx,
+                cy,
+                radius - 87.0,
+                [TAU / 6.0, TAU / 16.0, TAU / 20.0].as_slice(),
+                TAU / 3.0,
+                -angle * 1.8,
+                Color::from_rgba(
+                    140.0 / 255.0,
+                    213.0 / 255.0,
+                    229.0 / 255.0,
+                    opacity * multiplier,
+                ),
             );
         }
         if angle > 0.7 {
             let mut opacity = ((angle - 0.7) / 0.5).clamp(0.0, 1.0);
             opacity = 0.7 * opacity.clamp(0.0, 1.0);
             draw_arcs(
-                frame, cx, cy, 
-                radius - 114.0, 
-                [TAU / 8.0, TAU / 14.0].as_slice(), 
-                TAU / 2.0, 
+                frame,
+                cx,
+                cy,
+                radius - 114.0,
+                [TAU / 8.0, TAU / 14.0].as_slice(),
+                TAU / 2.0,
                 angle * 3.0,
-                Color::from_rgba(0.0, 156.0 / 255.0, 195.0 / 255.0, opacity)
+                Color::from_rgba(0.0, 156.0 / 255.0, 195.0 / 255.0, opacity * multiplier),
             );
         }
     });
 }
 
-fn draw_arcs(frame: &mut Frame, cx: f32, cy: f32, radius: f32, arc_lengths: &[f32], gap_between: f32, angle: f32, color: Color) {
+fn draw_arcs(
+    frame: &mut Frame,
+    cx: f32,
+    cy: f32,
+    radius: f32,
+    arc_lengths: &[f32],
+    gap_between: f32,
+    angle: f32,
+    color: Color,
+) {
     const STROKE_WIDTH: f32 = 25.0;
 
     let layers: &[(f32, f32)] = &[
-        (STROKE_WIDTH + 0.0, color.a),            // core
-        (STROKE_WIDTH + 5.0, color.a * 0.3),      // soft glow
-        (STROKE_WIDTH + 10.0, color.a * 0.1),     // outer glow
+        (STROKE_WIDTH + 0.0, color.a),        // core
+        (STROKE_WIDTH + 5.0, color.a * 0.3),  // soft glow
+        (STROKE_WIDTH + 10.0, color.a * 0.1), // outer glow
     ];
 
     for (stroke_width, opacity) in layers {
@@ -170,7 +242,12 @@ fn draw_arcs(frame: &mut Frame, cx: f32, cy: f32, radius: f32, arc_lengths: &[f3
                         &builder.build(),
                         canvas::Stroke::default()
                             .with_width(*stroke_width)
-                            .with_color(Color { r: color.r, g: color.g, b: color.b, a: *opacity })
+                            .with_color(Color {
+                                r: color.r,
+                                g: color.g,
+                                b: color.b,
+                                a: *opacity,
+                            })
                             .with_line_cap(canvas::LineCap::Round),
                     );
                 }
@@ -179,10 +256,7 @@ fn draw_arcs(frame: &mut Frame, cx: f32, cy: f32, radius: f32, arc_lengths: &[f3
     }
 }
 
-fn create_segments(
-    start: f32,
-    end: f32,
-) -> Vec<(f32, f32)> {
+fn create_segments(start: f32, end: f32) -> Vec<(f32, f32)> {
     let arc_length = end - start;
     let start = start.rem_euclid(std::f32::consts::TAU);
     let end = start + arc_length;

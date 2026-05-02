@@ -1,61 +1,170 @@
-mod io;
-mod screen;
 mod elements;
+mod io;
+mod ml;
+mod screen;
 
+use elements::grid;
+use gstreamer::glib::num_processors;
+use include_assets::{NamedArchive, include_dir};
 use screen::Screen;
 use screen::home;
-use elements::grid;
 
-use iced::widget::{
-    button, column, space
-};
+use iced::widget::{button, column, space};
 use iced::window::{self};
-use iced::{
-    Center, Element, Fill, Subscription, Task
-};
+use iced::{Center, Element, Fill, Subscription, Task};
 
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
-use crate::io::get_local_path;
+use crate::elements::gstreamer_stream::VideoFrame;
+use crate::io::PokedexConfig;
+use crate::screen::register;
 
 fn main() -> iced::Result {
-    let pokedex: std::collections::HashMap<String, io::PokemonInfo> = io::load_dex_entries("pokedex.json");
-    let hydreigon = &pokedex["hydreigon"];
-    println!("{:?}", hydreigon.dex_entries);
-    match get_local_path() {
-        Ok(path) => {
-            println!("Found local path to be {:?}", path)
-        },
-        Err(err) => {
-            eprintln!("Error getting local path: {:?}", err)
-        },
-    }
+    rayon::ThreadPoolBuilder::new()
+        .num_threads((num_processors() as usize).saturating_sub(2)) // leave 2 cores for iced + OS
+        .build_global()
+        .unwrap();
 
     iced::daemon(App::new, App::update, App::view)
         .subscription(App::subscription)
+        .font(include_bytes!("../assets/OpenSans-Light.ttf"))
         .run()
 }
 
+#[derive(Debug, Clone)]
+pub enum PokedexError {
+    ConfigNotFound,
+    MalformedConfig(String),
+    PokedexNotFound(String),
+    MalformedPokedex(String),
+    AssetsNotFound(String),
+    FatalError(String),
+    ModelNotFound(String),
+    ModelError(String),
+    ClassesNotFound(String),
+    MalformedClasses(String),
+}
+
+impl std::error::Error for PokedexError {}
+
+impl std::fmt::Display for PokedexError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            PokedexError::ConfigNotFound => write!(
+                f,
+                "Could not find config next to executable. Please place it in the same directory with name \"pokedex_settings.yaml\""
+            ),
+            PokedexError::MalformedConfig(e) => write!(f, "Configuration is invalid: {}", e),
+            PokedexError::PokedexNotFound(dir) => {
+                write!(f, "Could not find pokedex JSON at {}", dir)
+            }
+            PokedexError::MalformedPokedex(e) => write!(f, "Could not parse Pokedex JSON: {}", e),
+            PokedexError::AssetsNotFound(dir) => write!(f, "Could not find assets dir at {}", dir),
+            PokedexError::FatalError(e) => {
+                write!(f, "Fatal error! Operation cannot proceed: {}", e)
+            }
+            PokedexError::ModelNotFound(dir) => write!(f, "Could not find model {}", dir),
+            PokedexError::ModelError(e) => write!(f, "Error loading model: {}", e),
+            PokedexError::ClassesNotFound(dir) => {
+                write!(f, "Could not find list of Pokemon names at {}", dir)
+            }
+            PokedexError::MalformedClasses(e) => {
+                write!(f, "Could not parse Pokemon classes list: {}", e)
+            }
+        }
+    }
+}
+
 struct App {
-    windows: BTreeMap<window::Id, WindowType>,
+    windows: Option<BTreeMap<window::Id, WindowType>>,
     screen: Screen,
+    error: Option<PokedexError>,
+    config: Option<Arc<PokedexConfig>>,
+    bottom_handle: iced::widget::image::Handle,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum WindowType {
     TopScreen,
-    BottomScreen
+    BottomScreen,
 }
 
 #[derive(Debug, Clone)]
 enum Message {
+    Init,
     WindowOpened(window::Id),
     Home(home::Message),
+    Register(register::Message),
     OpenHome,
+    OpenRegister(Arc<VideoFrame>),
 }
 
 impl App {
     fn new() -> (Self, Task<Message>) {
+        (
+            Self {
+                screen: Screen::Loading,
+                windows: None,
+                error: None,
+                config: None,
+                bottom_handle: iced::widget::image::Handle::from_bytes(
+                    include_bytes!("../assets/bottom_screen.png").as_slice(),
+                ),
+            },
+            Task::done(Message::Init),
+        )
+    }
+
+    fn update(&mut self, message: Message) -> Task<Message> {
+        match message {
+            Message::Init => self.load_files(),
+            Message::WindowOpened(_) => {
+                if self.error.is_none() {
+                    return self.open_home();
+                }
+                Task::none()
+            }
+            Message::Home(message) => {
+                let Screen::Home(home) = &mut self.screen else {
+                    return Task::none();
+                };
+
+                match home.update(message) {
+                    home::Action::None => Task::none(),
+                    home::Action::GoHome => Task::none(),
+                    home::Action::Register(result) => Task::done(Message::OpenRegister(result)),
+                    home::Action::Run(task) => task.map(Message::Home),
+                    home::Action::RedrawWindows => Task::none(),
+                }
+            }
+            Message::OpenHome => self.open_home(),
+            Message::Register(message) => {
+                let Screen::Register(register) = &mut self.screen else {
+                    return Task::none();
+                };
+
+                match register.update(message) {
+                    register::Action::None => Task::none(),
+                    register::Action::GoHome => Task::done(Message::OpenHome),
+                    register::Action::Run(task) => task.map(Message::Register),
+                }
+            }
+            Message::OpenRegister(result) => self.open_register(result),
+        }
+    }
+
+    fn subscription(&self) -> Subscription<Message> {
+        match &self.screen {
+            Screen::Home(home) => home.subscription().map(Message::Home),
+
+            Screen::Register(register) => register.subscription().map(Message::Register),
+
+            _ => Subscription::none(),
+        }
+    }
+
+    fn load_files(&mut self) -> Task<Message> {
         let (top_id, open) = window::open(window::Settings {
             size: (640, 480).into(),
             position: window::Position::Specific(iced::Point::new(1000.0, 200.0)),
@@ -72,68 +181,53 @@ impl App {
             ..window::Settings::default()
         });
 
-        (
-            Self {
-                screen: Screen::Loading,
-                windows: BTreeMap::from([
-                    (top_id, WindowType::TopScreen),
-                    (bottom_id, WindowType::BottomScreen)
-                ]),
-            },
-            Task::batch([
-                open.map(Message::WindowOpened),
-                open_second.map(Message::WindowOpened),
-            ]),
-        )
-    }
+        self.windows = Some(BTreeMap::from([
+            (top_id, WindowType::TopScreen),
+            (bottom_id, WindowType::BottomScreen),
+        ]));
 
-    fn update(&mut self, message: Message) -> Task<Message> {
-        match message {
-            Message::WindowOpened(_) => {
-                self.open_home()
+        match io::validate_config() {
+            Ok(cfg) => {
+                self.config = Some(Arc::new(cfg));
             }
-            Message::Home(message) => {
-                let Screen::Home(home) = &mut self.screen else {
-                    return Task::none();
-                };
-
-                match home.update(message) {
-                    home::Action::None => Task::none(),
-                    home::Action::GoHome => Task::none(),
-                    home::Action::Run(task) => task.map(Message::Home),
-                    home::Action::RedrawWindows => Task::none(),
-                }
-            }
-            Message::OpenHome => {
-                self.open_home()
+            Err(e) => {
+                self.error = Some(e);
             }
         }
-    }
 
-    fn subscription(&self) -> Subscription<Message> {
-        match &self.screen {
-            Screen::Home(home) =>
-                home.subscription().map(Message::Home),
-
-            _ => Subscription::none(),
-        }
+        Task::batch([
+            open.map(Message::WindowOpened),
+            open_second.map(Message::WindowOpened),
+        ])
     }
 
     fn open_home(&mut self) -> Task<Message> {
-        let (home, task) = screen::Home::new();
+        // If we get here, config should be loaded successfully
+        let (home, task) = screen::Home::new(self.bottom_handle.clone());
         self.screen = Screen::Home(home);
         task.map(Message::Home)
     }
 
+    fn open_register(&mut self, result: Arc<VideoFrame>) -> Task<Message> {
+        let (reg, task) = screen::Register::new(
+            Arc::clone(self.config.as_ref().unwrap()),
+            result,
+            self.bottom_handle.clone(),
+        );
+        self.screen = Screen::Register(reg);
+        task.map(Message::Register)
+    }
+
     fn view(&self, window_id: window::Id) -> Element<'_, Message> {
-        if let Some(window) = self.windows.get(&window_id) {
+        if let Some(window) = self
+            .windows
+            .clone()
+            .expect("Windows should exist!")
+            .get(&window_id)
+        {
             match window {
-                WindowType::TopScreen => {
-                    self.top_view()
-                }
-                WindowType::BottomScreen => {
-                    self.bottom_view()
-                }
+                WindowType::TopScreen => self.top_view(),
+                WindowType::BottomScreen => self.bottom_view(),
             }
         } else {
             space().into()
@@ -141,30 +235,77 @@ impl App {
     }
 
     fn top_view(&self) -> Element<'_, Message> {
-        match &self.screen {
-            Screen::Home(home) => home.top_view().map(Message::Home),
-            Screen::Loading =>  {
-                let new_window_button =
-                    button("Go home").on_press(Message::OpenHome);
+        if self.error.is_none() {
+            match &self.screen {
+                Screen::Home(home) => home.top_view().map(Message::Home),
+                Screen::Register(register) => register.top_view().map(Message::Register),
+                Screen::Loading => {
+                    let new_window_button = button("Go home").on_press(Message::OpenHome);
 
-                let content = column![new_window_button]
-                    .spacing(50)
-                    .width(Fill)
-                    .align_x(Center)
-                    .width(200);
+                    let content = column![new_window_button]
+                        .spacing(50)
+                        .width(Fill)
+                        .align_x(Center)
+                        .width(200);
 
-                content.into()
-            },
+                    content.into()
+                }
+            }
+        } else {
+            iced::widget::container(
+                iced::widget::column![
+                    iced::widget::text("Fatal Error Detected!")
+                        .size(48)
+                        .color(iced::Color::from_rgb(1.0, 0.0, 0.0))
+                        .font(iced::Font {
+                            weight: iced::font::Weight::Bold,
+                            ..iced::Font::default()
+                        }),
+                    iced::widget::text("Program cannot proceed.")
+                        .size(48)
+                        .color(iced::Color::from_rgb(1.0, 0.0, 0.0))
+                        .font(iced::Font {
+                            weight: iced::font::Weight::Bold,
+                            ..iced::Font::default()
+                        }),
+                    iced::widget::text(self.error.as_ref().unwrap().to_string())
+                        .size(24)
+                        .color(iced::Color::from_rgb(0.0, 0.0, 0.0)),
+                ]
+                .align_x(iced::Center)
+                .spacing(16),
+            )
+            .width(iced::Fill)
+            .height(iced::Fill)
+            .align_x(iced::Center)
+            .align_y(iced::Center)
+            .style(|_| iced::widget::container::Style {
+                background: Some(iced::Background::Color(iced::Color::WHITE)),
+                ..Default::default()
+            })
+            .into()
         }
     }
 
     fn bottom_view(&self) -> Element<'_, Message> {
-        match &self.screen {
-            Screen::Home(home) => home.bottom_view().map(Message::Home),
-            Screen::Loading =>  {
-                space().into()
-            },
+        if self.error.is_none() {
+            match &self.screen {
+                Screen::Home(home) => home.bottom_view().map(Message::Home),
+                Screen::Register(register) => register.bottom_view().map(Message::Register),
+                Screen::Loading => space().into(),
+            }
+        } else {
+            let archive = NamedArchive::load(include_dir!("assets"));
+            let bytes = archive.get("fainted.jpg").unwrap();
+            let handle = iced::widget::image::Handle::from_bytes(bytes.to_vec());
+            iced::widget::container(iced::widget::image(handle).width(iced::Fill))
+                .width(iced::Fill)
+                .height(iced::Fill)
+                .style(|_| iced::widget::container::Style {
+                    background: Some(iced::Background::Color(iced::Color::BLACK)),
+                    ..Default::default()
+                })
+                .into()
         }
     }
-
 }
