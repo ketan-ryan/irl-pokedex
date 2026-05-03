@@ -83,22 +83,6 @@ impl PokedexBrowser {
         let load_task =
             image_cache.update_visible_range(config.as_ref().sprites_location.clone(), 0, 20);
 
-        let top_scroll_id = Id::unique();
-        let bot_scroll_id = Id::unique();
-
-        // Initialize bottom scroll to show items 10+ (offset by 10 rows * 45px = 450px)
-        const ROW_HEIGHT: f32 = 45.0;
-        const TOP_SCREEN_ITEMS: usize = 10;
-        let initial_bot_offset = TOP_SCREEN_ITEMS as f32 * ROW_HEIGHT;
-
-        let bot_init_scroll = operation::scroll_to(
-            bot_scroll_id.clone(),
-            scrollable::AbsoluteOffset {
-                x: 0.0,
-                y: initial_bot_offset,
-            },
-        );
-
         let state = Self {
             config,
             grid: Grid::new(),
@@ -108,11 +92,11 @@ impl PokedexBrowser {
             image_cache,
             scroll_offset: 0.0,
             items_per_page: 10,
-            top_scroll_id,
-            bot_scroll_id,
+            top_scroll_id: Id::unique(),
+            bot_scroll_id: Id::unique(),
         };
 
-        (state, Task::batch(vec![load_task, bot_init_scroll]))
+        (state, load_task)
     }
 
     pub fn update(&mut self, msg: Message) -> Action {
@@ -129,18 +113,21 @@ impl PokedexBrowser {
                 debug!("Scrolled");
                 const ROW_HEIGHT: f32 = 45.0;
                 const TOP_SCREEN_ITEMS: usize = 10;
-                const BOT_OFFSET: f32 = TOP_SCREEN_ITEMS as f32 * ROW_HEIGHT;
 
-                // Bottom scrollable's absolute position
+                // Bottom scrollable's absolute position represents how far we've scrolled
                 let bot_scroll_pos = viewport.absolute_offset().y;
 
-                // Top scrollable should be offset behind by BOT_OFFSET
-                let top_scroll_pos = bot_scroll_pos - BOT_OFFSET;
+                // Top screen shows items that have scrolled past the top of bottom screen
+                // When bot_scroll_pos = 0, top shows nothing (scroll position irrelevant)
+                // When bot_scroll_pos = 450 (10 items), top should show items 0-9
+                // The top scrollable should be at position 0 when it starts showing content
+                let top_scroll_pos =
+                    (bot_scroll_pos - ROW_HEIGHT * TOP_SCREEN_ITEMS as f32).max(0.0);
 
-                // Store the top position as our canonical scroll_offset
-                self.scroll_offset = top_scroll_pos;
+                // Store for rendering calculations
+                self.scroll_offset = bot_scroll_pos;
 
-                // Synchronize top scrollable to match
+                // Synchronize top scrollable
                 let sync_cmd = operation::scroll_to(
                     self.top_scroll_id.clone(),
                     scrollable::AbsoluteOffset {
@@ -149,12 +136,13 @@ impl PokedexBrowser {
                     },
                 );
 
-                // Update visible range for image loading based on top scroll position
-                let start_index = (top_scroll_pos / ROW_HEIGHT).max(0.0).round() as usize;
-                let end_index = start_index + (self.items_per_page * 2); // Both screens
+                // Update visible range for image loading
+                // Start from the top of bottom screen
+                let start_index = (bot_scroll_pos / ROW_HEIGHT).floor() as usize;
+                let end_index = start_index + (self.items_per_page * 2);
                 let load_cmd = self.image_cache.update_visible_range(
                     self.config.sprites_location.clone(),
-                    start_index,
+                    start_index.saturating_sub(TOP_SCREEN_ITEMS),
                     end_index,
                 );
 
@@ -246,8 +234,14 @@ impl PokedexBrowser {
         const ROW_HEIGHT: f32 = 45.0;
         const TOP_SCREEN_ITEMS: usize = 10;
 
-        // Calculate which items should be visible on top screen
-        let start_index = (self.scroll_offset / ROW_HEIGHT).floor() as usize;
+        // scroll_offset now represents the bottom screen's scroll position
+        // Top screen shows items that have scrolled past the top of bottom screen
+        let bot_start_index = (self.scroll_offset / ROW_HEIGHT).floor() as usize;
+
+        // Top screen shows items before bot_start_index
+        // But only up to TOP_SCREEN_ITEMS worth
+        let items_to_show = bot_start_index.min(TOP_SCREEN_ITEMS);
+        let top_start_index = bot_start_index.saturating_sub(items_to_show);
 
         // Build the items for top screen
         let items: Vec<Element<Message>> = self
@@ -255,16 +249,30 @@ impl PokedexBrowser {
             .pokemon_order
             .iter()
             .enumerate()
-            .skip(start_index)
-            .take(TOP_SCREEN_ITEMS)
+            .skip(top_start_index)
+            .take(items_to_show)
             .map(|(idx, name)| {
+                debug!("{} {}", idx % 10, name);
                 let info = self.pokemon_data.get(name).unwrap();
                 let is_owned = self.owned_pokemon.contains(name);
                 self.render_pokemon_item(name, info, is_owned)
             })
             .collect();
 
-        let content = column(items).spacing(5);
+        let num_items = items.len();
+        let mut content = column(items).spacing(5);
+
+        // If we have fewer than TOP_SCREEN_ITEMS, add spacer at top to push content to bottom
+        // items, row height, padding
+        let buffer = (TOP_SCREEN_ITEMS - num_items) as f32 * 45.0 - 20.0;
+        if num_items < TOP_SCREEN_ITEMS {
+            content = column![
+                Space::new()
+                    .width(Length::Fill)
+                    .height(Length::Fixed(buffer)),
+                content
+            ];
+        }
 
         stack![
             container(
@@ -290,10 +298,11 @@ impl PokedexBrowser {
 
     pub fn bottom_view(&self) -> Element<'_, Message> {
         const ROW_HEIGHT: f32 = 45.0;
-        const TOP_SCREEN_ITEMS: usize = 10;
 
-        // Build the FULL list for bottom screen (same as top)
-        // The scrollable needs to contain all items so scroll positions match
+        // Bottom screen shows items starting from current scroll position
+        let start_index = (self.scroll_offset / ROW_HEIGHT).floor() as usize;
+
+        // Build items for bottom screen
         let items: Vec<Element<Message>> = self
             .image_cache
             .pokemon_order
