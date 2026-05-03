@@ -7,7 +7,7 @@ use iced::keyboard::{Event::KeyPressed, Key, key::Named};
 use iced::widget::scrollable::{Direction, Scrollbar};
 use iced::widget::{Id, Scrollable, operation, stack};
 use iced::{
-    Border, Color, Element, Event, Length, Subscription, Task, Theme,
+    Border, Color, Element, Event, Length, Subscription, Task,
     widget::{Space, canvas, column, container, image, image::Handle, row, scrollable, text},
     window,
 };
@@ -79,7 +79,6 @@ impl PokedexBrowser {
 
         let mut image_cache = ImageCache::new(pokemon_names, 15);
 
-        // Initial load command
         let load_task =
             image_cache.update_visible_range(config.as_ref().sprites_location.clone(), 0, 20);
 
@@ -128,7 +127,7 @@ impl PokedexBrowser {
                 self.scroll_offset = bot_scroll_pos;
 
                 // Synchronize top scrollable
-                let sync_cmd = operation::scroll_to(
+                let sync_task = operation::scroll_to(
                     self.top_scroll_id.clone(),
                     scrollable::AbsoluteOffset {
                         x: 0.0,
@@ -140,13 +139,13 @@ impl PokedexBrowser {
                 // Start from the top of bottom screen
                 let start_index = (bot_scroll_pos / ROW_HEIGHT).floor() as usize;
                 let end_index = start_index + (self.items_per_page * 2);
-                let load_cmd = self.image_cache.update_visible_range(
+                let load_task = self.image_cache.update_visible_range(
                     self.config.sprites_location.clone(),
                     start_index.saturating_sub(TOP_SCREEN_ITEMS),
                     end_index,
                 );
 
-                Action::Run(Task::batch(vec![sync_cmd, load_cmd]))
+                Action::Run(Task::batch(vec![sync_task, load_task]))
             }
             Message::ImageLoaded(name, handle) => {
                 debug!("Loaded {}", name);
@@ -252,10 +251,21 @@ impl PokedexBrowser {
             .skip(top_start_index)
             .take(items_to_show)
             .map(|(idx, name)| {
-                debug!("{} {}", idx % 10, name);
+                // 9 is bottom of screen, 0 is top
+                // values don't matter as long as it's consistent regardless of
+                // if the top screen is full or not yet
+                let screen_pos = if items_to_show < 10 {
+                    idx - top_start_index + (10 - items_to_show)
+                } else {
+                    idx - top_start_index
+                };
+
+                // lerp opacity between 0.2 and 0.8
+                let opacity = 0.2 + (screen_pos as f32 / 9.0) * (0.8 - 0.2);
+
                 let info = self.pokemon_data.get(name).unwrap();
                 let is_owned = self.owned_pokemon.contains(name);
-                self.render_pokemon_item(name, info, is_owned)
+                self.render_pokemon_item(name, info, is_owned, opacity, false)
             })
             .collect();
 
@@ -297,12 +307,6 @@ impl PokedexBrowser {
     }
 
     pub fn bottom_view(&self) -> Element<'_, Message> {
-        const ROW_HEIGHT: f32 = 45.0;
-
-        // Bottom screen shows items starting from current scroll position
-        let start_index = (self.scroll_offset / ROW_HEIGHT).floor() as usize;
-
-        // Build items for bottom screen
         let items: Vec<Element<Message>> = self
             .image_cache
             .pokemon_order
@@ -310,7 +314,7 @@ impl PokedexBrowser {
             .map(|name| {
                 let info = self.pokemon_data.get(name).unwrap();
                 let is_owned = self.owned_pokemon.contains(name);
-                self.render_pokemon_item(name, info, is_owned)
+                self.render_pokemon_item(name, info, is_owned, 1.0, false)
             })
             .collect();
 
@@ -341,20 +345,19 @@ impl PokedexBrowser {
         name: &str,
         info: &PokemonInfo,
         is_owned: bool,
+        opacity: f32,
+        selected: bool,
     ) -> Element<'_, Message> {
         const IMG_SIZE: f32 = 20.0;
         let mut item_row = row!().spacing(3).align_y(iced::Alignment::Center);
 
         // Add image or placeholder
         if let Some(handle) = self.image_cache.get(name) {
-            item_row = item_row.push(image(handle).width(IMG_SIZE).height(IMG_SIZE));
-        } else if self.image_cache.is_loading(name) {
-            // Show loading indicator
             item_row = item_row.push(
-                container(text("Loading..."))
+                image(handle)
                     .width(IMG_SIZE)
                     .height(IMG_SIZE)
-                    .center(Length::Fill),
+                    .opacity(opacity),
             );
         } else {
             // Show placeholder
@@ -362,12 +365,12 @@ impl PokedexBrowser {
         }
 
         // Owned indicator
-        let state = if info.number.parse::<i32>().unwrap() % 2 == 0 {
+        let state = if is_owned {
             IconState::Registered
         } else {
             IconState::Unregistered
         };
-        let shape = RegisteredIconWidget::new(state);
+        let shape = RegisteredIconWidget::new(state, opacity);
 
         item_row = item_row.push(container(
             canvas::Canvas::new(shape)
@@ -382,69 +385,36 @@ impl PokedexBrowser {
                 info.number,
                 register::to_proper_case(name)
             ))
-            .size(14),
+            .size(14)
+            .color(Color::from_rgba(0.0, 0.0, 0.0, opacity)),
         ]
         .spacing(2);
 
         item_row = item_row.push(info_column);
+
+        let color = if selected {
+            Color::from_rgb(0.2, 0.8, 0.2)
+        } else {
+            Color::from_rgba(1.0, 1.0, 1.0, opacity)
+        };
 
         row![
             Space::new().width(Length::FillPortion(1)),
             container(item_row)
                 .padding(10)
                 .width(Length::FillPortion(1))
-                .style(if is_owned {
-                    Self::owned_style
-                } else {
-                    Self::normal_style
+                .style(move |_| container::Style {
+                    background: Some(color.into()),
+                    border: Border {
+                        radius: 12.0.into(),
+                        width: 0.0,
+                        color: Color::TRANSPARENT,
+                    },
+                    text_color: Some(Color::from_rgba(0.0, 0.0, 0.0, opacity)),
+                    ..Default::default()
                 })
         ]
         .into()
-    }
-
-    pub fn is_owned(&self, pokemon_name: &str) -> bool {
-        self.owned_pokemon.contains(pokemon_name)
-    }
-
-    pub fn normal_style(theme: &Theme) -> container::Style {
-        const LIGHT_BLUE: Color = Color::from_rgb8(45, 190, 255);
-        container::Style {
-            background: Some(Color::from_rgb(1.0, 1.0, 1.0).into()), // DS-style Blue
-            border: Border {
-                radius: 12.0.into(),
-                width: 0.0,
-                color: Color::TRANSPARENT,
-            },
-            text_color: Some(Color::BLACK),
-            ..Default::default()
-        }
-    }
-
-    pub fn selected_style(theme: &Theme) -> container::Style {
-        container::Style {
-            background: Some(Color::from_rgb(0.2, 0.5, 0.9).into()), // DS-style Blue
-            border: Border {
-                radius: 5.0.into(),
-                width: 2.0,
-                color: Color::from_rgb(0.1, 0.3, 0.7),
-            },
-            text_color: Some(Color::WHITE),
-            ..Default::default()
-        }
-    }
-
-    pub fn owned_style(theme: &Theme) -> container::Style {
-        container::Style {
-            background: Some(iced::Background::Color(iced::Color::from_rgb(
-                0.9, 1.0, 0.9,
-            ))),
-            border: iced::Border {
-                color: iced::Color::from_rgb(0.2, 0.8, 0.2),
-                width: 2.0,
-                radius: 8.0.into(),
-            },
-            ..Default::default()
-        }
     }
 }
 

@@ -10,13 +10,15 @@ pub enum IconState {
 pub struct RegisteredIconWidget {
     state: IconState,
     cache: Cache,
+    opacity: f32,
 }
 
 impl RegisteredIconWidget {
-    pub fn new(state: IconState) -> Self {
+    pub fn new(state: IconState, opacity: f32) -> Self {
         Self {
             state,
             cache: Cache::default(),
+            opacity,
         }
     }
 }
@@ -42,7 +44,9 @@ impl<Message> canvas::Program<Message> for RegisteredIconWidget {
                     let circle = Path::circle(center, radius);
                     frame.stroke(
                         &circle,
-                        Stroke::default().with_color(Color::BLACK).with_width(2.0),
+                        Stroke::default()
+                            .with_color(Color::from_rgba(0.0, 0.0, 0.0, self.opacity))
+                            .with_width(2.0),
                     );
                 }
                 IconState::Registered => {
@@ -58,7 +62,10 @@ impl<Message> canvas::Program<Message> for RegisteredIconWidget {
                         builder.close();
                     });
 
-                    frame.fill(&top_semicircle, Color::from_rgb(1.0, 0.0, 0.0));
+                    frame.fill(
+                        &top_semicircle,
+                        Color::from_rgba(1.0, 0.0, 0.0, self.opacity),
+                    );
 
                     // Draw bottom semicircle (white, filled)
                     let bottom_semicircle = Path::new(|builder| {
@@ -72,12 +79,17 @@ impl<Message> canvas::Program<Message> for RegisteredIconWidget {
                         builder.close();
                     });
 
-                    frame.fill(&bottom_semicircle, Color::WHITE);
+                    frame.fill(
+                        &bottom_semicircle,
+                        Color::from_rgba(1.0, 1.0, 1.0, self.opacity),
+                    );
 
                     let outline = Path::circle(center, radius);
                     frame.stroke(
                         &outline,
-                        Stroke::default().with_color(Color::BLACK).with_width(2.0),
+                        Stroke::default()
+                            .with_color(Color::from_rgba(0.0, 0.0, 0.0, self.opacity))
+                            .with_width(2.0),
                     );
                 }
             }
