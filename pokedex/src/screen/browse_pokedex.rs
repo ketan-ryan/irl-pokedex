@@ -2,6 +2,7 @@ use std::sync::{Arc, RwLock as StdRwLock};
 use std::{collections::HashMap, time::Instant};
 
 use iced::advanced::graphics::core::widget;
+use iced::border::Radius;
 use iced::event::{self, Status};
 use iced::keyboard::{Event::KeyPressed, Key, key::Named};
 use iced::widget::scrollable::{Direction, Scrollbar};
@@ -59,6 +60,9 @@ pub enum IOAction {
     Right,
 }
 
+const TOP_SCREEN_ITEMS: usize = 8;
+const ROW_HEIGHT: f32 = 45.0;
+
 impl PokedexBrowser {
     pub fn new(
         config: Arc<PokedexConfig>,
@@ -110,8 +114,6 @@ impl PokedexBrowser {
             }
             Message::Scrolled(viewport) => {
                 debug!("Scrolled");
-                const ROW_HEIGHT: f32 = 45.0;
-                const TOP_SCREEN_ITEMS: usize = 10;
 
                 // Bottom scrollable's absolute position represents how far we've scrolled
                 let bot_scroll_pos = viewport.absolute_offset().y;
@@ -230,8 +232,8 @@ impl PokedexBrowser {
     }
 
     pub fn top_view(&self) -> Element<'_, Message> {
-        const ROW_HEIGHT: f32 = 45.0;
-        const TOP_SCREEN_ITEMS: usize = 10;
+        let semibold = iced::Font::with_name("Open Sans Semibold");
+        let condensed = iced::Font::with_name("Open Sans Condensed");
 
         // scroll_offset now represents the bottom screen's scroll position
         // Top screen shows items that have scrolled past the top of bottom screen
@@ -251,17 +253,18 @@ impl PokedexBrowser {
             .skip(top_start_index)
             .take(items_to_show)
             .map(|(idx, name)| {
-                // 9 is bottom of screen, 0 is top
+                // TOP_SCREEN_ITEMS - 1 is bottom of screen, 0 is top
                 // values don't matter as long as it's consistent regardless of
                 // if the top screen is full or not yet
-                let screen_pos = if items_to_show < 10 {
-                    idx - top_start_index + (10 - items_to_show)
+                let screen_pos = if items_to_show < TOP_SCREEN_ITEMS {
+                    idx - top_start_index + (TOP_SCREEN_ITEMS - items_to_show)
                 } else {
                     idx - top_start_index
                 };
 
                 // lerp opacity between 0.2 and 0.8
-                let opacity = 0.2 + (screen_pos as f32 / 9.0) * (0.8 - 0.2);
+                let opacity =
+                    0.2 + (screen_pos as f32 / (TOP_SCREEN_ITEMS - 1) as f32) * (0.8 - 0.2);
 
                 let info = self.pokemon_data.get(name).unwrap();
                 let is_owned = self.owned_pokemon.contains(name);
@@ -274,32 +277,75 @@ impl PokedexBrowser {
 
         // If we have fewer than TOP_SCREEN_ITEMS, add spacer at top to push content to bottom
         // items, row height, padding
-        let buffer = (TOP_SCREEN_ITEMS - num_items) as f32 * 45.0 - 20.0;
-        if num_items < TOP_SCREEN_ITEMS {
-            content = column![
-                Space::new()
-                    .width(Length::Fill)
-                    .height(Length::Fixed(buffer)),
-                content
-            ];
+        let mut buffer = (TOP_SCREEN_ITEMS - num_items) as f32 * 45.0 - 20.0;
+        // debug!("{} {} {}", buffer, TOP_SCREEN_ITEMS, num_items);
+        // if num_items < TOP_SCREEN_ITEMS {
+        if num_items >= TOP_SCREEN_ITEMS {
+            buffer = 10.0;
         }
+        content = column![
+            Space::new()
+                .width(Length::Fill)
+                .height(Length::Fixed(buffer)),
+            content
+        ];
+        // }
 
         stack![
-            container(
+            container(column![
+                container(column![
+                    row![text("National Pokédex").font(semibold).size(24.0)]
+                        .height(Length::FillPortion(2)),
+                    row![
+                        column![
+                            row![
+                                text("Registered").font(condensed).size(16.0),
+                                text("0541").font(condensed).size(16.0)
+                            ]
+                            .spacing(10.0)
+                        ],
+                        column![
+                            row![
+                                text("Total").font(condensed).size(16.0),
+                                text("1160").font(condensed).size(16.0)
+                            ]
+                            .spacing(10.0)
+                        ]
+                    ]
+                    .spacing(200.0)
+                    .width(Length::Fill)
+                    .height(Length::FillPortion(1))
+                ])
+                .width(Length::Fill)
+                .height(Length::FillPortion(2))
+                .padding(20.0)
+                .style(|_| container::Style {
+                    background: Some(iced::Background::Color(Color::from_rgba8(
+                        255, 255, 255, 0.7
+                    ))),
+                    border: Border {
+                        color: Color::TRANSPARENT,
+                        width: 1.0,
+                        radius: 24.0.into()
+                    },
+                    text_color: Some(Color::from_rgb8(24, 103, 184)),
+                    ..Default::default()
+                }),
                 Scrollable::new(content)
                     .direction(Direction::Vertical(Scrollbar::hidden()))
                     .id(self.top_scroll_id.clone())
-                    .height(Length::Fill)
                     .width(Length::Fill)
-            )
+                    .height(Length::FillPortion(8))
+            ])
             .style(|_| iced::widget::container::Style {
                 background: Some(iced::Background::Color(Color::from_rgb8(140, 213, 229))),
                 ..Default::default()
             })
             .padding(iced::Padding {
-                top: 20.0,
+                top: 10.0,
                 bottom: 20.0,
                 right: 10.0,
+                left: 10.0,
                 ..Default::default()
             })
         ]
@@ -399,10 +445,10 @@ impl PokedexBrowser {
         };
 
         row![
-            Space::new().width(Length::FillPortion(1)),
+            Space::new().width(Length::FillPortion(4)),
             container(item_row)
                 .padding(10)
-                .width(Length::FillPortion(1))
+                .width(Length::FillPortion(5))
                 .style(move |_| container::Style {
                     background: Some(color.into()),
                     border: Border {

@@ -58,6 +58,7 @@ fn main() -> iced::Result {
     iced::daemon(App::new, App::update, App::view)
         .subscription(App::subscription)
         .font(include_bytes!("../assets/OpenSans-Light.ttf"))
+        .font(include_bytes!("../assets/OpenSans_Condensed-Semibold.ttf"))
         .run()
 }
 

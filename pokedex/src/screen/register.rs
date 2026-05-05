@@ -361,7 +361,7 @@ impl Register {
                 } else {
                     let cfg = self.config.clone();
                     // let class_idx = rand::random_range(0..1136);
-                    let pokemon: Option<&String> = cfg.classes.get(837);
+                    let pokemon: Option<&String> = cfg.classes.get(class_idx);
                     if pokemon.is_none() {
                         error!("Index {} OOB!", class_idx);
                         return Action::Run(Task::done(Message::FailedClassification(Some(
