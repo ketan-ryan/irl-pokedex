@@ -31,6 +31,7 @@ url = "2.5.7"
 iced = { version = "0.14.0", default-features = false, features = [
     "advanced",
     "canvas",
+    "svg",
     "tokio",
     "image",
     "tiny-skia",
@@ -47,6 +48,7 @@ ort = { git = "https://github.com/pykeio/ort.git", rev = "94417081c47f47f5a7d6a9
 iced = { version = "0.14.0", default-features = false, features = [
     "advanced",
     "canvas",
+    "svg",
     "tokio",
     "image",
     "wgpu",

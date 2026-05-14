@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use iced::widget::canvas::{self, Geometry};
-use iced::{Point, Rectangle, Renderer, Theme, mouse};
+use iced::{Color, Point, Rectangle, Renderer, Theme, mouse};
 
 #[derive(Debug)]
 pub struct Grid {
@@ -21,11 +21,11 @@ impl Grid {
         self.cache.clear();
 
         // px per second
-        let speed = 20.0;
+        let speed = 10.0;
         let seconds = dt.as_secs_f32();
 
-        self.offset.x += speed * seconds;
-        self.offset.y += speed * seconds;
+        // self.offset.x += speed * seconds;
+        self.offset.y -= speed * seconds;
     }
 }
 
@@ -59,17 +59,17 @@ impl<Message> canvas::Program<Message> for Grid {
             let y_offset = self.offset.y % spacing;
 
             // vertical lines
-            let mut x = -x_offset;
-            while x < bounds.width {
-                frame.stroke(
-                    &canvas::Path::line(Point::new(x, 0.0), Point::new(x, bounds.height)),
-                    canvas::Stroke {
-                        width: 1.0,
-                        ..Default::default()
-                    },
-                );
-                x += spacing;
-            }
+            // let mut x = -x_offset;
+            // while x < bounds.width {
+            //     frame.stroke(
+            //         &canvas::Path::line(Point::new(x, 0.0), Point::new(x, bounds.height)),
+            //         canvas::Stroke {
+            //             width: 1.0,
+            //             ..Default::default()
+            //         },
+            //     );
+            //     x += spacing;
+            // }
 
             // horizontal lines
             let mut y = -y_offset;
@@ -77,7 +77,8 @@ impl<Message> canvas::Program<Message> for Grid {
                 frame.stroke(
                     &canvas::Path::line(Point::new(0.0, y), Point::new(bounds.width, y)),
                     canvas::Stroke {
-                        width: 1.0,
+                        width: 2.0,
+                        style: canvas::Style::Solid(Color::from_rgba8(238, 242, 255, 0.2)),
                         ..Default::default()
                     },
                 );

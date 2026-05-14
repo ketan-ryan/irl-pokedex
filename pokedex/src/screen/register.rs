@@ -221,7 +221,7 @@ impl Register {
                     .duration(Duration::from_millis(500))
                     .easing(iced::animation::Easing::EaseInOut),
                 bg_handle: iced::widget::image::Handle::from_bytes(
-                    include_bytes!("../../assets/register_screen/background.png").as_slice(),
+                    include_bytes!("../../assets/background.png").as_slice(),
                 ),
                 ring_handle: iced::widget::image::Handle::from_bytes(
                     include_bytes!("../../assets/register_screen/ring.png").as_slice(),

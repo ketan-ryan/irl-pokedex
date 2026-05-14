@@ -2,14 +2,14 @@ use std::sync::{Arc, RwLock as StdRwLock};
 use std::{collections::HashMap, time::Instant};
 
 use iced::advanced::graphics::core::widget;
-use iced::border::Radius;
 use iced::event::{self, Status};
 use iced::keyboard::{Event::KeyPressed, Key, key::Named};
 use iced::widget::scrollable::{Direction, Scrollbar};
 use iced::widget::{Id, Scrollable, operation, stack};
+use iced::{Alignment, Padding};
 use iced::{
     Border, Color, Element, Event, Length, Subscription, Task,
-    widget::{Space, canvas, column, container, image, image::Handle, row, scrollable, text},
+    widget::{Space, canvas, column, container, image, image::Handle, row, scrollable, svg, text},
     window,
 };
 
@@ -35,6 +35,8 @@ pub struct PokedexBrowser {
     items_per_page: usize,
     top_scroll_id: widget::Id,
     bot_scroll_id: widget::Id,
+    pokeball_handle: Handle,
+    info_svg: svg::Handle,
 }
 
 #[derive(Debug, Clone)]
@@ -97,6 +99,12 @@ impl PokedexBrowser {
             items_per_page: 10,
             top_scroll_id: Id::unique(),
             bot_scroll_id: Id::unique(),
+            pokeball_handle: Handle::from_bytes(
+                include_bytes!("../../assets/background.png").as_slice(),
+            ),
+            info_svg: svg::Handle::from_memory(
+                include_bytes!("../../assets/browse_screen/hint.svg").as_slice(),
+            ),
         };
 
         (state, load_task)
@@ -277,9 +285,7 @@ impl PokedexBrowser {
 
         // If we have fewer than TOP_SCREEN_ITEMS, add spacer at top to push content to bottom
         // items, row height, padding
-        let mut buffer = (TOP_SCREEN_ITEMS - num_items) as f32 * 45.0 - 20.0;
-        // debug!("{} {} {}", buffer, TOP_SCREEN_ITEMS, num_items);
-        // if num_items < TOP_SCREEN_ITEMS {
+        let mut buffer = (TOP_SCREEN_ITEMS - num_items) as f32 * 45.0 + 10.0;
         if num_items >= TOP_SCREEN_ITEMS {
             buffer = 10.0;
         }
@@ -289,36 +295,92 @@ impl PokedexBrowser {
                 .height(Length::Fixed(buffer)),
             content
         ];
-        // }
 
-        stack![
-            container(column![
-                container(column![
-                    row![text("National Pokédex").font(semibold).size(24.0)]
-                        .height(Length::FillPortion(2)),
-                    row![
-                        column![
-                            row![
-                                text("Registered").font(condensed).size(16.0),
-                                text("0541").font(condensed).size(16.0)
-                            ]
-                            .spacing(10.0)
-                        ],
-                        column![
-                            row![
-                                text("Total").font(condensed).size(16.0),
-                                text("1160").font(condensed).size(16.0)
-                            ]
-                            .spacing(10.0)
-                        ]
-                    ]
-                    .spacing(200.0)
+        let mut elements: Vec<Element<Message>> = vec![];
+        // scanlines
+        elements.push(
+            container(
+                canvas::Canvas::new(&self.grid)
                     .width(Length::Fill)
-                    .height(Length::FillPortion(1))
-                ])
+                    .height(Length::Fill),
+            )
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .style(|_| iced::widget::container::Style {
+                background: Some(iced::Background::Color(Color::from_rgb8(140, 213, 229))),
+                ..Default::default()
+            })
+            .into(),
+        );
+
+        // background pokeball
+        elements.push(
+            column![
+                // push it down a bit for visual rather than true centering
+                Space::new().height(Length::Fixed(50.0)),
+                image(self.pokeball_handle.clone()).opacity(0.2).scale(0.95)
+            ]
+            .width(Length::Fill)
+            .align_x(Alignment::Center)
+            .into(),
+        );
+
+        // bottom darker blue bit
+        elements.push(
+            column![
+                Space::new()
+                    .width(Length::Fill)
+                    .height(Length::FillPortion(9)),
+                container(Space::new())
+                    .width(Length::Fill)
+                    .height(Length::Fixed(40.0))
+                    .style(|_| iced::widget::container::Style {
+                        background: Some(iced::Background::Color(Color::from_rgba8(
+                            179, 206, 255, 0.6,
+                        ))),
+                        ..Default::default()
+                    })
+            ]
+            .into(),
+        );
+
+        let body = stack![
+            container(column![
+                // header
+                container(
+                    column![
+                        row![text("National Pokédex").font(semibold).size(24.0)]
+                            .height(Length::FillPortion(2)),
+                        row![
+                            column![
+                                row![
+                                    text("Registered").font(condensed).size(16.0),
+                                    text("0541").font(condensed).size(16.0)
+                                ]
+                                .spacing(10.0)
+                            ],
+                            column![
+                                row![
+                                    text("Total").font(condensed).size(16.0),
+                                    text("1160").font(condensed).size(16.0)
+                                ]
+                                .spacing(10.0)
+                            ]
+                        ]
+                        .spacing(200.0)
+                        .width(Length::Fill)
+                        .height(Length::FillPortion(1))
+                    ]
+                    .spacing(10.0)
+                )
                 .width(Length::Fill)
                 .height(Length::FillPortion(2))
-                .padding(20.0)
+                .padding(Padding {
+                    left: 20.0,
+                    right: 20.0,
+                    bottom: 20.0,
+                    top: 10.0
+                })
                 .style(|_| container::Style {
                     background: Some(iced::Background::Color(Color::from_rgba8(
                         255, 255, 255, 0.7
@@ -331,14 +393,15 @@ impl PokedexBrowser {
                     text_color: Some(Color::from_rgb8(24, 103, 184)),
                     ..Default::default()
                 }),
+                // the list that gets pushed up
                 Scrollable::new(content)
                     .direction(Direction::Vertical(Scrollbar::hidden()))
                     .id(self.top_scroll_id.clone())
                     .width(Length::Fill)
-                    .height(Length::FillPortion(8))
+                    .height(Length::FillPortion(9))
             ])
             .style(|_| iced::widget::container::Style {
-                background: Some(iced::Background::Color(Color::from_rgb8(140, 213, 229))),
+                background: Some(iced::Background::Color(Color::TRANSPARENT)),
                 ..Default::default()
             })
             .padding(iced::Padding {
@@ -349,7 +412,9 @@ impl PokedexBrowser {
                 ..Default::default()
             })
         ]
-        .into()
+        .into();
+        elements.push(body);
+        iced::widget::Stack::with_children(elements).into()
     }
 
     pub fn bottom_view(&self) -> Element<'_, Message> {
@@ -360,12 +425,78 @@ impl PokedexBrowser {
             .map(|name| {
                 let info = self.pokemon_data.get(name).unwrap();
                 let is_owned = self.owned_pokemon.contains(name);
-                self.render_pokemon_item(name, info, is_owned, 1.0, false)
+                self.render_pokemon_item(name, info, is_owned, 0.9, false)
             })
             .collect();
 
+        let mut elements: Vec<Element<Message>> = vec![];
+
+        // scanlines
+        elements.push(
+            container(
+                canvas::Canvas::new(&self.grid)
+                    .width(Length::Fill)
+                    .height(Length::Fill),
+            )
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .style(|_| iced::widget::container::Style {
+                background: Some(iced::Background::Color(Color::from_rgb8(140, 213, 229))),
+                ..Default::default()
+            })
+            .into(),
+        );
+
+        // top darker blue bit
+        elements.push(
+            stack!(
+                column![
+                    container(Space::new())
+                        .width(Length::Fill)
+                        .height(Length::FillPortion(1))
+                        .style(|_| iced::widget::container::Style {
+                            background: Some(iced::Background::Color(Color::from_rgba8(
+                                179, 206, 255, 0.6,
+                            ))),
+                            ..Default::default()
+                        }),
+                    container(row![])
+                        .style(|_| iced::widget::container::Style {
+                            border: Border {
+                                radius: 12.0.into(),
+                                width: 1.0,
+                                color: Color::WHITE,
+                            },
+                            background: Some(iced::Background::Color(Color::from_rgba8(
+                                33, 129, 228, 0.9
+                            ))),
+                            ..Default::default()
+                        })
+                        .width(Length::Fill)
+                        .height(Length::FillPortion(4)),
+                    Space::new()
+                        .width(Length::Fill)
+                        .height(Length::FillPortion(6))
+                ],
+                row![
+                    // row![
+                    container(svg(self.info_svg.clone()))
+                        .align_left(Length::Fixed(256.0))
+                        .padding(Padding {
+                            left: 10.0,
+                            top: 10.0,
+                            ..Default::default()
+                        })
+                ]
+                .width(Length::Fill)
+                .height(Length::Fill)
+            )
+            .into(),
+        );
+
+        // list
         let content = column(items).spacing(5);
-        stack![
+        let body = stack![
             container(
                 scrollable(content)
                     .id(self.bot_scroll_id.clone())
@@ -373,7 +504,7 @@ impl PokedexBrowser {
                     .height(Length::Fill),
             )
             .style(|_| iced::widget::container::Style {
-                background: Some(iced::Background::Color(Color::from_rgb8(140, 213, 229))),
+                background: Some(iced::Background::Color(Color::TRANSPARENT)),
                 ..Default::default()
             })
             .padding(iced::Padding {
@@ -383,7 +514,9 @@ impl PokedexBrowser {
                 ..Default::default()
             })
         ]
-        .into()
+        .into();
+        elements.push(body);
+        iced::widget::Stack::with_children(elements).into()
     }
 
     fn render_pokemon_item(
