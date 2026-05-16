@@ -1,19 +1,20 @@
 use std::sync::{Arc, RwLock as StdRwLock};
+use std::time::Duration;
 use std::{collections::HashMap, time::Instant};
 
 use iced::advanced::graphics::core::widget;
+use iced::animation::Animation;
 use iced::event::{self, Status};
 use iced::keyboard::{Event::KeyPressed, Key, key::Named};
 use iced::widget::scrollable::{Direction, Scrollbar};
-use iced::widget::{Id, Scrollable, operation, stack};
-use iced::{Alignment, Padding};
+use iced::widget::{Id, Scrollable, mouse_area, operation, stack};
 use iced::{
-    Border, Color, Element, Event, Length, Subscription, Task,
+    Alignment, Border, Color, Element, Event, Length, Padding, Subscription, Task,
     widget::{Space, canvas, column, container, image, image::Handle, row, scrollable, svg, text},
     window,
 };
 
-use log::{debug, error, trace};
+use log::{debug, error, info, trace};
 
 use crate::elements::registered_icon::{IconState, RegisteredIconWidget};
 use crate::screen::register;
@@ -22,21 +23,45 @@ use crate::{
     io::{self, PokedexConfig, PokemonInfo},
 };
 
+#[derive(Clone, Debug)]
+struct Selected {
+    selected_pokemon: Option<String>,
+    selected_idx: Option<usize>,
+    previously_selected: Option<String>,
+}
+
+impl Selected {
+    pub fn new() -> Self {
+        Self {
+            selected_pokemon: None,
+            selected_idx: None,
+            previously_selected: None,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct PokedexBrowser {
-    // state: State,
     config: Arc<PokedexConfig>,
     grid: Grid,
     last_tick: Instant,
     pokemon_data: HashMap<String, PokemonInfo>,
     owned_pokemon: std::collections::HashSet<String>,
     image_cache: ImageCache,
+    pokeball_handle: Handle,
+    info_svg: svg::Handle,
+
+    // scroll params
     scroll_offset: f32,
     items_per_page: usize,
     top_scroll_id: widget::Id,
     bot_scroll_id: widget::Id,
-    pokeball_handle: Handle,
-    info_svg: svg::Handle,
+    selected: Selected,
+    scroll_animation: Option<Animation<f32>>,
+    // used for animation
+    current_scroll_offset: f32,
+    target_scroll_offset: f32,
+    size_animation: Animation<f32>,
 }
 
 #[derive(Debug, Clone)]
@@ -46,6 +71,8 @@ pub enum Message {
     ImageLoaded(String, Handle),
     ImageLoadFailed(String),
     IOInput(IOAction),
+    SelectPokemon(String),
+    AnimateScroll,
 }
 
 pub enum Action {
@@ -63,7 +90,7 @@ pub enum IOAction {
 }
 
 const TOP_SCREEN_ITEMS: usize = 8;
-const ROW_HEIGHT: f32 = 45.0;
+const ROW_HEIGHT: f32 = 40.0;
 
 impl PokedexBrowser {
     pub fn new(
@@ -82,6 +109,9 @@ impl PokedexBrowser {
                 .and_then(|info| info.number.parse::<u32>().ok())
                 .unwrap_or(9999)
         });
+
+        let selected_idx = 5;
+        let selected_pokemon = pokemon_names.get(selected_idx).cloned();
 
         let mut image_cache = ImageCache::new(pokemon_names, 15);
 
@@ -105,6 +135,17 @@ impl PokedexBrowser {
             info_svg: svg::Handle::from_memory(
                 include_bytes!("../../assets/browse_screen/hint.svg").as_slice(),
             ),
+            selected: Selected {
+                selected_pokemon,
+                selected_idx: Some(selected_idx),
+                previously_selected: None,
+            },
+            scroll_animation: None,
+            current_scroll_offset: 0.0,
+            target_scroll_offset: 0.0,
+            size_animation: Animation::new(1.0)
+                .duration(Duration::from_millis(200))
+                .easing(iced::animation::Easing::EaseInOut),
         };
 
         (state, load_task)
@@ -121,8 +162,6 @@ impl PokedexBrowser {
                 Action::None
             }
             Message::Scrolled(viewport) => {
-                debug!("Scrolled");
-
                 // Bottom scrollable's absolute position represents how far we've scrolled
                 let bot_scroll_pos = viewport.absolute_offset().y;
 
@@ -158,7 +197,7 @@ impl PokedexBrowser {
                 Action::Run(Task::batch(vec![sync_task, load_task]))
             }
             Message::ImageLoaded(name, handle) => {
-                debug!("Loaded {}", name);
+                // debug!("Loaded {}", name);
                 self.image_cache.insert(name, handle);
                 Action::None
             }
@@ -167,27 +206,119 @@ impl PokedexBrowser {
                 Action::None
             }
             Message::IOInput(action) => {
-                const SCROLL_AMOUNT: f32 = 45.0;
-                match action {
-                    IOAction::ScrollUp => {
-                        debug!("Got scroll up event");
-                        return Action::Run(self.scroll(-SCROLL_AMOUNT));
-                    }
+                let current_index = self
+                    .selected
+                    .selected_pokemon
+                    .as_ref()
+                    .and_then(|name| {
+                        self.image_cache
+                            .pokemon_order
+                            .iter()
+                            .position(|n| n == name)
+                    })
+                    .unwrap_or(0);
+
+                let new_index = match action {
+                    IOAction::ScrollUp => current_index.saturating_sub(1),
                     IOAction::ScrollDown => {
-                        debug!("Got scroll down event");
-                        return Action::Run(self.scroll(SCROLL_AMOUNT));
+                        (current_index + 1).min(self.image_cache.pokemon_order.len() - 1)
                     }
-                    IOAction::Left => {
-                        debug!("Got hard scroll up event");
-                        return Action::Run(self.scroll(SCROLL_AMOUNT * -10.0));
-                    }
+                    IOAction::Left => current_index.saturating_sub(10),
                     IOAction::Right => {
-                        debug!("Got hard scroll down event");
-                        return Action::Run(self.scroll(SCROLL_AMOUNT * 10.0));
+                        (current_index + 10).min(self.image_cache.pokemon_order.len() - 1)
                     }
                 };
+
+                if new_index != current_index {
+                    let new_name = self.image_cache.pokemon_order[new_index].clone();
+                    debug!("Scrolled to select new pokemon {}", new_name);
+                    return Action::Run(Task::done(Message::SelectPokemon(new_name)));
+                    // self.selected.selected_pokemon = Some(new_name);
+                    // self.start_scroll_animation(new_index)
+                }
+
+                Action::None
+            }
+            Message::SelectPokemon(name) => {
+                self.selected.previously_selected = self.selected.selected_pokemon.clone();
+                self.selected.selected_pokemon = Some(name.clone());
+
+                debug!("Selected pokemon {}", name);
+
+                if let Some(index) = self
+                    .image_cache
+                    .pokemon_order
+                    .iter()
+                    .position(|n| n == &name)
+                {
+                    self.start_scroll_animation(index);
+                }
+
+                Action::None
+            }
+            Message::AnimateScroll => {
+                if let Some(animation) = &mut self.scroll_animation {
+                    if animation.interpolate_with(|v| v, Instant::now())
+                        >= self.target_scroll_offset
+                    {
+                        self.scroll_animation = None;
+                        self.current_scroll_offset = self.target_scroll_offset;
+
+                        return Action::Run(iced::widget::operation::scroll_to(
+                            self.bot_scroll_id.clone(),
+                            scrollable::AbsoluteOffset {
+                                x: 0.0,
+                                y: self.current_scroll_offset,
+                            },
+                        ));
+                    } else {
+                        // Get the animated value
+                        self.current_scroll_offset =
+                            animation.interpolate_with(|v| v, Instant::now());
+                    }
+
+                    Action::Run(iced::widget::operation::scroll_to(
+                        self.bot_scroll_id.clone(),
+                        scrollable::AbsoluteOffset {
+                            x: 0.0,
+                            y: self.current_scroll_offset,
+                        },
+                    ))
+                } else {
+                    Action::None
+                }
             }
         }
+    }
+
+    fn start_scroll_animation(&mut self, index: usize) {
+        info!("Start scroll called");
+        self.target_scroll_offset = index.saturating_sub(5) as f32 * ROW_HEIGHT;
+        self.scroll_animation = Some(
+            Animation::new(self.current_scroll_offset)
+                .duration(Duration::from_millis(100))
+                .easing(iced::animation::Easing::EaseOutCubic),
+        );
+        self.scroll_animation
+            .as_mut()
+            .unwrap()
+            .go_mut(self.target_scroll_offset, Instant::now());
+        self.size_animation = Animation::new(0.0)
+            .duration(Duration::from_millis(100))
+            .easing(iced::animation::Easing::EaseInOut);
+        self.size_animation.go_mut(1.0, Instant::now());
+    }
+
+    fn scroll_to_center_item(&self, index: usize) -> Task<Message> {
+        let scroll_offset = index.saturating_sub(5) as f32 * ROW_HEIGHT;
+
+        iced::widget::operation::scroll_to(
+            self.bot_scroll_id.clone(),
+            scrollable::AbsoluteOffset {
+                x: 0.0,
+                y: scroll_offset,
+            },
+        )
     }
 
     fn scroll(&self, amount: f32) -> Task<Message> {
@@ -202,10 +333,12 @@ impl PokedexBrowser {
         // tick screen for updates ~60fps
         // time::every(Duration::from_millis(16)).map(Message::Tick)
 
-        Subscription::batch([
-            window::frames().map(Message::Tick),
-            // TODO: Will need custom subscription / event to handle rpi IO
-            event::listen_with(|event, status, _| match (event, status) {
+        let mut subscriptions = Vec::new();
+        subscriptions.push(window::frames().map(Message::Tick));
+
+        // TODO: Will need custom subscription / event to handle rpi IO
+        subscriptions.push(event::listen_with(|event, status, _| {
+            match (event, status) {
                 (
                     Event::Keyboard(KeyPressed {
                         key: Key::Named(Named::ArrowUp),
@@ -235,8 +368,15 @@ impl PokedexBrowser {
                     Status::Ignored,
                 ) => Some(Message::IOInput(IOAction::Right)),
                 _ => None,
-            }),
-        ])
+            }
+        }));
+
+        if self.scroll_animation.is_some() {
+            subscriptions
+                .push(iced::time::every(Duration::from_millis(16)).map(|_| Message::AnimateScroll));
+        }
+
+        Subscription::batch(subscriptions)
     }
 
     pub fn top_view(&self) -> Element<'_, Message> {
@@ -276,7 +416,7 @@ impl PokedexBrowser {
 
                 let info = self.pokemon_data.get(name).unwrap();
                 let is_owned = self.owned_pokemon.contains(name);
-                self.render_pokemon_item(name, info, is_owned, opacity, false)
+                self.render_pokemon_item(name, info, is_owned, opacity, false, false, true)
             })
             .collect();
 
@@ -418,14 +558,26 @@ impl PokedexBrowser {
     }
 
     pub fn bottom_view(&self) -> Element<'_, Message> {
+        let item_buffer = 10.0;
         let items: Vec<Element<Message>> = self
             .image_cache
             .pokemon_order
             .iter()
-            .map(|name| {
+            .enumerate()
+            .filter_map(|(index, name)| {
                 let info = self.pokemon_data.get(name).unwrap();
                 let is_owned = self.owned_pokemon.contains(name);
-                self.render_pokemon_item(name, info, is_owned, 0.9, false)
+                let selected = self.selected.selected_pokemon.as_ref() == Some(name);
+                let was_selected = self.selected.previously_selected.as_ref() == Some(name);
+                Some(self.render_pokemon_item(
+                    name,
+                    info,
+                    is_owned,
+                    0.9,
+                    selected,
+                    was_selected,
+                    false,
+                ))
             })
             .collect();
 
@@ -479,7 +631,6 @@ impl PokedexBrowser {
                         .height(Length::FillPortion(6))
                 ],
                 row![
-                    // row![
                     container(svg(self.info_svg.clone()))
                         .align_left(Length::Fixed(256.0))
                         .padding(Padding {
@@ -508,7 +659,7 @@ impl PokedexBrowser {
                 ..Default::default()
             })
             .padding(iced::Padding {
-                top: 20.0,
+                top: 10.0,
                 bottom: 20.0,
                 right: 10.0,
                 ..Default::default()
@@ -526,9 +677,11 @@ impl PokedexBrowser {
         is_owned: bool,
         opacity: f32,
         selected: bool,
+        was_selected: bool,
+        is_top_screen: bool,
     ) -> Element<'_, Message> {
         const IMG_SIZE: f32 = 20.0;
-        let mut item_row = row!().spacing(3).align_y(iced::Alignment::Center);
+        let mut item_row = row!().spacing(1.5).align_y(iced::Alignment::Center);
 
         // Add image or placeholder
         if let Some(handle) = self.image_cache.get(name) {
@@ -570,18 +723,31 @@ impl PokedexBrowser {
         .spacing(2);
 
         item_row = item_row.push(info_column);
+        let size_now = self.size_animation.interpolate_with(|v| v, Instant::now());
 
         let color = if selected {
-            Color::from_rgb(0.2, 0.8, 0.2)
+            Color::from_rgba(0.2, 0.8, 0.2, size_now)
+        } else if was_selected {
+            Color::from_rgba(0.2, 0.8, 0.2, 1.0 - size_now)
         } else {
             Color::from_rgba(1.0, 1.0, 1.0, opacity)
         };
 
-        row![
-            Space::new().width(Length::FillPortion(4)),
+        let name_ = name.to_string();
+
+        let size = if selected {
+            35.0 + (10.0 * size_now)
+        } else if was_selected {
+            45.0 - (10.0 * size_now)
+        } else {
+            35.0
+        };
+
+        let area = mouse_area(
             container(item_row)
                 .padding(10)
                 .width(Length::FillPortion(5))
+                .height(Length::Fixed(size))
                 .style(move |_| container::Style {
                     background: Some(color.into()),
                     border: Border {
@@ -591,9 +757,17 @@ impl PokedexBrowser {
                     },
                     text_color: Some(Color::from_rgba(0.0, 0.0, 0.0, opacity)),
                     ..Default::default()
-                })
-        ]
-        .into()
+                }),
+        );
+
+        // only bottom screen should be clickables
+        let area = if !is_top_screen {
+            area.on_press(Message::SelectPokemon(name_))
+        } else {
+            area
+        };
+
+        row![Space::new().width(Length::FillPortion(4)), area].into()
     }
 }
 

@@ -2,6 +2,7 @@ mod elements;
 mod io;
 mod ml;
 mod screen;
+mod util;
 
 use flexi_logger::{self, Cleanup, Criterion, FileSpec, Logger, Naming, WriteMode};
 use gstreamer::glib::num_processors;
