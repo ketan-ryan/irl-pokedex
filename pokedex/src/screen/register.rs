@@ -566,7 +566,7 @@ impl Register {
         };
         if let Ok(img) = img {
             let white_handle = Self::make_white_mask(&img);
-            let offset = Self::find_image_com(&img);
+            let offset = find_image_com(&img);
             let img_bytes = img.clone();
             let png_handle = iced::widget::image::Handle::from_bytes(img);
             return Ok(ClassificationResults {
@@ -601,70 +601,6 @@ impl Register {
         });
 
         iced::widget::image::Handle::from_rgba(result.width(), result.height(), result.into_raw())
-    }
-
-    /// Finds center of mass for a png across its rows and columns
-    ///
-    /// A pixel is considered to have mass if its alpha is > 0
-    ///
-    /// # Arguments
-    ///
-    /// * `bytes` the raw bytes making up the rgba8 image
-    ///
-    /// # Returns
-    /// The x-position of the image's center of mass
-    fn find_image_com(bytes: &[u8]) -> f32 {
-        let img = image::load_from_memory(bytes).unwrap().into_rgba8();
-        let (width, height) = img.dimensions();
-
-        // row-based CoM
-        let mut row_weighted_sum = 0.0;
-        let mut row_total_weight = 0.0;
-
-        for row in 0..height {
-            let mut row_mass = 0.0;
-            let mut row_x_sum = 0.0;
-
-            for col in 0..width {
-                let pixel = img.get_pixel(col, row);
-                if pixel[3] > 0 {
-                    row_mass += 1.0;
-                    row_x_sum += col as f32;
-                }
-            }
-
-            if row_mass > 0.0 {
-                // give more weight to dense areas
-                row_weighted_sum += (row_x_sum / row_mass) * row_mass;
-                row_total_weight += row_mass;
-            }
-        }
-
-        let row_com = (row_weighted_sum / row_total_weight) / width as f32;
-
-        // col-based CoM
-        let mut col_weighted_sum = 0.0;
-        let mut col_total_weight = 0.0;
-
-        for col in 0..width {
-            let mut col_mass = 0.0;
-
-            for row in 0..height {
-                let pixel = img.get_pixel(col, row);
-                if pixel[3] > 0 {
-                    col_mass += 1.0;
-                }
-            }
-
-            if col_mass > 0.0 {
-                col_weighted_sum += (col as f32 / width as f32) * col_mass;
-                col_total_weight += col_mass;
-            }
-        }
-
-        let col_com = col_weighted_sum / col_total_weight;
-
-        (row_com + col_com) / 2.0
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
@@ -1344,4 +1280,62 @@ pub fn to_proper_case(s: &str) -> String {
         }
     }
     result
+}
+
+/// Finds center of mass for a PNG across its rows and columns.
+///
+/// A pixel is considered to have mass if its alpha is > 0.
+/// Returns the x-position of the image's center of mass normalized to [0.0, 1.0].
+pub fn find_image_com(bytes: &[u8]) -> f32 {
+    let img = image::load_from_memory(bytes).unwrap().into_rgba8();
+    let (width, height) = img.dimensions();
+
+    // row-based CoM
+    let mut row_weighted_sum = 0.0;
+    let mut row_total_weight = 0.0;
+
+    for row in 0..height {
+        let mut row_mass = 0.0;
+        let mut row_x_sum = 0.0;
+
+        for col in 0..width {
+            let pixel = img.get_pixel(col, row);
+            if pixel[3] > 0 {
+                row_mass += 1.0;
+                row_x_sum += col as f32;
+            }
+        }
+
+        if row_mass > 0.0 {
+            // give more weight to dense areas
+            row_weighted_sum += (row_x_sum / row_mass) * row_mass;
+            row_total_weight += row_mass;
+        }
+    }
+
+    let row_com = (row_weighted_sum / row_total_weight) / width as f32;
+
+    // col-based CoM
+    let mut col_weighted_sum = 0.0;
+    let mut col_total_weight = 0.0;
+
+    for col in 0..width {
+        let mut col_mass = 0.0;
+
+        for row in 0..height {
+            let pixel = img.get_pixel(col, row);
+            if pixel[3] > 0 {
+                col_mass += 1.0;
+            }
+        }
+
+        if col_mass > 0.0 {
+            col_weighted_sum += (col as f32 / width as f32) * col_mass;
+            col_total_weight += col_mass;
+        }
+    }
+
+    let col_com = col_weighted_sum / col_total_weight;
+
+    (row_com + col_com) / 2.0
 }

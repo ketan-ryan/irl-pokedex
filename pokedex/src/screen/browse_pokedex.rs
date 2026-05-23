@@ -22,22 +22,13 @@ use crate::{
     elements::grid::Grid,
     io::{self, PokedexConfig, PokemonInfo},
 };
+use anyhow::anyhow;
 
 #[derive(Clone, Debug)]
 struct Selected {
     selected_pokemon: Option<String>,
     selected_idx: Option<usize>,
     previously_selected: Option<String>,
-}
-
-impl Selected {
-    pub fn new() -> Self {
-        Self {
-            selected_pokemon: None,
-            selected_idx: None,
-            previously_selected: None,
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -57,6 +48,7 @@ pub struct PokedexBrowser {
     top_scroll_id: widget::Id,
     bot_scroll_id: widget::Id,
     selected: Selected,
+    selected_com_offset: Option<f32>,
     scroll_animation: Option<Animation<f32>>,
     // used for animation
     current_scroll_offset: f32,
@@ -68,7 +60,8 @@ pub struct PokedexBrowser {
 pub enum Message {
     Tick(std::time::Instant),
     Scrolled(scrollable::Viewport),
-    ImageLoaded(String, Handle),
+    ImageLoaded(String, Handle, Option<f32>),
+    ImageCenterOfMass(String, f32),
     ImageLoadFailed(String),
     IOInput(IOAction),
     SelectPokemon(String),
@@ -140,6 +133,7 @@ impl PokedexBrowser {
                 selected_idx: Some(selected_idx),
                 previously_selected: None,
             },
+            selected_com_offset: None,
             scroll_animation: None,
             current_scroll_offset: 0.0,
             target_scroll_offset: 0.0,
@@ -196,9 +190,20 @@ impl PokedexBrowser {
 
                 Action::Run(Task::batch(vec![sync_task, load_task]))
             }
-            Message::ImageLoaded(name, handle) => {
-                // debug!("Loaded {}", name);
-                self.image_cache.insert(name, handle);
+            Message::ImageLoaded(name, handle, offset) => {
+                self.image_cache
+                    .insert(name.clone(), handle.clone(), offset);
+
+                Action::None
+            }
+            Message::ImageCenterOfMass(name, offset) => {
+                self.image_cache.update_offset(&name, offset);
+                if self.selected.selected_pokemon.as_ref() == Some(&name) {
+                    self.selected_com_offset = Some(offset);
+                    if let Some(index) = self.selected.selected_idx {
+                        self.start_scroll_animation(index);
+                    }
+                }
                 Action::None
             }
             Message::ImageLoadFailed(name) => {
@@ -240,6 +245,7 @@ impl PokedexBrowser {
             Message::SelectPokemon(name) => {
                 self.selected.previously_selected = self.selected.selected_pokemon.clone();
                 self.selected.selected_pokemon = Some(name.clone());
+                self.selected_com_offset = None;
 
                 debug!("Selected pokemon {}", name);
 
@@ -249,7 +255,23 @@ impl PokedexBrowser {
                     .iter()
                     .position(|n| n == &name)
                 {
-                    self.start_scroll_animation(index);
+                    self.selected.selected_idx = Some(index);
+                }
+
+                if self.image_cache.get(&name).is_some() {
+                    if let Some(offset) = self.image_cache.get_offset(&name) {
+                        self.selected_com_offset = Some(offset);
+                        if let Some(index) = self.selected.selected_idx {
+                            self.start_scroll_animation(index);
+                        }
+                        return Action::None;
+                    }
+
+                    if let Some(handle) = self.image_cache.get(&name) {
+                        return Action::Run(
+                            self.image_cache.compute_center_of_mass_async(name, handle),
+                        );
+                    }
                 }
 
                 Action::None
@@ -573,6 +595,63 @@ impl PokedexBrowser {
             .into(),
         );
 
+        let info_size = 256.0;
+        let container_element = container(svg(self.info_svg.clone()))
+            .width(info_size)
+            .height(info_size)
+            .padding(Padding {
+                left: 10.0,
+                top: 10.0,
+                ..Default::default()
+            });
+
+        let image_element: Element<'_, Message> =
+            if let Some(name) = self.selected.selected_pokemon.as_ref() {
+                if let Some(handle) = self.image_cache.get(name) {
+                    let offset = self.selected_com_offset.unwrap_or(0.5);
+                    let x_offset = (0.5 - offset) * 256.0;
+
+                    let image_padding = if x_offset > 0.0 {
+                        Padding {
+                            left: x_offset,
+                            ..Default::default()
+                        }
+                    } else {
+                        Padding {
+                            right: -x_offset,
+                            ..Default::default()
+                        }
+                    };
+
+                    stack![
+                        // invisible image. just used to allow resizing the actual image
+                        // without resizing the container, since the first entry in the
+                        // stack determines the bounds
+                        image(handle.clone())
+                            .width(Length::Fixed(info_size))
+                            .height(Length::Fixed(info_size))
+                            .opacity(0.0),
+                        container(
+                            image(handle.clone())
+                                .content_fit(iced::ContentFit::Cover)
+                                .width(Length::Fixed(220.0))
+                                .height(Length::Fixed(220.0))
+                        )
+                        .padding(image_padding)
+                        .width(Length::Fixed(640.0))
+                        .height(Length::Fixed(480.0))
+                        .align_x(Alignment::Center)
+                        .align_y(Alignment::Center),
+                        container_element
+                    ]
+                    .into()
+                } else {
+                    container_element.into()
+                }
+            } else {
+                container_element.into()
+            };
+
         // top darker blue bit
         elements.push(
             stack!(
@@ -604,17 +683,7 @@ impl PokedexBrowser {
                         .width(Length::Fill)
                         .height(Length::FillPortion(6))
                 ],
-                row![
-                    container(svg(self.info_svg.clone()))
-                        .align_left(Length::Fixed(256.0))
-                        .padding(Padding {
-                            left: 10.0,
-                            top: 10.0,
-                            ..Default::default()
-                        })
-                ]
-                .width(Length::Fill)
-                .height(Length::Fill)
+                row![image_element].width(Length::Fill).height(Length::Fill)
             )
             .into(),
         );
@@ -761,10 +830,16 @@ pub fn lerp_color(start: Color, end: Color, t: f32) -> Color {
     }
 }
 
+#[derive(Debug, Clone)]
+struct ImageCacheEntry {
+    handle: Handle,
+    center_of_mass: Option<f32>,
+}
+
 #[derive(Debug)]
 pub struct ImageCache {
     // Sync cache for rendering (can be accessed without await)
-    sync_cache: Arc<StdRwLock<HashMap<String, Handle>>>,
+    sync_cache: Arc<StdRwLock<HashMap<String, ImageCacheEntry>>>,
     // Ordered list of all pokemon names
     pokemon_order: Vec<String>,
     // Current visible range
@@ -836,7 +911,7 @@ impl ImageCache {
             };
 
             if should_load {
-                let load_task = self.load_image_async(sprite_folder.clone(), name);
+                let load_task = self.load_image_async(sprite_folder.clone(), name.clone());
 
                 // Prioritize visible range
                 if i >= start && i < end {
@@ -868,17 +943,69 @@ impl ImageCache {
         iced::Task::perform(
             async move {
                 let result = io::load_png(sprite_folder, &pokemon_name.to_lowercase());
-                (pokemon_name, result)
-            },
-            move |(name, bytes)| {
-                // Remove from loading set
-                let mut loading_set = loading.write().unwrap();
-                loading_set.remove(&name);
+                match result {
+                    Ok(bytes) => {
+                        let handle = Handle::from_bytes(bytes.clone());
+                        let offset = Some(crate::screen::register::find_image_com(&bytes));
 
-                if bytes.is_ok() {
-                    Message::ImageLoaded(name, Handle::from_bytes(bytes.unwrap()))
-                } else {
+                        Ok((pokemon_name, handle, offset))
+                    }
+                    Err(err) => Err((pokemon_name, err)),
+                }
+            },
+            move |result| match result {
+                Ok((name, handle, offset)) => {
+                    let mut loading_set = loading.write().unwrap();
+                    loading_set.remove(&name);
+                    Message::ImageLoaded(name, handle, offset)
+                }
+                Err((name, _)) => {
+                    let mut loading_set = loading.write().unwrap();
+                    loading_set.remove(&name);
                     Message::ImageLoadFailed(name)
+                }
+            },
+        )
+    }
+
+    fn compute_center_of_mass_async(
+        &self,
+        pokemon_name: String,
+        handle: Handle,
+    ) -> iced::Task<Message> {
+        let loading = self.loading.clone();
+
+        // Mark as loading for COM computation if not already
+        {
+            let mut loading_set = loading.write().unwrap();
+            loading_set.insert(pokemon_name.clone());
+        }
+
+        iced::Task::perform(
+            async move {
+                let result = match handle {
+                    Handle::Bytes(_, bytes) => {
+                        let offset = crate::screen::register::find_image_com(bytes.as_ref());
+                        Ok((pokemon_name, offset))
+                    }
+                    _ => Err((
+                        pokemon_name,
+                        anyhow!("unsupported image handle variant for COM"),
+                    )),
+                };
+                result
+            },
+            move |result| {
+                let mut loading_set = loading.write().unwrap();
+                match result {
+                    Ok((name, offset)) => {
+                        loading_set.remove(&name);
+                        Message::ImageCenterOfMass(name, offset)
+                    }
+                    Err((name, _)) => {
+                        loading_set.remove(&name);
+                        Message::ImageCenterOfMass(name, 0.5)
+                    }
                 }
             },
         )
@@ -887,13 +1014,34 @@ impl ImageCache {
     /// Get handle for a specific pokemon (synchronous for rendering)
     pub fn get(&self, pokemon_name: &str) -> Option<Handle> {
         let cache = self.sync_cache.read().unwrap();
-        cache.get(pokemon_name).cloned()
+        cache.get(pokemon_name).map(|entry| entry.handle.clone())
     }
 
     /// Store a loaded image
-    pub fn insert(&self, name: String, handle: Handle) {
+    pub fn insert(&self, name: String, handle: Handle, center_of_mass: Option<f32>) {
         let mut cache = self.sync_cache.write().unwrap();
-        cache.insert(name, handle);
+        cache.insert(
+            name,
+            ImageCacheEntry {
+                handle,
+                center_of_mass,
+            },
+        );
+    }
+
+    pub fn update_offset(&self, pokemon_name: &str, center_of_mass: f32) {
+        let mut cache = self.sync_cache.write().unwrap();
+        if let Some(entry) = cache.get_mut(pokemon_name) {
+            entry.center_of_mass = Some(center_of_mass);
+        }
+    }
+
+    /// Get the center-of-mass offset for a loaded image
+    pub fn get_offset(&self, pokemon_name: &str) -> Option<f32> {
+        let cache = self.sync_cache.read().unwrap();
+        cache
+            .get(pokemon_name)
+            .and_then(|entry| entry.center_of_mass)
     }
 
     /// Get current cache size
