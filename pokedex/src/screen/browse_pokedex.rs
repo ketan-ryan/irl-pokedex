@@ -233,8 +233,6 @@ impl PokedexBrowser {
                     let new_name = self.image_cache.pokemon_order[new_index].clone();
                     debug!("Scrolled to select new pokemon {}", new_name);
                     return Action::Run(Task::done(Message::SelectPokemon(new_name)));
-                    // self.selected.selected_pokemon = Some(new_name);
-                    // self.start_scroll_animation(new_index)
                 }
 
                 Action::None
@@ -303,36 +301,14 @@ impl PokedexBrowser {
             .as_mut()
             .unwrap()
             .go_mut(self.target_scroll_offset, Instant::now());
+
         self.size_animation = Animation::new(0.0)
             .duration(Duration::from_millis(100))
             .easing(iced::animation::Easing::EaseInOut);
         self.size_animation.go_mut(1.0, Instant::now());
     }
 
-    fn scroll_to_center_item(&self, index: usize) -> Task<Message> {
-        let scroll_offset = index.saturating_sub(5) as f32 * ROW_HEIGHT;
-
-        iced::widget::operation::scroll_to(
-            self.bot_scroll_id.clone(),
-            scrollable::AbsoluteOffset {
-                x: 0.0,
-                y: scroll_offset,
-            },
-        )
-    }
-
-    fn scroll(&self, amount: f32) -> Task<Message> {
-        // Only scroll the bottom scrollable - the Scrolled message will sync the top
-        iced::widget::operation::scroll_by(
-            self.bot_scroll_id.clone(),
-            scrollable::AbsoluteOffset { x: 0.0, y: amount },
-        )
-    }
-
     pub fn subscription(&self) -> Subscription<Message> {
-        // tick screen for updates ~60fps
-        // time::every(Duration::from_millis(16)).map(Message::Tick)
-
         let mut subscriptions = Vec::new();
         subscriptions.push(window::frames().map(Message::Tick));
 
@@ -558,13 +534,11 @@ impl PokedexBrowser {
     }
 
     pub fn bottom_view(&self) -> Element<'_, Message> {
-        let item_buffer = 10.0;
         let items: Vec<Element<Message>> = self
             .image_cache
             .pokemon_order
             .iter()
-            .enumerate()
-            .filter_map(|(index, name)| {
+            .filter_map(|name| {
                 let info = self.pokemon_data.get(name).unwrap();
                 let is_owned = self.owned_pokemon.contains(name);
                 let selected = self.selected.selected_pokemon.as_ref() == Some(name);
@@ -725,12 +699,16 @@ impl PokedexBrowser {
         item_row = item_row.push(info_column);
         let size_now = self.size_animation.interpolate_with(|v| v, Instant::now());
 
+        let selected_color = Color::from_rgba(0.2, 0.8, 0.2, 1.0);
+        let default_color = Color::from_rgba(1.0, 1.0, 1.0, opacity);
+        let mixed = lerp_color(selected_color, default_color, size_now);
+
         let color = if selected {
-            Color::from_rgba(0.2, 0.8, 0.2, size_now)
+            selected_color
         } else if was_selected {
-            Color::from_rgba(0.2, 0.8, 0.2, 1.0 - size_now)
+            mixed
         } else {
-            Color::from_rgba(1.0, 1.0, 1.0, opacity)
+            default_color
         };
 
         let name_ = name.to_string();
@@ -768,6 +746,18 @@ impl PokedexBrowser {
         };
 
         row![Space::new().width(Length::FillPortion(4)), area].into()
+    }
+}
+
+pub fn lerp_color(start: Color, end: Color, t: f32) -> Color {
+    // Clamp t to ensure it stays within the expected [0.0, 1.0] range
+    let t = t.clamp(0.0, 1.0);
+
+    Color {
+        r: start.r + (end.r - start.r) * t,
+        g: start.g + (end.g - start.g) * t,
+        b: start.b + (end.b - start.b) * t,
+        a: start.a + (end.a - start.a) * t,
     }
 }
 
