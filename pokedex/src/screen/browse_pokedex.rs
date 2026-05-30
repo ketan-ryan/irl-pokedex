@@ -50,10 +50,15 @@ pub struct PokedexBrowser {
     selected: Selected,
     selected_com_offset: Option<f32>,
     scroll_animation: Option<Animation<f32>>,
+
     // used for animation
     current_scroll_offset: f32,
     target_scroll_offset: f32,
     size_animation: Animation<f32>,
+
+    // scroll-based image loading with 200ms debounce
+    last_scroll_time: Option<Instant>,
+    pending_scroll_load: Option<(usize, usize)>,
 }
 
 #[derive(Debug, Clone)]
@@ -108,8 +113,12 @@ impl PokedexBrowser {
 
         let mut image_cache = ImageCache::new(pokemon_names, 15);
 
-        let load_task =
-            image_cache.update_visible_range(config.as_ref().sprites_location.clone(), 0, 20);
+        let load_task = image_cache.update_visible_range(
+            config.as_ref().sprites_location.clone(),
+            0,
+            20,
+            Some(selected_idx),
+        );
 
         let state = Self {
             config,
@@ -140,6 +149,8 @@ impl PokedexBrowser {
             size_animation: Animation::new(1.0)
                 .duration(Duration::from_millis(200))
                 .easing(iced::animation::Easing::EaseInOut),
+            last_scroll_time: None,
+            pending_scroll_load: None,
         };
 
         (state, load_task)
@@ -153,24 +164,77 @@ impl PokedexBrowser {
 
                 self.grid.tick(dt);
 
+                // Check if we have a pending scroll load and 200ms has elapsed
+                if let Some(last_scroll) = self.last_scroll_time {
+                    if let Some((start_index, end_index)) = self.pending_scroll_load.take() {
+                        if now.duration_since(last_scroll) >= Duration::from_millis(200) {
+                            // Enough time has elapsed, load the images
+                            let load_task = self.image_cache.update_visible_range(
+                                self.config.sprites_location.clone(),
+                                start_index,
+                                end_index,
+                                self.selected.selected_idx,
+                            );
+                            return Action::Run(load_task);
+                        } else {
+                            // Not enough time yet, keep the pending load
+                            self.pending_scroll_load = Some((start_index, end_index));
+                        }
+                    }
+                }
+
                 Action::None
             }
             Message::Scrolled(viewport) => {
                 // Bottom scrollable's absolute position represents how far we've scrolled
                 let bot_scroll_pos = viewport.absolute_offset().y;
+                let rh = ROW_HEIGHT + 0.0;
+
+                // Calculate the snapped position
+                let snapped_bot_scroll_pos = (bot_scroll_pos / rh).round() * rh;
+
+                // Check if we need to snap (only if off by more than threshold)
+                let needs_snap = (bot_scroll_pos - snapped_bot_scroll_pos).abs() > 0.1;
+
+                // Use snapped position for calculations
+                let effective_scroll_pos = if needs_snap {
+                    snapped_bot_scroll_pos
+                } else {
+                    bot_scroll_pos
+                };
 
                 // Top screen shows items that have scrolled past the top of bottom screen
                 // When bot_scroll_pos = 0, top shows nothing (scroll position irrelevant)
                 // When bot_scroll_pos = 450 (10 items), top should show items 0-9
                 // The top scrollable should be at position 0 when it starts showing content
-                let top_scroll_pos =
-                    (bot_scroll_pos - ROW_HEIGHT * TOP_SCREEN_ITEMS as f32).max(0.0);
+                let top_scroll_pos = (effective_scroll_pos - rh * TOP_SCREEN_ITEMS as f32).max(0.0);
 
-                // Store for rendering calculations
-                self.scroll_offset = bot_scroll_pos;
+                self.scroll_offset = effective_scroll_pos;
 
-                // Synchronize top scrollable
-                let sync_task = operation::scroll_to(
+                // Select the item in the middle of the visible bottom screen
+                let middle_index = ((bot_scroll_pos / ROW_HEIGHT).floor() as usize
+                    + self.items_per_page / 2)
+                    .min(self.image_cache.pokemon_order.len() - 1);
+
+                if let Some(name) = self.image_cache.pokemon_order.get(middle_index).cloned() {
+                    if self.selected.selected_pokemon.as_ref() != Some(&name) {
+                        self.selected.previously_selected = self.selected.selected_pokemon.clone();
+                        self.selected.selected_pokemon = Some(name.clone());
+                        self.selected_com_offset = self.image_cache.get_offset(&name);
+
+                        if let Some(index) = self
+                            .image_cache
+                            .pokemon_order
+                            .iter()
+                            .position(|n| n == &name)
+                        {
+                            self.selected.selected_idx = Some(index);
+                        }
+                    }
+                }
+
+                // Build commands: sync top scrollable + optionally snap bottom scrollable
+                let sync_top = operation::scroll_to(
                     self.top_scroll_id.clone(),
                     scrollable::AbsoluteOffset {
                         x: 0.0,
@@ -178,17 +242,32 @@ impl PokedexBrowser {
                     },
                 );
 
-                // Update visible range for image loading
-                // Start from the top of bottom screen
-                let start_index = (bot_scroll_pos / ROW_HEIGHT).floor() as usize;
-                let end_index = start_index + (self.items_per_page * 2);
-                let load_task = self.image_cache.update_visible_range(
-                    self.config.sprites_location.clone(),
-                    start_index.saturating_sub(TOP_SCREEN_ITEMS),
-                    end_index,
-                );
+                let mut tasks = vec![sync_top];
 
-                Action::Run(Task::batch(vec![sync_task, load_task]))
+                if needs_snap {
+                    let snap_bottom = operation::scroll_to(
+                        self.bot_scroll_id.clone(),
+                        scrollable::AbsoluteOffset {
+                            x: 0.0,
+                            y: snapped_bot_scroll_pos,
+                        },
+                    );
+
+                    tasks.push(snap_bottom);
+                }
+
+                // Schedule image loading after 200ms delay
+                let start_index = (effective_scroll_pos / rh).floor() as usize;
+                self.last_scroll_time = Some(Instant::now());
+                self.pending_scroll_load = Some(self.load_range_for_index(start_index));
+                let end_index = start_index + (self.items_per_page * 2);
+                debug!("{} {}", start_index, end_index);
+
+                self.last_scroll_time = Some(Instant::now());
+                self.pending_scroll_load =
+                    Some((start_index.saturating_sub(TOP_SCREEN_ITEMS), end_index));
+
+                Action::Run(iced::Task::batch(tasks))
             }
             Message::ImageLoaded(name, handle, offset) => {
                 self.image_cache
@@ -247,8 +326,6 @@ impl PokedexBrowser {
                 self.selected.selected_pokemon = Some(name.clone());
                 self.selected_com_offset = None;
 
-                debug!("Selected pokemon {}", name);
-
                 if let Some(index) = self
                     .image_cache
                     .pokemon_order
@@ -258,20 +335,23 @@ impl PokedexBrowser {
                     self.selected.selected_idx = Some(index);
                 }
 
-                if self.image_cache.get(&name).is_some() {
-                    if let Some(offset) = self.image_cache.get_offset(&name) {
-                        self.selected_com_offset = Some(offset);
-                        if let Some(index) = self.selected.selected_idx {
-                            self.start_scroll_animation(index);
-                        }
-                        return Action::None;
-                    }
+                if let Some(index) = self.selected.selected_idx {
+                    self.start_scroll_animation(index);
+                    // Queue a debounced cache load centered on this index
+                    self.last_scroll_time = Some(Instant::now());
+                    self.pending_scroll_load = Some(self.load_range_for_index(index));
+                }
 
-                    if let Some(handle) = self.image_cache.get(&name) {
-                        return Action::Run(
-                            self.image_cache.compute_center_of_mass_async(name, handle),
-                        );
-                    }
+                // COM lookup if already cached
+                if let Some(offset) = self.image_cache.get_offset(&name) {
+                    self.selected_com_offset = Some(offset);
+                    return Action::None;
+                }
+
+                if let Some(handle) = self.image_cache.get(&name) {
+                    return Action::Run(
+                        self.image_cache.compute_center_of_mass_async(name, handle),
+                    );
                 }
 
                 Action::None
@@ -309,6 +389,12 @@ impl PokedexBrowser {
                 }
             }
         }
+    }
+
+    fn load_range_for_index(&self, index: usize) -> (usize, usize) {
+        let start = index.saturating_sub(TOP_SCREEN_ITEMS + self.items_per_page);
+        let end = (index + self.items_per_page * 2).min(self.image_cache.pokemon_order.len());
+        (start, end)
     }
 
     fn start_scroll_animation(&mut self, index: usize) {
@@ -869,6 +955,7 @@ impl ImageCache {
         sprite_folder: String,
         start: usize,
         end: usize,
+        selected_option: Option<usize>,
     ) -> iced::Task<Message> {
         self.visible_start = start;
         self.visible_end = end;
@@ -900,7 +987,25 @@ impl ImageCache {
         let mut visible_commands = Vec::new();
         let mut buffer_commands = Vec::new();
 
-        for i in load_start..load_end {
+        // start at the currently selected image and load images spiraling outward
+        let selected = selected_option.unwrap_or(load_start + load_end / 2);
+        let indices = (0..(load_end - load_start))
+            .flat_map(|offset| {
+                let above = selected + offset;
+                let below = selected.checked_sub(offset);
+                if offset == 0 {
+                    [Some(above), None]
+                } else {
+                    [
+                        Some(above).filter(|&i| i < load_end),
+                        below.filter(|&i| i >= load_start),
+                    ]
+                }
+            })
+            .flatten()
+            .collect::<Vec<_>>();
+
+        for i in indices {
             let name = self.pokemon_order[i].clone();
 
             // Skip if already loaded or loading
