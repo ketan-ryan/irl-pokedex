@@ -781,7 +781,54 @@ impl PokedexBrowser {
                 scrollable(content)
                     .id(self.bot_scroll_id.clone())
                     .on_scroll(Message::Scrolled)
-                    .height(Length::Fill),
+                    .height(Length::Fill)
+                    .style(|_theme, status| {
+                        let scroller_color = match status {
+                            scrollable::Status::Dragged { .. } => {
+                                Color::from_rgba8(24, 103, 184, 1.0)
+                            }
+                            scrollable::Status::Hovered { .. } => {
+                                Color::from_rgba8(24, 103, 184, 0.9)
+                            }
+                            _ => Color::from_rgba8(24, 103, 184, 0.6),
+                        };
+                        scrollable::Style {
+                            container: Default::default(),
+                            vertical_rail: scrollable::Rail {
+                                background: Some(iced::Background::Color(Color::from_rgba8(
+                                    0, 0, 0, 0.1,
+                                ))),
+                                border: Border {
+                                    radius: 4.0.into(),
+                                    width: 0.0,
+                                    color: Color::TRANSPARENT,
+                                },
+                                scroller: scrollable::Scroller {
+                                    background: iced::Background::Color(scroller_color),
+                                    border: Border {
+                                        radius: 4.0.into(),
+                                        width: 0.0,
+                                        color: Color::TRANSPARENT,
+                                    },
+                                },
+                            },
+                            horizontal_rail: scrollable::Rail {
+                                background: None,
+                                border: Border::default(),
+                                scroller: scrollable::Scroller {
+                                    background: iced::Background::Color(Color::TRANSPARENT),
+                                    border: Border::default(),
+                                },
+                            },
+                            gap: None,
+                            auto_scroll: scrollable::AutoScroll {
+                                background: iced::Background::Color(Color::TRANSPARENT),
+                                border: Border::default(),
+                                shadow: Default::default(),
+                                icon: Color::TRANSPARENT,
+                            },
+                        }
+                    })
             )
             .style(|_| iced::widget::container::Style {
                 background: Some(iced::Background::Color(Color::TRANSPARENT)),
@@ -790,7 +837,6 @@ impl PokedexBrowser {
             .padding(iced::Padding {
                 top: 10.0,
                 bottom: 20.0,
-                right: 10.0,
                 ..Default::default()
             })
         ]
@@ -879,7 +925,7 @@ impl PokedexBrowser {
         let area = mouse_area(
             container(item_row)
                 .padding(10)
-                .width(Length::FillPortion(5))
+                .width(Length::FillPortion(10))
                 .height(Length::Fixed(size))
                 .style(move |_| container::Style {
                     background: Some(color.into()),
@@ -900,7 +946,12 @@ impl PokedexBrowser {
             area
         };
 
-        row![Space::new().width(Length::FillPortion(4)), area].into()
+        row![
+            Space::new().width(Length::FillPortion(8)),
+            area,
+            Space::new().width(Length::FillPortion(1))
+        ]
+        .into()
     }
 }
 
