@@ -16,6 +16,7 @@ use iced::{
 
 use log::{debug, error, info, trace};
 
+use crate::elements::icon_button::{IconButtonColors, IconButtonInteraction, icon_button};
 use crate::elements::registered_icon::{IconState, RegisteredIconWidget};
 use crate::screen::register;
 use crate::{
@@ -59,6 +60,14 @@ pub struct PokedexBrowser {
     // scroll-based image loading with 200ms debounce
     last_scroll_time: Option<Instant>,
     pending_scroll_load: Option<(usize, usize)>,
+
+    search_icon: svg::Handle,
+    filter_icon: svg::Handle,
+    close_icon: svg::Handle,
+
+    search_interaction: IconButtonInteraction,
+    filter_interaction: IconButtonInteraction,
+    close_interaction: IconButtonInteraction,
 }
 
 #[derive(Debug, Clone)]
@@ -71,6 +80,9 @@ pub enum Message {
     IOInput(IOAction),
     SelectPokemon(String),
     AnimateScroll,
+    SearchInteraction(IconButtonInteraction),
+    FilterInteraction(IconButtonInteraction),
+    CloseInteraction(IconButtonInteraction),
 }
 
 pub enum Action {
@@ -131,11 +143,21 @@ impl PokedexBrowser {
             items_per_page: 10,
             top_scroll_id: Id::unique(),
             bot_scroll_id: Id::unique(),
+
             pokeball_handle: Handle::from_bytes(
                 include_bytes!("../../assets/background.png").as_slice(),
             ),
             info_svg: svg::Handle::from_memory(
                 include_bytes!("../../assets/browse_screen/hint.svg").as_slice(),
+            ),
+            search_icon: svg::Handle::from_memory(
+                include_bytes!("../../assets/browse_screen/search.svg").as_slice(),
+            ),
+            filter_icon: svg::Handle::from_memory(
+                include_bytes!("../../assets/browse_screen/filter.svg").as_slice(),
+            ),
+            close_icon: svg::Handle::from_memory(
+                include_bytes!("../../assets/browse_screen/x.svg").as_slice(),
             ),
             selected: Selected {
                 selected_pokemon,
@@ -146,11 +168,16 @@ impl PokedexBrowser {
             scroll_animation: None,
             current_scroll_offset: 0.0,
             target_scroll_offset: 0.0,
+
             size_animation: Animation::new(1.0)
                 .duration(Duration::from_millis(200))
                 .easing(iced::animation::Easing::EaseInOut),
             last_scroll_time: None,
             pending_scroll_load: None,
+
+            search_interaction: IconButtonInteraction::default(),
+            filter_interaction: IconButtonInteraction::default(),
+            close_interaction: IconButtonInteraction::default(),
         };
 
         (state, load_task)
@@ -387,6 +414,35 @@ impl PokedexBrowser {
                 } else {
                     Action::None
                 }
+            }
+            Message::SearchInteraction(i) => {
+                if i == IconButtonInteraction::Released {
+                    self.search_interaction = IconButtonInteraction::Hovered;
+                    // your action logic here, or fire a Command
+                    println!("Search clicked!");
+                } else {
+                    self.search_interaction = i;
+                }
+                Action::None
+            }
+            Message::FilterInteraction(i) => {
+                if i == IconButtonInteraction::Released {
+                    self.filter_interaction = IconButtonInteraction::Hovered;
+                    // your action logic here, or fire a Command
+                    println!("Filter clicked!");
+                } else {
+                    self.filter_interaction = i;
+                }
+                Action::None
+            }
+            Message::CloseInteraction(i) => {
+                if i == IconButtonInteraction::Released {
+                    self.close_interaction = IconButtonInteraction::Hovered;
+                    return Action::GoHome;
+                } else {
+                    self.close_interaction = i;
+                }
+                Action::None
             }
         }
     }
@@ -842,7 +898,53 @@ impl PokedexBrowser {
         ]
         .into();
         elements.push(body);
-        iced::widget::Stack::with_children(elements).into()
+
+        let screen = iced::widget::Stack::with_children(elements);
+
+        let search = icon_button(
+            self.search_icon.clone(),
+            Some("Search"),
+            &self.search_interaction,
+            IconButtonColors::default(),
+            Message::SearchInteraction,
+        );
+
+        let filter = icon_button(
+            self.filter_icon.clone(),
+            Some("Filter"),
+            &self.filter_interaction,
+            IconButtonColors::default(),
+            Message::FilterInteraction,
+        );
+
+        let close = icon_button(
+            self.close_icon.clone(),
+            None,
+            &self.close_interaction,
+            IconButtonColors::default(),
+            Message::CloseInteraction,
+        );
+
+        screen
+            .push(
+                container(column![
+                    Space::new().height(Length::FillPortion(8)),
+                    row![
+                        // Search button
+                        search,
+                        filter,
+                        close,
+                        Space::new().width(Length::FillPortion(13))
+                    ]
+                    .align_y(Alignment::End)
+                    .height(Length::FillPortion(2))
+                ])
+                .style(|_| container::Style {
+                    background: None,
+                    ..Default::default()
+                }),
+            )
+            .into()
     }
 
     fn render_pokemon_item(
@@ -1198,15 +1300,5 @@ impl ImageCache {
         cache
             .get(pokemon_name)
             .and_then(|entry| entry.center_of_mass)
-    }
-
-    /// Get current cache size
-    pub fn cache_size(&self) -> usize {
-        self.sync_cache.read().unwrap().len()
-    }
-
-    /// Check if an image is currently loading
-    pub fn is_loading(&self, pokemon_name: &str) -> bool {
-        self.loading.read().unwrap().contains(pokemon_name)
     }
 }
