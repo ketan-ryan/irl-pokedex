@@ -6,3 +6,5 @@ or https://www.reddit.com/r/pokemon/comments/wx1qxp/all_officialsugimori_pokemon
 can remove anime version i think folder (in alt versions)
 
 sorter.py
+
+https://www.reddit.com/r/pokemon/comments/wx1qxp/all_officialsugimori_pokemon_art_collection_zip/
