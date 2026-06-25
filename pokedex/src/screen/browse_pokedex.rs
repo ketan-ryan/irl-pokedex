@@ -30,6 +30,7 @@ struct Selected {
     selected_pokemon: Option<String>,
     selected_idx: Option<usize>,
     previously_selected: Option<String>,
+    selected_slot: usize,
 }
 
 #[derive(Debug)]
@@ -78,7 +79,7 @@ pub enum Message {
     ImageCenterOfMass(String, f32),
     ImageLoadFailed(String),
     IOInput(IOAction),
-    SelectPokemon(String),
+    SelectPokemon(String, bool),
     AnimateScroll,
     SearchInteraction(IconButtonInteraction),
     FilterInteraction(IconButtonInteraction),
@@ -123,7 +124,7 @@ impl PokedexBrowser {
         let selected_idx = 5;
         let selected_pokemon = pokemon_names.get(selected_idx).cloned();
 
-        let mut image_cache = ImageCache::new(pokemon_names, 15);
+        let mut image_cache = ImageCache::new(pokemon_names, 25);
 
         let load_task = image_cache.update_visible_range(
             config.as_ref().sprites_location.clone(),
@@ -139,6 +140,8 @@ impl PokedexBrowser {
             pokemon_data,
             owned_pokemon,
             image_cache,
+
+            // this offset is used for calculations
             scroll_offset: 0.0,
             items_per_page: 10,
             top_scroll_id: Id::unique(),
@@ -163,9 +166,11 @@ impl PokedexBrowser {
                 selected_pokemon,
                 selected_idx: Some(selected_idx),
                 previously_selected: None,
+                selected_slot: 5,
             },
             selected_com_offset: None,
             scroll_animation: None,
+            // these offsets are used for animations
             current_scroll_offset: 0.0,
             target_scroll_offset: 0.0,
 
@@ -237,18 +242,15 @@ impl PokedexBrowser {
                 let top_scroll_pos = (effective_scroll_pos - rh * TOP_SCREEN_ITEMS as f32).max(0.0);
 
                 self.scroll_offset = effective_scroll_pos;
-
-                // Select the item in the middle of the visible bottom screen
-                let middle_index = ((bot_scroll_pos / ROW_HEIGHT).floor() as usize
-                    + self.items_per_page / 2)
+                let first_visible = (effective_scroll_pos / ROW_HEIGHT).floor() as usize;
+                let target_index = (first_visible + self.selected.selected_slot)
                     .min(self.image_cache.pokemon_order.len() - 1);
 
-                if let Some(name) = self.image_cache.pokemon_order.get(middle_index).cloned() {
+                if let Some(name) = self.image_cache.pokemon_order.get(target_index).cloned() {
                     if self.selected.selected_pokemon.as_ref() != Some(&name) {
                         self.selected.previously_selected = self.selected.selected_pokemon.clone();
                         self.selected.selected_pokemon = Some(name.clone());
                         self.selected_com_offset = self.image_cache.get_offset(&name);
-
                         if let Some(index) = self
                             .image_cache
                             .pokemon_order
@@ -256,6 +258,8 @@ impl PokedexBrowser {
                             .position(|n| n == &name)
                         {
                             self.selected.selected_idx = Some(index);
+                            self.selected.selected_slot =
+                                target_index.saturating_sub(first_visible);
                         }
                     }
                 }
@@ -306,9 +310,6 @@ impl PokedexBrowser {
                 self.image_cache.update_offset(&name, offset);
                 if self.selected.selected_pokemon.as_ref() == Some(&name) {
                     self.selected_com_offset = Some(offset);
-                    if let Some(index) = self.selected.selected_idx {
-                        self.start_scroll_animation(index);
-                    }
                 }
                 Action::None
             }
@@ -317,17 +318,7 @@ impl PokedexBrowser {
                 Action::None
             }
             Message::IOInput(action) => {
-                let current_index = self
-                    .selected
-                    .selected_pokemon
-                    .as_ref()
-                    .and_then(|name| {
-                        self.image_cache
-                            .pokemon_order
-                            .iter()
-                            .position(|n| n == name)
-                    })
-                    .unwrap_or(0);
+                let current_index = self.selected.selected_idx.unwrap_or(0);
 
                 let new_index = match action {
                     IOAction::ScrollUp => current_index.saturating_sub(1),
@@ -341,14 +332,17 @@ impl PokedexBrowser {
                 };
 
                 if new_index != current_index {
+                    let should_check_selected = !matches!(action, IOAction::Left | IOAction::Right);
                     let new_name = self.image_cache.pokemon_order[new_index].clone();
-                    debug!("Scrolled to select new pokemon {}", new_name);
-                    return Action::Run(Task::done(Message::SelectPokemon(new_name)));
+                    return Action::Run(Task::done(Message::SelectPokemon(
+                        new_name,
+                        should_check_selected,
+                    )));
                 }
 
                 Action::None
             }
-            Message::SelectPokemon(name) => {
+            Message::SelectPokemon(name, should_check_selected) => {
                 self.selected.previously_selected = self.selected.selected_pokemon.clone();
                 self.selected.selected_pokemon = Some(name.clone());
                 self.selected_com_offset = None;
@@ -360,11 +354,27 @@ impl PokedexBrowser {
                     .position(|n| n == &name)
                 {
                     self.selected.selected_idx = Some(index);
-                }
 
-                if let Some(index) = self.selected.selected_idx {
-                    self.start_scroll_animation(index);
-                    // Queue a debounced cache load centered on this index
+                    let first_visible = (self.scroll_offset / ROW_HEIGHT).round() as usize;
+                    let last_visible = first_visible + self.items_per_page - 1;
+
+                    if index < first_visible {
+                        if should_check_selected {
+                            self.selected.selected_slot = 0;
+                        }
+                        self.start_scroll_animation_to(index as f32 * ROW_HEIGHT);
+                    } else if index > last_visible {
+                        if should_check_selected {
+                            self.selected.selected_slot = self.items_per_page - 1;
+                        }
+                        let target_first = index.saturating_sub(self.items_per_page - 1);
+                        self.start_scroll_animation_to(target_first as f32 * ROW_HEIGHT);
+                    } else {
+                        if should_check_selected {
+                            self.selected.selected_slot = index - first_visible;
+                        }
+                    }
+
                     self.last_scroll_time = Some(Instant::now());
                     self.pending_scroll_load = Some(self.load_range_for_index(index));
                 }
@@ -456,6 +466,24 @@ impl PokedexBrowser {
     fn start_scroll_animation(&mut self, index: usize) {
         info!("Start scroll called");
         self.target_scroll_offset = index.saturating_sub(5) as f32 * ROW_HEIGHT;
+        self.scroll_animation = Some(
+            Animation::new(self.current_scroll_offset)
+                .duration(Duration::from_millis(100))
+                .easing(iced::animation::Easing::EaseOutCubic),
+        );
+        self.scroll_animation
+            .as_mut()
+            .unwrap()
+            .go_mut(self.target_scroll_offset, Instant::now());
+
+        self.size_animation = Animation::new(0.0)
+            .duration(Duration::from_millis(100))
+            .easing(iced::animation::Easing::EaseInOut);
+        self.size_animation.go_mut(1.0, Instant::now());
+    }
+
+    fn start_scroll_animation_to(&mut self, target_y: f32) {
+        self.target_scroll_offset = target_y;
         self.scroll_animation = Some(
             Animation::new(self.current_scroll_offset)
                 .duration(Duration::from_millis(100))
@@ -1043,7 +1071,7 @@ impl PokedexBrowser {
 
         // only bottom screen should be clickables
         let area = if !is_top_screen {
-            area.on_press(Message::SelectPokemon(name_))
+            area.on_press(Message::SelectPokemon(name_, true))
         } else {
             area
         };
