@@ -1,4 +1,4 @@
-use std::sync::{Arc, RwLock as StdRwLock};
+use std::sync::Arc;
 use std::time::Duration;
 use std::{collections::HashMap, time::Instant};
 
@@ -14,16 +14,18 @@ use iced::{
     window,
 };
 
-use log::{debug, error, info, trace};
+use log::{debug, error};
 
-use crate::elements::icon_button::{IconButtonColors, IconButtonInteraction, icon_button};
-use crate::elements::registered_icon::{IconState, RegisteredIconWidget};
-use crate::screen::register;
 use crate::{
-    elements::grid::Grid,
-    io::{self, PokedexConfig, PokemonInfo},
+    elements::{
+        grid::Grid,
+        icon_button::{IconButtonColors, IconButtonInteraction, icon_button},
+        image_cache::ImageCache,
+        registered_icon::{IconState, RegisteredIconWidget},
+    },
+    io::{PokedexConfig, PokemonInfo},
+    screen::register,
 };
-use anyhow::anyhow;
 
 #[derive(Clone, Debug)]
 struct Selected {
@@ -103,6 +105,43 @@ pub enum IOAction {
 const TOP_SCREEN_ITEMS: usize = 8;
 const ROW_HEIGHT: f32 = 40.0;
 
+/// Computes the first visible row to show when a selection moves off-screen.
+///
+/// # Arguments
+/// /// * `selected_index` - The index of the newly selected Pokémon.
+/// /// * `selected_slot` - The current row position of the selection within the viewport.
+/// /// * `items_per_page` - The number of visible rows in the list.
+/// /// * `current_first_visible` - The first visible row before the new selection.
+/// /// * `preserve_relative_slot` - Whether the selection should keep the same row position when scrolling.
+///
+/// # Returns
+/// The first row index that should be visible after the selection change.
+fn calculate_scroll_target_for_selection(
+    selected_index: usize,
+    selected_slot: usize,
+    items_per_page: usize,
+    current_first_visible: usize,
+    preserve_relative_slot: bool,
+) -> usize {
+    if preserve_relative_slot {
+        let last_visible = current_first_visible.saturating_add(items_per_page.saturating_sub(1));
+        if selected_index < current_first_visible || selected_index > last_visible {
+            selected_index.saturating_sub(selected_slot.min(items_per_page.saturating_sub(1)))
+        } else {
+            current_first_visible
+        }
+    } else if selected_index < current_first_visible {
+        selected_index
+    } else {
+        let last_visible = current_first_visible.saturating_add(items_per_page.saturating_sub(1));
+        if selected_index > last_visible {
+            selected_index.saturating_sub(items_per_page.saturating_sub(1))
+        } else {
+            current_first_visible
+        }
+    }
+}
+
 impl PokedexBrowser {
     pub fn new(
         config: Arc<PokedexConfig>,
@@ -143,7 +182,7 @@ impl PokedexBrowser {
 
             // this offset is used for calculations
             scroll_offset: 0.0,
-            items_per_page: 10,
+            items_per_page: 11,
             top_scroll_id: Id::unique(),
             bot_scroll_id: Id::unique(),
 
@@ -186,6 +225,60 @@ impl PokedexBrowser {
         };
 
         (state, load_task)
+    }
+
+    /// Returns the first and last visible list indices for a given scroll offset.
+    ///
+    /// # Arguments
+    /// * `scroll_offset` - The vertical scroll position of the bottom list in pixels.
+    ///
+    /// # Returns
+    /// A tuple containing the first and last visible row indices.
+    fn visible_range(&self, scroll_offset: f32) -> (usize, usize) {
+        let first_visible = (scroll_offset / ROW_HEIGHT).floor() as usize;
+        let last_visible = first_visible.saturating_add(self.items_per_page.saturating_sub(1));
+        (first_visible, last_visible)
+    }
+
+    /// Updates the selected slot and scroll target for a newly chosen Pokémon index.
+    ///
+    /// # Arguments
+    /// * `index` - The Pokémon index to select.
+    /// * `preserve_slot` - Whether to keep the current relative slot position when scrolling.
+    fn update_selection_for_index(&mut self, index: usize, preserve_slot: bool) {
+        let current_slot = self.selected.selected_slot;
+        let (first_visible, last_visible) = self.visible_range(self.scroll_offset);
+
+        let target_first = if preserve_slot {
+            calculate_scroll_target_for_selection(
+                index,
+                current_slot,
+                self.items_per_page,
+                first_visible,
+                true,
+            )
+        } else if index < first_visible {
+            index
+        } else if index > last_visible {
+            index.saturating_sub(self.items_per_page.saturating_sub(1))
+        } else {
+            first_visible
+        };
+
+        if index < first_visible || index > last_visible {
+            self.selected.selected_slot = if preserve_slot {
+                current_slot
+            } else if index < first_visible {
+                0
+            } else {
+                self.items_per_page.saturating_sub(1)
+            };
+            self.start_scroll_animation_to(target_first as f32 * ROW_HEIGHT);
+        } else if preserve_slot {
+            self.selected.selected_slot = current_slot;
+        } else {
+            self.selected.selected_slot = index.saturating_sub(first_visible);
+        }
     }
 
     pub fn update(&mut self, msg: Message) -> Action {
@@ -242,9 +335,9 @@ impl PokedexBrowser {
                 let top_scroll_pos = (effective_scroll_pos - rh * TOP_SCREEN_ITEMS as f32).max(0.0);
 
                 self.scroll_offset = effective_scroll_pos;
-                let first_visible = (effective_scroll_pos / ROW_HEIGHT).floor() as usize;
+                let (first_visible, _) = self.visible_range(effective_scroll_pos);
                 let target_index = (first_visible + self.selected.selected_slot)
-                    .min(self.image_cache.pokemon_order.len() - 1);
+                    .min(self.image_cache.pokemon_order.len().saturating_sub(1));
 
                 if let Some(name) = self.image_cache.pokemon_order.get(target_index).cloned() {
                     if self.selected.selected_pokemon.as_ref() != Some(&name) {
@@ -287,10 +380,7 @@ impl PokedexBrowser {
                     tasks.push(snap_bottom);
                 }
 
-                // Schedule image loading after 200ms delay
                 let start_index = (effective_scroll_pos / rh).floor() as usize;
-                self.last_scroll_time = Some(Instant::now());
-                self.pending_scroll_load = Some(self.load_range_for_index(start_index));
                 let end_index = start_index + (self.items_per_page * 2);
                 debug!("{} {}", start_index, end_index);
 
@@ -354,26 +444,7 @@ impl PokedexBrowser {
                     .position(|n| n == &name)
                 {
                     self.selected.selected_idx = Some(index);
-
-                    let first_visible = (self.scroll_offset / ROW_HEIGHT).round() as usize;
-                    let last_visible = first_visible + self.items_per_page - 1;
-
-                    if index < first_visible {
-                        if should_check_selected {
-                            self.selected.selected_slot = 0;
-                        }
-                        self.start_scroll_animation_to(index as f32 * ROW_HEIGHT);
-                    } else if index > last_visible {
-                        if should_check_selected {
-                            self.selected.selected_slot = self.items_per_page - 1;
-                        }
-                        let target_first = index.saturating_sub(self.items_per_page - 1);
-                        self.start_scroll_animation_to(target_first as f32 * ROW_HEIGHT);
-                    } else {
-                        if should_check_selected {
-                            self.selected.selected_slot = index - first_visible;
-                        }
-                    }
+                    self.update_selection_for_index(index, !should_check_selected);
 
                     self.last_scroll_time = Some(Instant::now());
                     self.pending_scroll_load = Some(self.load_range_for_index(index));
@@ -457,31 +528,23 @@ impl PokedexBrowser {
         }
     }
 
+    /// Computes a surrounding image-loading window for a given Pokémon index.
+    ///
+    /// # Arguments
+    /// * `index` - The Pokémon index around which images should be loaded.
+    ///
+    /// # Returns
+    /// A start/end range of indices to prefetch.
     fn load_range_for_index(&self, index: usize) -> (usize, usize) {
         let start = index.saturating_sub(TOP_SCREEN_ITEMS + self.items_per_page);
         let end = (index + self.items_per_page * 2).min(self.image_cache.pokemon_order.len());
         (start, end)
     }
 
-    fn start_scroll_animation(&mut self, index: usize) {
-        info!("Start scroll called");
-        self.target_scroll_offset = index.saturating_sub(5) as f32 * ROW_HEIGHT;
-        self.scroll_animation = Some(
-            Animation::new(self.current_scroll_offset)
-                .duration(Duration::from_millis(100))
-                .easing(iced::animation::Easing::EaseOutCubic),
-        );
-        self.scroll_animation
-            .as_mut()
-            .unwrap()
-            .go_mut(self.target_scroll_offset, Instant::now());
-
-        self.size_animation = Animation::new(0.0)
-            .duration(Duration::from_millis(100))
-            .easing(iced::animation::Easing::EaseInOut);
-        self.size_animation.go_mut(1.0, Instant::now());
-    }
-
+    /// Starts an animated scroll to a specific vertical target.
+    ///
+    /// # Arguments
+    /// * `target_y` - The target vertical offset in pixels.
     fn start_scroll_animation_to(&mut self, target_y: f32) {
         self.target_scroll_offset = target_y;
         self.scroll_animation = Some(
@@ -975,6 +1038,19 @@ impl PokedexBrowser {
             .into()
     }
 
+    /// Renders a single Pokémon row for either the top or bottom list view.
+    ///
+    /// # Arguments
+    /// * `name` - The Pokémon name to render.
+    /// * `info` - The metadata used to display the Pokémon label.
+    /// * `is_owned` - Whether the Pokémon is registered by the user.
+    /// * `opacity` - The visual opacity for the row.
+    /// * `selected` - Whether the row is currently selected.
+    /// * `was_selected` - Whether the row was recently selected during the transition.
+    /// * `is_top_screen` - Whether the row belongs to the top-screen list.
+    ///
+    /// # Returns
+    /// A rendered UI element for the Pokémon row.
     fn render_pokemon_item(
         &'_ self,
         name: &str,
@@ -1085,6 +1161,15 @@ impl PokedexBrowser {
     }
 }
 
+/// Interpolates between two colors using a normalized value.
+///
+/// # Arguments
+/// * `start` - The starting color.
+/// * `end` - The ending color.
+/// * `t` - The interpolation factor clamped to the range $[0, 1]$.
+///
+/// # Returns
+/// The blended color.
 pub fn lerp_color(start: Color, end: Color, t: f32) -> Color {
     // Clamp t to ensure it stays within the expected [0.0, 1.0] range
     let t = t.clamp(0.0, 1.0);
@@ -1094,239 +1179,5 @@ pub fn lerp_color(start: Color, end: Color, t: f32) -> Color {
         g: start.g + (end.g - start.g) * t,
         b: start.b + (end.b - start.b) * t,
         a: start.a + (end.a - start.a) * t,
-    }
-}
-
-#[derive(Debug, Clone)]
-struct ImageCacheEntry {
-    handle: Handle,
-    center_of_mass: Option<f32>,
-}
-
-#[derive(Debug)]
-pub struct ImageCache {
-    // Sync cache for rendering (can be accessed without await)
-    sync_cache: Arc<StdRwLock<HashMap<String, ImageCacheEntry>>>,
-    // Ordered list of all pokemon names
-    pokemon_order: Vec<String>,
-    // Current visible range
-    visible_start: usize,
-    visible_end: usize,
-    // Buffer size
-    buffer_size: usize,
-    // Track which images are currently being loaded
-    loading: Arc<StdRwLock<std::collections::HashSet<String>>>,
-}
-
-impl ImageCache {
-    pub fn new(pokemon_names: Vec<String>, buffer_size: usize) -> Self {
-        Self {
-            sync_cache: Arc::new(StdRwLock::new(HashMap::new())),
-            pokemon_order: pokemon_names,
-            visible_start: 0,
-            visible_end: 0,
-            buffer_size,
-            loading: Arc::new(StdRwLock::new(std::collections::HashSet::new())),
-        }
-    }
-
-    /// Update the visible range and return commands to load new images
-    pub fn update_visible_range(
-        &mut self,
-        sprite_folder: String,
-        start: usize,
-        end: usize,
-        selected_option: Option<usize>,
-    ) -> iced::Task<Message> {
-        self.visible_start = start;
-        self.visible_end = end;
-
-        trace!("Starting at: {}, ending at: {}", start, end);
-
-        let load_start = start.saturating_sub(self.buffer_size);
-        let load_end = (end + self.buffer_size).min(self.pokemon_order.len());
-
-        trace!("Load start: {}, load end: {}", load_start, load_end);
-
-        // Cleanup old images
-        {
-            let mut cache = self.sync_cache.write().unwrap();
-            let pokemon_order = &self.pokemon_order;
-            cache.retain(|name, _| {
-                if let Some(index) = pokemon_order.iter().position(|n| n == name) {
-                    // trace!("retaining {}", name);
-                    index >= load_start && index < load_end
-                } else {
-                    false
-                }
-            });
-        }
-
-        trace!("Cleaned up old images");
-
-        // Separate visible and buffer images
-        let mut visible_commands = Vec::new();
-        let mut buffer_commands = Vec::new();
-
-        // start at the currently selected image and load images spiraling outward
-        let selected = selected_option.unwrap_or(load_start + load_end / 2);
-        let indices = (0..(load_end - load_start))
-            .flat_map(|offset| {
-                let above = selected + offset;
-                let below = selected.checked_sub(offset);
-                if offset == 0 {
-                    [Some(above), None]
-                } else {
-                    [
-                        Some(above).filter(|&i| i < load_end),
-                        below.filter(|&i| i >= load_start),
-                    ]
-                }
-            })
-            .flatten()
-            .collect::<Vec<_>>();
-
-        for i in indices {
-            let name = self.pokemon_order[i].clone();
-
-            // Skip if already loaded or loading
-            let should_load = {
-                let cache = self.sync_cache.read().unwrap();
-                let loading = self.loading.read().unwrap();
-                !cache.contains_key(&name) && !loading.contains(&name)
-            };
-
-            if should_load {
-                let load_task = self.load_image_async(sprite_folder.clone(), name.clone());
-
-                // Prioritize visible range
-                if i >= start && i < end {
-                    visible_commands.push(load_task);
-                } else {
-                    buffer_commands.push(load_task);
-                }
-            }
-        }
-
-        // Load visible images first, then buffer images
-        iced::Task::batch(
-            visible_commands
-                .into_iter()
-                .chain(buffer_commands.into_iter()),
-        )
-    }
-
-    /// Asynchronously load an image
-    fn load_image_async(&self, sprite_folder: String, pokemon_name: String) -> iced::Task<Message> {
-        let loading = self.loading.clone();
-
-        // Mark as loading
-        {
-            let mut loading_set = loading.write().unwrap();
-            loading_set.insert(pokemon_name.clone());
-        }
-
-        iced::Task::perform(
-            async move {
-                let result = io::load_png(sprite_folder, &pokemon_name.to_lowercase());
-                match result {
-                    Ok(bytes) => {
-                        let handle = Handle::from_bytes(bytes.clone());
-                        let offset = Some(crate::screen::register::find_image_com(&bytes));
-
-                        Ok((pokemon_name, handle, offset))
-                    }
-                    Err(err) => Err((pokemon_name, err)),
-                }
-            },
-            move |result| match result {
-                Ok((name, handle, offset)) => {
-                    let mut loading_set = loading.write().unwrap();
-                    loading_set.remove(&name);
-                    Message::ImageLoaded(name, handle, offset)
-                }
-                Err((name, _)) => {
-                    let mut loading_set = loading.write().unwrap();
-                    loading_set.remove(&name);
-                    Message::ImageLoadFailed(name)
-                }
-            },
-        )
-    }
-
-    fn compute_center_of_mass_async(
-        &self,
-        pokemon_name: String,
-        handle: Handle,
-    ) -> iced::Task<Message> {
-        let loading = self.loading.clone();
-
-        // Mark as loading for COM computation if not already
-        {
-            let mut loading_set = loading.write().unwrap();
-            loading_set.insert(pokemon_name.clone());
-        }
-
-        iced::Task::perform(
-            async move {
-                let result = match handle {
-                    Handle::Bytes(_, bytes) => {
-                        let offset = crate::screen::register::find_image_com(bytes.as_ref());
-                        Ok((pokemon_name, offset))
-                    }
-                    _ => Err((
-                        pokemon_name,
-                        anyhow!("unsupported image handle variant for COM"),
-                    )),
-                };
-                result
-            },
-            move |result| {
-                let mut loading_set = loading.write().unwrap();
-                match result {
-                    Ok((name, offset)) => {
-                        loading_set.remove(&name);
-                        Message::ImageCenterOfMass(name, offset)
-                    }
-                    Err((name, _)) => {
-                        loading_set.remove(&name);
-                        Message::ImageCenterOfMass(name, 0.5)
-                    }
-                }
-            },
-        )
-    }
-
-    /// Get handle for a specific pokemon (synchronous for rendering)
-    pub fn get(&self, pokemon_name: &str) -> Option<Handle> {
-        let cache = self.sync_cache.read().unwrap();
-        cache.get(pokemon_name).map(|entry| entry.handle.clone())
-    }
-
-    /// Store a loaded image
-    pub fn insert(&self, name: String, handle: Handle, center_of_mass: Option<f32>) {
-        let mut cache = self.sync_cache.write().unwrap();
-        cache.insert(
-            name,
-            ImageCacheEntry {
-                handle,
-                center_of_mass,
-            },
-        );
-    }
-
-    pub fn update_offset(&self, pokemon_name: &str, center_of_mass: f32) {
-        let mut cache = self.sync_cache.write().unwrap();
-        if let Some(entry) = cache.get_mut(pokemon_name) {
-            entry.center_of_mass = Some(center_of_mass);
-        }
-    }
-
-    /// Get the center-of-mass offset for a loaded image
-    pub fn get_offset(&self, pokemon_name: &str) -> Option<f32> {
-        let cache = self.sync_cache.read().unwrap();
-        cache
-            .get(pokemon_name)
-            .and_then(|entry| entry.center_of_mass)
     }
 }

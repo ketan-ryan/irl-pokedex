@@ -1,6 +1,7 @@
 pub mod grid;
 pub mod gstreamer_stream;
 pub mod icon_button;
+pub mod image_cache;
 pub mod loading_screen;
 pub mod message_box;
 pub mod modal;
