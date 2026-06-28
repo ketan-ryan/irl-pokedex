@@ -78,6 +78,8 @@ pub struct PokemonInfo {
     pub weight: String,
     pub abilities: Vec<String>,
     pub dex_entries: HashMap<String, String>,
+    #[serde(default)]
+    pub region: Option<String>,
 }
 
 impl Default for PokemonInfo {
@@ -90,6 +92,7 @@ impl Default for PokemonInfo {
             weight: "???".to_string(),
             abilities: Vec::new(),
             dex_entries: HashMap::new(),
+            region: Some("Undiscovered".to_string()),
         }
     }
 }
