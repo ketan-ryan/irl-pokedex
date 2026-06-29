@@ -745,7 +745,8 @@
             "Ultra Sun": "It shows no interest in anything that isn’t fresh. If you take it shopping with you, it will help you pick out ingredients.",
             "Ultra Moon": "Night after night, they sneak into people’s homes seeking food. A massive outbreak of them has become an issue of public concern.",
             "Let's Go Pikachu/Let's Go Eevee": "Its whiskers provide it with a keen sense of smell, enabling it to pick up the scent of hidden food and locate it instantly."
-        }
+        },
+        "region": "Alola"
     },
     "Raticate": {
         "number": "0020",
@@ -802,7 +803,8 @@
             "Ultra Sun": "It has an incredibly greedy personality. Its nest is filled with so much food gathered by Rattata at its direction, it can’t possibly eat it all.",
             "Ultra Moon": "It commands a nest of Rattata. Different nests don’t get along, whipping up severe fights over feeding grounds.",
             "Let's Go Pikachu/Let's Go Eevee": "It makes its Rattata underlings gather food for it, dining solely on the most nutritious and delicious fare."
-        }
+        },
+        "region": "Alola"
     },
     "Spearow": {
         "number": "0021",
@@ -1056,7 +1058,8 @@
             "Let's Go Pikachu/Let's Go Eevee": "It loves pancakes prepared with a secret Alolan recipe. Some wonder whether that recipe holds the key to this Pokémon’s evolution.",
             "Sword": "It’s believed that the weather, climate, and food of the Alola region all play a part in causing Pikachu to evolve into this form of Raichu.",
             "Shield": "This Pokémon rides on its tail while it uses its psychic powers to levitate. It attacks with star-shaped thunderbolts."
-        }
+        },
+        "region": "Alola"
     },
     "Sandshrew": {
         "number": "0027",
@@ -1117,7 +1120,8 @@
             "Let's Go Pikachu/Let's Go Eevee": "Its ice-covered body lets it slide across the ground with bullet-like speed, sending its enemies flying when it hits them.",
             "Sword": "Life on mountains covered with deep snow has granted this Pokémon a body of ice that’s as hard as steel.",
             "Shield": "It lives in snowy mountains on southern islands. When a blizzard rolls in, this Pokémon hunkers down in the snow to avoid getting blown away."
-        }
+        },
+        "region": "Alola"
     },
     "Sandslash": {
         "number": "0028",
@@ -1178,7 +1182,8 @@
             "Let's Go Pikachu/Let's Go Eevee": "This is Sandslash’s form after adaptation to a frigid environment. The cold air emitted by its body sharpens its icy spikes.",
             "Sword": "It uses large, hooked claws to cut a path through deep snow as it runs. On snowy mountains, this Sandslash is faster than any other Pokémon.",
             "Shield": "Many people climb snowy mountains, hoping to see the icy spikes of these Pokémon glistening in the light of dawn."
-        }
+        },
+        "region": "Alola"
     },
     "Nidoran-f": {
         "number": "0029",
@@ -1539,7 +1544,8 @@
             "Sword": "After long years in the ever-snowcapped mountains of Alola, this Vulpix has gained power over ice.",
             "Shield": "If you observe its curly hairs through a microscope, you’ll see small ice particles springing up.",
             "Legends: Arceus": "These Pokémon live in packs in the snowy mountains and defend themselves with icy breath. I suspect this species changed its form to adapt to the frigid climate."
-        }
+        },
+        "region": "Alola"
     },
     "Ninetales": {
         "number": "0038",
@@ -1602,7 +1608,8 @@
             "Sword": "A deity resides in the snowy mountains where this Pokémon lives. In ancient times, it was worshiped as that deity’s incarnation.",
             "Shield": "While it will guide travelers who get lost on a snowy mountain down to the mountain’s base, it won’t forgive anyone who harms nature.",
             "Legends: Arceus": "Dwells on sacred peaks perpetually covered in snow. Said to appear to virtuous people who have lost their way on mountain paths—it then guides them back down to the mountain’s base."
-        }
+        },
+        "region": "Alola"
     },
     "Jigglypuff": {
         "number": "0039",
@@ -2099,7 +2106,8 @@
             "Let's Go Pikachu/Let's Go Eevee": "After living in soil with high iron content for some time, three steel whiskers sprouted from the top of its head.",
             "Sword": "The metal-rich geology of this Pokémon’s habitat caused it to develop steel whiskers on its head.",
             "Shield": "Its three hairs change shape depending on Diglett’s mood. They’re a useful communication tool among these Pokémon."
-        }
+        },
+        "region": "Alola"
     },
     "Dugtrio": {
         "number": "0051",
@@ -2161,7 +2169,8 @@
             "Let's Go Pikachu/Let's Go Eevee": "They’re referred to as triplets, but they’re not identical—the metallic elements in their bodies differ slightly. The proof shows in their whiskers!",
             "Sword": "Their beautiful, metallic whiskers create a sort of protective helmet on their heads, and they also function as highly precise sensors.",
             "Shield": "The three of them get along very well. Through their formidable teamwork, they defeat powerful opponents."
-        }
+        },
+        "region": "Alola"
     },
     "Meowth": {
         "number": "0052",
@@ -2223,7 +2232,8 @@
             "Let's Go Pikachu/Let's Go Eevee": "Highly intelligent and prideful, it’s famously difficult to handle—but that’s also a reason for its popularity.",
             "Sword": "It’s accustomed to luxury because it used to live with Alolan royalty. As a result, it’s very picky about food.",
             "Shield": "Deeply proud and keenly smart, this Pokémon moves with cunning during battle and relentlessly attacks enemies’ weak points."
-        }
+        },
+        "region": "Alola"
     },
     "Galarian Meowth": {
         "number": "0052",
@@ -2239,7 +2249,8 @@
         "dex_entries": {
             "Sword": "Living with a savage, seafaring people has toughened this Pokémon’s body so much that parts of it have turned to iron.",
             "Shield": "These daring Pokémon have coins on their foreheads. Darker coins are harder, and harder coins garner more respect among Meowth."
-        }
+        },
+        "region": "Galar"
     },
     "Persian": {
         "number": "0053",
@@ -2301,7 +2312,8 @@
             "Let's Go Pikachu/Let's Go Eevee": "It has the classiest coat. The rippling of its fur in the heat of battle has a beauty all its own.",
             "Sword": "The round face of Alolan Persian is considered to be a symbol of prosperity in the Alola region, so these Pokémon are very well cared for.",
             "Shield": "This Pokémon is one tough opponent. Not only does it have formidable physical abilities, but it’s also not above fighting dirty."
-        }
+        },
+        "region": "Alola"
     },
     "Psyduck": {
         "number": "0054",
@@ -2532,7 +2544,8 @@
         ],
         "dex_entries": {
             "Legends: Arceus": "They patrol their territory in pairs. I believe the igneous rock components in the fur of this species are the result of volcanic activity in its habitat."
-        }
+        },
+        "region": "Hisui"
     },
     "Arcanine": {
         "number": "0059",
@@ -2589,7 +2602,8 @@
         ],
         "dex_entries": {
             "Legends: Arceus": "Snaps at its foes with fangs cloaked in blazing flame. Despite its bulk, it deftly feints every which way, leading opponents on a deceptively merry chase as it all but dances around them."
-        }
+        },
+        "region": "Hisui"
     },
     "Poliwag": {
         "number": "0060",
@@ -3242,7 +3256,8 @@
             "Ultra Sun": "If you mistake it for a rock and step on it, it will headbutt you in anger. In addition to the pain, it will also zap you with a shock.",
             "Ultra Moon": "Geodude compete against each other with headbutts. The iron sand on their heads will stick to whichever one has stronger magnetism.",
             "Let's Go Pikachu/Let's Go Eevee": "Its stone head is imbued with electricity and magnetism. If you carelessly step on one, you’ll be in for a painful shock."
-        }
+        },
+        "region": "Alola"
     },
     "Graveler": {
         "number": "0075",
@@ -3304,7 +3319,8 @@
             "Ultra Sun": "When two Graveler fight each other, it fills the surroundings with flashes of light and sound. People call it the “fireworks of the earth.”",
             "Ultra Moon": "Graveler’s entire body is tinged with electricity due to the stones it likes to eat. It’s very quick-tempered.",
             "Let's Go Pikachu/Let's Go Eevee": "When it comes rolling down a mountain path, anything in its way gets zapped by electricity and sent flying."
-        }
+        },
+        "region": "Alola"
     },
     "Golem": {
         "number": "0076",
@@ -3367,7 +3383,8 @@
             "Ultra Sun": "It’s grumpy and stubborn. If you upset it, it discharges electricity from the surface of its body and growls with a voice like thunder.",
             "Ultra Moon": "It shoots large rocks that are charged with electricity. Tremendous electric shocks are flung out across the whole area of impact.",
             "Let's Go Pikachu/Let's Go Eevee": "It uses magnetism to accelerate and fire off rocks tinged with electricity. Even if it doesn’t score a direct hit, the jolt of electricity will do the job."
-        }
+        },
+        "region": "Alola"
     },
     "Ponyta": {
         "number": "0077",
@@ -3422,7 +3439,8 @@
         "dex_entries": {
             "Sword": "Its small horn hides a healing power. With a few rubs from this Pokémon’s horn, any slight wound you have will be healed.",
             "Shield": "This Pokémon will look into your eyes and read the contents of your heart. If it finds evil there, it promptly hides away."
-        }
+        },
+        "region": "Galar"
     },
     "Rapidash": {
         "number": "0078",
@@ -3477,7 +3495,8 @@
         "dex_entries": {
             "Sword": "Little can stand up to its psycho cut. Unleashed from this Pokémon’s horn, the move will punch a hole right through a thick metal sheet.",
             "Shield": "Brave and prideful, this Pokémon dashes airily through the forest, its steps aided by the psychic power stored in the fur on its fetlocks."
-        }
+        },
+        "region": "Galar"
     },
     "Slowpoke": {
         "number": "0079",
@@ -3534,7 +3553,8 @@
         "dex_entries": {
             "Sword": "Although this Pokémon is normally zoned out, its expression abruptly sharpens on occasion. The cause for this seems to lie in Slowpoke’s diet.",
             "Shield": "Because Galarian Slowpoke eat the seeds of a plant that grows only in Galar, their tails have developed a spicy flavor."
-        }
+        },
+        "region": "Galar"
     },
     "Slowbro": {
         "number": "0080",
@@ -3608,7 +3628,8 @@
         "dex_entries": {
             "Sword": "A Shellder bite set off a chemical reaction with the spices inside Slowbro’s body, causing Slowbro to become a Poison-type Pokémon.",
             "Shield": "If this Pokémon squeezes the tongue of the Shellder biting it, the Shellder will launch a toxic liquid from the tip of its shell."
-        }
+        },
+        "region": "Galar"
     },
     "Magnemite": {
         "number": "0081",
@@ -3750,7 +3771,8 @@
         "dex_entries": {
             "Sword": "The Farfetch’d of the Galar region are brave warriors, and they wield thick, tough leeks in battle.",
             "Shield": "The stalks of leeks are thicker and longer in the Galar region. Farfetch’d that adapted to these stalks took on a unique form."
-        }
+        },
+        "region": "Galar"
     },
     "Doduo": {
         "number": "0084",
@@ -3953,7 +3975,8 @@
             "Ultra Sun": "There are a hundred or so of them living in Alola’s waste-disposal site. They’re all hard workers who eat a lot of trash.",
             "Ultra Moon": "Brought to Alola to solve the garbage problem, Grimer seems to relish any and all kinds of trash.",
             "Let's Go Pikachu/Let's Go Eevee": "It has a passion for trash above all else, speedily digesting it and creating brilliant crystals of sparkling poison."
-        }
+        },
+        "region": "Alola"
     },
     "Muk": {
         "number": "0089",
@@ -4014,7 +4037,8 @@
             "Ultra Sun": "There are over a hundred kinds of poison inside its body. Chemical reactions between different poisons are the source of its vitality.",
             "Ultra Moon": "What look like fangs and claws are actually crystallized poison that will afflict you at a mere touch, so don’t get too close.",
             "Let's Go Pikachu/Let's Go Eevee": "Muk’s coloration becomes increasingly vivid the more it feasts on its favorite dish—trash."
-        }
+        },
+        "region": "Alola"
     },
     "Shellder": {
         "number": "0090",
@@ -4483,7 +4507,8 @@
         ],
         "dex_entries": {
             "Legends: Arceus": "An enigmatic Pokémon that happens to bear a resemblance to a Poké Ball. When excited, it discharges the electric current it has stored in its belly, then lets out a great, uproarious laugh."
-        }
+        },
+        "region": "Hisui"
     },
     "Electrode": {
         "number": "0101",
@@ -4535,7 +4560,8 @@
         ],
         "dex_entries": {
             "Legends: Arceus": "The tissue on the surface of its body is curiously similar in composition to an Apricorn. When irritated, this Pokémon lets loose an electric current equal to 20 lightning bolts."
-        }
+        },
+        "region": "Hisui"
     },
     "Exeggcute": {
         "number": "0102",
@@ -4631,7 +4657,8 @@
             "Let's Go Pikachu/Let's Go Eevee": "The strong sunlight of the Alola region has awakened the power hidden within Exeggcute. This is the result.",
             "Sword": "Blazing sunlight has brought out the true form and powers of this Pokémon.",
             "Shield": "This Pokémon’s psychic powers aren’t as strong as they once were. The head on this Exeggutor’s tail scans surrounding areas with weak telepathy."
-        }
+        },
+        "region": "Alola"
     },
     "Cubone": {
         "number": "0104",
@@ -4730,7 +4757,8 @@
             "Let's Go Pikachu/Let's Go Eevee": "It has transformed the spirit of its dear departed mother into flames, and tonight it will once again dance in mourning of others of its kind.",
             "Sword": "This Pokémon sets the bone it holds on fire and dances through the night as a way to mourn its fallen allies.",
             "Shield": "The cursed flames that light up the bone carried by this Pokémon are said to cause both mental and physical pain that will never fade."
-        }
+        },
+        "region": "Alola"
     },
     "Hitmonlee": {
         "number": "0106",
@@ -4932,7 +4960,8 @@
         "dex_entries": {
             "Sword": "This Pokémon consumes particles that contaminate the air. Instead of leaving droppings, it expels clean air.",
             "Shield": "Long ago, during a time when droves of factories fouled the air with pollution, Weezing changed into this form for some reason."
-        }
+        },
+        "region": "Galar"
     },
     "Rhyhorn": {
         "number": "0111",
@@ -5453,7 +5482,8 @@
         "dex_entries": {
             "Sword": "Its talent is tap-dancing. It can also manipulate temperatures to create a floor of ice, which this Pokémon can kick up to use as a barrier.",
             "Shield": "It can radiate chilliness from the bottoms of its feet. It’ll spend the whole day tap-dancing on a frozen floor."
-        }
+        },
+        "region": "Galar"
     },
     "Scyther": {
         "number": "0123",
@@ -5731,7 +5761,8 @@
         "dex_entries": {
             "Scarlet": "This Pokémon has a muscular body and excels at close-quarters combat. It uses its short horns to strike the opponent’s weak spots.",
             "Violet": "This kind of Tauros, known as the Combat Breed, is distinguished by its thick, powerful muscles and its fierce disposition."
-        }
+        },
+        "region": "Paldea"
     },
     "Tauros Blaze Breed": {
         "number": "0128",
@@ -5747,7 +5778,8 @@
         "dex_entries": {
             "Scarlet": "When heated by fire energy, its horns can get hotter than 1,800 degrees Fahrenheit. Those gored by them will suffer both wounds and burns.",
             "Violet": "People call this kind of Tauros the Blaze Breed due to the hot air it snorts from its nostrils. Its three tails are intertwined."
-        }
+        },
+        "region": "Paldea"
     },
     "Tauros Aqua Breed": {
         "number": "0128",
@@ -5763,7 +5795,8 @@
         "dex_entries": {
             "Scarlet": "This Pokémon blasts water from holes on the tips of its horns—the high-pressure jets pierce right through Tauros’s enemies.",
             "Violet": "It swims by jetting water from its horns. The most notable characteristic of the Aqua Breed is its high body fat, which allows it to float easily."
-        }
+        },
+        "region": "Paldea"
     },
     "Magikarp": {
         "number": "0129",
@@ -6461,7 +6494,8 @@
         "dex_entries": {
             "Sword": "Its feather-like blades are composed of psychic energy and can shear through thick iron sheets as if they were paper.",
             "Shield": "Known as Articuno, this Pokémon fires beams that can immobilize opponents as if they had been frozen solid."
-        }
+        },
+        "region": "Galar"
     },
     "Zapdos": {
         "number": "0145",
@@ -6509,7 +6543,8 @@
         "dex_entries": {
             "Sword": "When its feathers rub together, they produce a crackling sound like the zapping of electricity. That’s why this Pokémon is called Zapdos.",
             "Shield": "One kick from its powerful legs will pulverize a dump truck. Supposedly, this Pokémon runs through the mountains at over 180 mph."
-        }
+        },
+        "region": "Galar"
     },
     "Moltres": {
         "number": "0146",
@@ -6557,7 +6592,8 @@
         "dex_entries": {
             "Sword": "This Pokémon’s sinister, flame-like aura will consume the spirit of any creature it hits. Victims become burned-out shadows of themselves.",
             "Shield": "The sinister aura that blazes like molten fire around this Pokémon is what inspired the name Moltres."
-        }
+        },
+        "region": "Galar"
     },
     "Dratini": {
         "number": "0147",
@@ -6960,7 +6996,8 @@
         ],
         "dex_entries": {
             "Legends: Arceus": "Said to purify lost, forsaken souls with its flames and guide them to the afterlife. I believe its form has been influenced by the energy of the sacred mountain towering at Hisui’s center."
-        }
+        },
+        "region": "Hisui"
     },
     "Totodile": {
         "number": "0158",
@@ -8287,7 +8324,8 @@
         "dex_entries": {
             "Scarlet": "After losing a territorial struggle, Wooper began living on land. The Pokémon changed over time, developing a poisonous film to protect its body.",
             "Violet": "It’s dangerous for Wooper to travel alone. They line up in groups of three or four and help each other as they walk around the wetlands."
-        }
+        },
+        "region": "Paldea"
     },
     "Quagsire": {
         "number": "0195",
@@ -8497,7 +8535,8 @@
         "dex_entries": {
             "Sword": "A combination of toxins and the shock of evolving has increased Shellder’s intelligence to the point that Shellder now controls Slowking.",
             "Shield": "While chanting strange spells, this Pokémon combines its internal toxins with what it’s eaten, creating strange potions."
-        }
+        },
+        "region": "Galar"
     },
     "Misdreavus": {
         "number": "0200",
@@ -8927,7 +8966,8 @@
         ],
         "dex_entries": {
             "Legends: Arceus": "Fishers detest this troublesome Pokémon because it sprays poison from its spines, getting it everywhere. A different form of Qwilfish lives in other regions."
-        }
+        },
+        "region": "Hisui"
     },
     "Scizor": {
         "number": "0212",
@@ -9131,7 +9171,8 @@
         ],
         "dex_entries": {
             "Legends: Arceus": "Its sturdy, curved claws are ideal for traversing precipitous cliffs. From the tips of these claws drips a venom that infiltrates the nerves of any prey caught in Sneasel’s grasp."
-        }
+        },
+        "region": "Hisui"
     },
     "Teddiursa": {
         "number": "0216",
@@ -9385,7 +9426,8 @@
         "dex_entries": {
             "Sword": "Watch your step when wandering areas oceans once covered. What looks like a stone could be this Pokémon, and it will curse you if you kick it.",
             "Shield": "Sudden climate change wiped out this ancient kind of Corsola. This Pokémon absorbs others’ life-force through its branches."
-        }
+        },
+        "region": "Galar"
     },
     "Remoraid": {
         "number": "0223",
@@ -10751,7 +10793,8 @@
         "dex_entries": {
             "Sword": "Its restlessness has it constantly running around. If it sees another Pokémon, it will purposely run into them in order to start a fight.",
             "Shield": "Thought to be the oldest form of Zigzagoon, it moves in zigzags and wreaks havoc upon its surroundings."
-        }
+        },
+        "region": "Galar"
     },
     "Linoone": {
         "number": "0264",
@@ -10796,7 +10839,8 @@
         "dex_entries": {
             "Sword": "It uses its long tongue to taunt opponents. Once the opposition is enraged, this Pokémon hurls itself at the opponent, tackling them forcefully.",
             "Shield": "This very aggressive Pokémon will recklessly challenge opponents stronger than itself."
-        }
+        },
+        "region": "Galar"
     },
     "Wurmple": {
         "number": "0265",
@@ -18123,7 +18167,8 @@
         ],
         "dex_entries": {
             "Legends: Arceus": "Hard of heart and deft of blade, this rare form of Samurott is a product of the Pokémon’s evolution in the region of Hisui. Its turbulent blows crash into foes like ceaseless pounding waves."
-        }
+        },
+        "region": "Hisui"
     },
     "Patrat": {
         "number": "0504",
@@ -19161,7 +19206,8 @@
         ],
         "dex_entries": {
             "Legends: Arceus": "I suspect that its well-developed legs are the result of a life spent on mountains covered in deep snow. The scent it exudes from its flower crown heartens those in proximity."
-        }
+        },
+        "region": "Hisui"
     },
     "Basculin Red-striped Form": {
         "number": "0550",
@@ -19219,7 +19265,7 @@
         "dex_entries": {
             "Legends: Arceus": "Though it differs from other Basculin in several respects, including demeanor—this one is gentle—I have categorized it as a regional form given the vast array of shared qualities."
         },
-        "region": "Unova"
+        "region": "Hisui"
     },
     "Sandile": {
         "number": "0551",
@@ -19339,7 +19385,8 @@
         "dex_entries": {
             "Sword": "It lived in snowy areas for so long that its fire sac cooled off and atrophied. It now has an organ that generates cold instead.",
             "Shield": "The colder they get, the more energetic they are. They freeze their breath to make snowballs, using them as ammo for playful snowball fights."
-        }
+        },
+        "region": "Galar"
     },
     "Darmanitan": {
         "number": "0555",
@@ -19385,7 +19432,8 @@
         "dex_entries": {
             "Sword": "On days when blizzards blow through, it comes down to where people live. It stashes food in the snowball on its head, taking it home for later.",
             "Shield": "Though it has a gentle disposition, it’s also very strong. It will quickly freeze the snowball on its head before going for a headbutt."
-        }
+        },
+        "region": "Galar"
     },
     "Galarian Darmanitan Zen Mode": {
         "number": "0555",
@@ -19400,7 +19448,8 @@
         "dex_entries": {
             "Sword": "Anger has reignited its atrophied flame sac. This Pokémon spews fire everywhere as it rampages indiscriminately.",
             "Shield": "Darmanitan takes this form when enraged. It won’t stop spewing flames until its rage has settled, even if its body starts to melt."
-        }
+        },
+        "region": "Galar"
     },
     "Maractus": {
         "number": "0556",
@@ -19570,7 +19619,8 @@
         "dex_entries": {
             "Sword": "A clay slab with cursed engravings took possession of a Yamask. The slab is said to be absorbing the Yamask’s dark power.",
             "Shield": "It’s said that this Pokémon was formed when an ancient clay tablet was drawn to a vengeful spirit."
-        }
+        },
+        "region": "Galar"
     },
     "Cofagrigus": {
         "number": "0563",
@@ -19779,7 +19829,8 @@
         ],
         "dex_entries": {
             "Legends: Arceus": "A once-departed soul, returned to life in Hisui. Derives power from resentment, which rises as energy atop its head and takes on the forms of foes. In this way, Zorua vents lingering malice."
-        }
+        },
+        "region": "Hisui"
     },
     "Zoroark": {
         "number": "0571",
@@ -19816,7 +19867,8 @@
         ],
         "dex_entries": {
             "Legends: Arceus": "With its disheveled white fur, it looks like an embodiment of death. Heedless of its own safety, Zoroark attacks its nemeses with a bitter energy so intense, it lacerates Zoroark’s own body."
-        }
+        },
+        "region": "Hisui"
     },
     "Minccino": {
         "number": "0572",
@@ -20892,7 +20944,8 @@
         "dex_entries": {
             "Sword": "Living in mud with a high iron content has given it a strong steel body.",
             "Shield": "Its conspicuous lips lure prey in as it lies in wait in the mud. When prey gets close, Stunfisk clamps its jagged steel fins down on them."
-        }
+        },
+        "region": "Galar"
     },
     "Mienfoo": {
         "number": "0619",
@@ -21158,7 +21211,8 @@
         ],
         "dex_entries": {
             "Legends: Arceus": "Screaming a bloodcurdling battle cry, this huge and ferocious bird Pokémon goes out on the hunt. It blasts lakes with shock waves, then scoops up any prey that float to the water’s surface."
-        }
+        },
+        "region": "Hisui"
     },
     "Vullaby": {
         "number": "0629",
@@ -22854,7 +22908,8 @@
         ],
         "dex_entries": {
             "Legends: Arceus": "A creature given to melancholy. I suspect its metallic shell developed as a result of the mucus on its skin reacting with the iron in Hisui’s water."
-        }
+        },
+        "region": "Hisui"
     },
     "Goodra": {
         "number": "0706",
@@ -22894,7 +22949,8 @@
         ],
         "dex_entries": {
             "Legends: Arceus": "Able to freely control the hardness of its metallic shell. It loathes solitude and is extremely clingy—it will fume and run riot if those dearest to it ever leave its side."
-        }
+        },
+        "region": "Hisui"
     },
     "Klefki": {
         "number": "0707",
@@ -23158,7 +23214,8 @@
         ],
         "dex_entries": {
             "Legends: Arceus": "The armor of ice covering its lower jaw puts steel to shame and can shatter rocks with ease. This Pokémon barrels along steep mountain paths, cleaving through the deep snow."
-        }
+        },
+        "region": "Hisui"
     },
     "Noibat": {
         "number": "0714",
@@ -23425,7 +23482,8 @@
         ],
         "dex_entries": {
             "Legends: Arceus": "The air stored inside the rachises of Decidueye’s feathers insulates the Pokémon against Hisui’s extreme cold. This is firm proof that evolution can be influenced by environment."
-        }
+        },
+        "region": "Hisui"
     },
     "Litten": {
         "number": "0725",
