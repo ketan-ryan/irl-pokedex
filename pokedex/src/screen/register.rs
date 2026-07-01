@@ -164,6 +164,10 @@ pub struct Register {
     pokeball_gray: iced::widget::image::Handle,
     pokeball_register_anim: Animation<f32>,
     top_register: TopScreenRegister,
+    // whether we are registering to dex for the first time this session
+    first_register: bool,
+    // will be true if we looked in the json and we saw an entry
+    already_registered: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -179,6 +183,7 @@ pub enum Message {
     ReadEntry,
     NoiseReady(Option<iced::widget::image::Handle>),
     Quantized(Vec<[f64; 3]>),
+    UpdatedLocalDex(Result<(), String>),
 }
 
 pub enum Action {
@@ -216,7 +221,7 @@ impl Register {
                     .duration(Duration::from_millis(500))
                     .easing(iced::animation::Easing::EaseInOut),
                 bg_handle: iced::widget::image::Handle::from_bytes(
-                    include_bytes!("../../assets/register_screen/background.png").as_slice(),
+                    include_bytes!("../../assets/background.png").as_slice(),
                 ),
                 ring_handle: iced::widget::image::Handle::from_bytes(
                     include_bytes!("../../assets/register_screen/ring.png").as_slice(),
@@ -245,6 +250,8 @@ impl Register {
                     .duration(Duration::from_millis(3000))
                     .easing(iced::animation::Easing::EaseInQuint),
                 top_register: TopScreenRegister::new(),
+                first_register: false,
+                already_registered: false,
             },
             Task::done(Message::Start(frame)),
         )
@@ -298,7 +305,6 @@ impl Register {
                     }
 
                     // show ring around pokeball icon and animate registered text
-
                     if self.state == State::ReadingEntry
                         && self
                             .pokeball_register_anim
@@ -474,11 +480,36 @@ impl Register {
                 self.state = State::ReadingEntry;
 
                 self.fade.go_mut(0.0, Instant::now());
-                self.pokeball_register_anim.go_mut(1.0, Instant::now());
                 self.spinner_state.end_register();
                 self.register_pokemon.fade_out();
 
-                Action::None
+                let found = self.found_pokemon.as_ref().unwrap().clone();
+                let saved_imgs_dir: String = self.config.saved_imgs_dir.clone();
+
+                if !self.config.local_dex.borrow().contains(&found) && !self.first_register {
+                    self.pokeball_register_anim.go_mut(1.0, Instant::now());
+                    self.first_register = true;
+                    self.config.local_dex.borrow_mut().push(found.to_string());
+
+                    let list: Vec<String> = self.config.local_dex.borrow().clone();
+
+                    return Action::Run(Task::batch(vec![
+                        Task::future(io::add_dex_img(saved_imgs_dir, found))
+                            .map(|res| Message::UpdatedLocalDex(res.map_err(|e| e.to_string()))),
+                        Task::future(io::update_dex(list))
+                            .map(|res| Message::UpdatedLocalDex(res.map_err(|e| e.to_string()))),
+                    ]));
+                } else {
+                    trace!(
+                        "Skipping registration for {} as it is already registered",
+                        &self.found_pokemon.as_ref().unwrap()
+                    );
+                    self.already_registered = true;
+                    return Action::Run(
+                        Task::future(io::add_dex_img(saved_imgs_dir, found))
+                            .map(|res| Message::UpdatedLocalDex(res.map_err(|e| e.to_string()))),
+                    );
+                }
             }
             Message::NoiseReady(handle) => {
                 self.pokemon_details.update_noise_handle(handle);
@@ -489,6 +520,12 @@ impl Register {
                 debug!("Quantized to {} buckets", &colors.len());
                 self.pokemon_details.set_palette(colors);
 
+                Action::None
+            }
+            Message::UpdatedLocalDex(res) => {
+                if res.is_err() {
+                    error!("Error with async dex ops: {}", res.unwrap_err())
+                }
                 Action::None
             }
         }
@@ -529,7 +566,7 @@ impl Register {
         };
         if let Ok(img) = img {
             let white_handle = Self::make_white_mask(&img);
-            let offset = Self::find_image_com(&img);
+            let offset = find_image_com(&img);
             let img_bytes = img.clone();
             let png_handle = iced::widget::image::Handle::from_bytes(img);
             return Ok(ClassificationResults {
@@ -564,70 +601,6 @@ impl Register {
         });
 
         iced::widget::image::Handle::from_rgba(result.width(), result.height(), result.into_raw())
-    }
-
-    /// Finds center of mass for a png across its rows and columns
-    ///
-    /// A pixel is considered to have mass if its alpha is > 0
-    ///
-    /// # Arguments
-    ///
-    /// * `bytes` the raw bytes making up the rgba8 image
-    ///
-    /// # Returns
-    /// The x-position of the image's center of mass
-    fn find_image_com(bytes: &[u8]) -> f32 {
-        let img = image::load_from_memory(bytes).unwrap().into_rgba8();
-        let (width, height) = img.dimensions();
-
-        // row-based CoM
-        let mut row_weighted_sum = 0.0;
-        let mut row_total_weight = 0.0;
-
-        for row in 0..height {
-            let mut row_mass = 0.0;
-            let mut row_x_sum = 0.0;
-
-            for col in 0..width {
-                let pixel = img.get_pixel(col, row);
-                if pixel[3] > 0 {
-                    row_mass += 1.0;
-                    row_x_sum += col as f32;
-                }
-            }
-
-            if row_mass > 0.0 {
-                // give more weight to dense areas
-                row_weighted_sum += (row_x_sum / row_mass) * row_mass;
-                row_total_weight += row_mass;
-            }
-        }
-
-        let row_com = (row_weighted_sum / row_total_weight) / width as f32;
-
-        // col-based CoM
-        let mut col_weighted_sum = 0.0;
-        let mut col_total_weight = 0.0;
-
-        for col in 0..width {
-            let mut col_mass = 0.0;
-
-            for row in 0..height {
-                let pixel = img.get_pixel(col, row);
-                if pixel[3] > 0 {
-                    col_mass += 1.0;
-                }
-            }
-
-            if col_mass > 0.0 {
-                col_weighted_sum += (col as f32 / width as f32) * col_mass;
-                col_total_weight += col_mass;
-            }
-        }
-
-        let col_com = col_weighted_sum / col_total_weight;
-
-        (row_com + col_com) / 2.0
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
@@ -1059,9 +1032,12 @@ impl Register {
                     .width(Length::Fill)
                     .height(Length::Fill);
 
-                let ball_scale = self
-                    .pokeball_register_anim
-                    .interpolate_with(|v| v, Instant::now());
+                let ball_scale = if self.already_registered {
+                    1.0
+                } else {
+                    self.pokeball_register_anim
+                        .interpolate_with(|v| v, Instant::now())
+                };
 
                 let current_size = BALL_SIZE * ball_scale;
 
@@ -1288,7 +1264,7 @@ async fn blur_image(frame: Arc<VideoFrame>) -> iced::widget::image::Handle {
 }
 
 // Capitalize the start of words
-fn to_proper_case(s: &str) -> String {
+pub fn to_proper_case(s: &str) -> String {
     let mut result = String::new();
     let mut capitalize_next = true;
 
@@ -1304,4 +1280,62 @@ fn to_proper_case(s: &str) -> String {
         }
     }
     result
+}
+
+/// Finds center of mass for a PNG across its rows and columns.
+///
+/// A pixel is considered to have mass if its alpha is > 0.
+/// Returns the x-position of the image's center of mass normalized to [0.0, 1.0].
+pub fn find_image_com(bytes: &[u8]) -> f32 {
+    let img = image::load_from_memory(bytes).unwrap().into_rgba8();
+    let (width, height) = img.dimensions();
+
+    // row-based CoM
+    let mut row_weighted_sum = 0.0;
+    let mut row_total_weight = 0.0;
+
+    for row in 0..height {
+        let mut row_mass = 0.0;
+        let mut row_x_sum = 0.0;
+
+        for col in 0..width {
+            let pixel = img.get_pixel(col, row);
+            if pixel[3] > 0 {
+                row_mass += 1.0;
+                row_x_sum += col as f32;
+            }
+        }
+
+        if row_mass > 0.0 {
+            // give more weight to dense areas
+            row_weighted_sum += (row_x_sum / row_mass) * row_mass;
+            row_total_weight += row_mass;
+        }
+    }
+
+    let row_com = (row_weighted_sum / row_total_weight) / width as f32;
+
+    // col-based CoM
+    let mut col_weighted_sum = 0.0;
+    let mut col_total_weight = 0.0;
+
+    for col in 0..width {
+        let mut col_mass = 0.0;
+
+        for row in 0..height {
+            let pixel = img.get_pixel(col, row);
+            if pixel[3] > 0 {
+                col_mass += 1.0;
+            }
+        }
+
+        if col_mass > 0.0 {
+            col_weighted_sum += (col as f32 / width as f32) * col_mass;
+            col_total_weight += col_mass;
+        }
+    }
+
+    let col_com = col_weighted_sum / col_total_weight;
+
+    (row_com + col_com) / 2.0
 }

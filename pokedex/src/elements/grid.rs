@@ -1,5 +1,7 @@
+use std::time::Duration;
+
 use iced::widget::canvas::{self, Geometry};
-use iced::{Rectangle, Renderer, Theme, mouse, Point};
+use iced::{Color, Point, Rectangle, Renderer, Theme, mouse};
 
 #[derive(Debug)]
 pub struct Grid {
@@ -11,14 +13,19 @@ impl Grid {
     pub fn new() -> Self {
         Self {
             offset: Vector::new(0.0, 0.0),
-            cache: canvas::Cache::new()
+            cache: canvas::Cache::new(),
         }
     }
 
-    pub fn tick(&mut self) {
+    pub fn tick(&mut self, dt: Duration) {
         self.cache.clear();
-        self.offset.x += 0.25;
-        self.offset.y += 0.25;
+
+        // px per second
+        let speed = 10.0;
+        let seconds = dt.as_secs_f32();
+
+        // self.offset.x += speed * seconds;
+        self.offset.y -= speed * seconds;
     }
 }
 
@@ -30,9 +37,7 @@ pub struct Vector {
 
 impl Vector {
     pub fn new(x: f32, y: f32) -> Self {
-        Self {
-            x,y
-        }
+        Self { x, y }
     }
 }
 
@@ -45,7 +50,7 @@ impl<Message> canvas::Program<Message> for Grid {
         renderer: &Renderer,
         _theme: &Theme,
         bounds: Rectangle,
-        _cursor: mouse::Cursor
+        _cursor: mouse::Cursor,
     ) -> Vec<Geometry> {
         let geo = self.cache.draw(renderer, bounds.size(), |frame| {
             let spacing = 10.0;
@@ -54,38 +59,32 @@ impl<Message> canvas::Program<Message> for Grid {
             let y_offset = self.offset.y % spacing;
 
             // vertical lines
-            let mut x = -x_offset;
-            while x < bounds.width {
-                frame.stroke(
-                    &canvas::Path::line(
-                        Point::new(x, 0.0),
-                        Point::new(x, bounds.height),
-                    ),
-                    canvas::Stroke {
-                        width: 1.0,
-                        ..Default::default()
-                    },
-                );
-                x += spacing;
-            }
+            // let mut x = -x_offset;
+            // while x < bounds.width {
+            //     frame.stroke(
+            //         &canvas::Path::line(Point::new(x, 0.0), Point::new(x, bounds.height)),
+            //         canvas::Stroke {
+            //             width: 1.0,
+            //             ..Default::default()
+            //         },
+            //     );
+            //     x += spacing;
+            // }
 
             // horizontal lines
             let mut y = -y_offset;
             while y < bounds.height {
                 frame.stroke(
-                    &canvas::Path::line(
-                        Point::new(0.0, y),
-                        Point::new(bounds.width, y),
-                    ),
+                    &canvas::Path::line(Point::new(0.0, y), Point::new(bounds.width, y)),
                     canvas::Stroke {
-                        width: 1.0,
+                        width: 2.0,
+                        style: canvas::Style::Solid(Color::from_rgba8(238, 242, 255, 0.2)),
                         ..Default::default()
                     },
                 );
                 y += spacing;
             }
         });
-
 
         vec![geo]
     }

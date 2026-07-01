@@ -3,7 +3,6 @@ mod io;
 mod ml;
 mod screen;
 
-use elements::grid;
 use flexi_logger::{self, Cleanup, Criterion, FileSpec, Logger, Naming, WriteMode};
 use gstreamer::glib::num_processors;
 use include_assets::{NamedArchive, include_dir};
@@ -20,6 +19,7 @@ use std::sync::Arc;
 
 use crate::elements::gstreamer_stream::VideoFrame;
 use crate::io::PokedexConfig;
+use crate::screen::browse_pokedex;
 use crate::screen::register;
 
 fn main() -> iced::Result {
@@ -58,6 +58,7 @@ fn main() -> iced::Result {
     iced::daemon(App::new, App::update, App::view)
         .subscription(App::subscription)
         .font(include_bytes!("../assets/OpenSans-Light.ttf"))
+        .font(include_bytes!("../assets/OpenSans_Condensed-Semibold.ttf"))
         .run()
 }
 
@@ -73,6 +74,8 @@ pub enum PokedexError {
     ModelError(String),
     ClassesNotFound(String),
     MalformedClasses(String),
+    UpdateDexFailure(String),
+    SaveDexImgError(String),
 }
 
 impl std::error::Error for PokedexError {}
@@ -101,6 +104,12 @@ impl std::fmt::Display for PokedexError {
             PokedexError::MalformedClasses(e) => {
                 write!(f, "Could not parse Pokemon classes list: {}", e)
             }
+            PokedexError::UpdateDexFailure(e) => {
+                write!(f, "Error updating pokedex: {}", e)
+            }
+            PokedexError::SaveDexImgError(e) => {
+                write!(f, "Failed to save image to local dex: {}", e)
+            }
         }
     }
 }
@@ -125,8 +134,10 @@ enum Message {
     WindowOpened(window::Id),
     Home(home::Message),
     Register(register::Message),
+    PokedexBrowser(browse_pokedex::Message),
     OpenHome,
     OpenRegister(Arc<VideoFrame>),
+    OpenPokedexBrowser,
 }
 
 impl App {
@@ -161,10 +172,10 @@ impl App {
 
                 match home.update(message) {
                     home::Action::None => Task::none(),
-                    home::Action::GoHome => Task::none(),
                     home::Action::Register(result) => Task::done(Message::OpenRegister(result)),
                     home::Action::Run(task) => task.map(Message::Home),
                     home::Action::RedrawWindows => Task::none(),
+                    home::Action::BrowsePokedex => Task::done(Message::OpenPokedexBrowser),
                 }
             }
             Message::OpenHome => self.open_home(),
@@ -179,15 +190,27 @@ impl App {
                     register::Action::Run(task) => task.map(Message::Register),
                 }
             }
+            Message::PokedexBrowser(message) => {
+                let Screen::PokedexBrowser(browser) = &mut self.screen else {
+                    return Task::none();
+                };
+
+                match browser.update(message) {
+                    browse_pokedex::Action::None => Task::none(),
+                    browse_pokedex::Action::GoHome => Task::done(Message::OpenHome),
+                    browse_pokedex::Action::Run(task) => task.map(Message::PokedexBrowser),
+                }
+            }
             Message::OpenRegister(result) => self.open_register(result),
+            Message::OpenPokedexBrowser => self.open_browser(),
         }
     }
 
     fn subscription(&self) -> Subscription<Message> {
         match &self.screen {
             Screen::Home(home) => home.subscription().map(Message::Home),
-
             Screen::Register(register) => register.subscription().map(Message::Register),
+            Screen::PokedexBrowser(browser) => browser.subscription().map(Message::PokedexBrowser),
 
             _ => Subscription::none(),
         }
@@ -248,6 +271,23 @@ impl App {
         task.map(Message::Register)
     }
 
+    fn open_browser(&mut self) -> Task<Message> {
+        let (browser, task) = screen::PokedexBrowser::new(
+            Arc::clone(self.config.as_ref().unwrap()),
+            self.config.as_ref().unwrap().pokedex_json.clone(),
+            self.config
+                .as_ref()
+                .unwrap()
+                .local_dex
+                .borrow()
+                .iter()
+                .cloned()
+                .collect(),
+        );
+        self.screen = Screen::PokedexBrowser(browser);
+        task.map(Message::PokedexBrowser)
+    }
+
     fn view(&self, window_id: window::Id) -> Element<'_, Message> {
         if let Some(window) = self
             .windows
@@ -269,6 +309,7 @@ impl App {
             match &self.screen {
                 Screen::Home(home) => home.top_view().map(Message::Home),
                 Screen::Register(register) => register.top_view().map(Message::Register),
+                Screen::PokedexBrowser(browser) => browser.top_view().map(Message::PokedexBrowser),
                 Screen::Loading => {
                     let new_window_button = button("Go home").on_press(Message::OpenHome);
 
@@ -322,6 +363,9 @@ impl App {
             match &self.screen {
                 Screen::Home(home) => home.bottom_view().map(Message::Home),
                 Screen::Register(register) => register.bottom_view().map(Message::Register),
+                Screen::PokedexBrowser(browser) => {
+                    browser.bottom_view().map(Message::PokedexBrowser)
+                }
                 Screen::Loading => space().into(),
             }
         } else {
