@@ -877,6 +877,7 @@
         "relations": [
             "Rattata"
         ],
+        "base": false,
         "evolves_from": [],
         "evolves_into": [
             "Alolan Raticate"
@@ -947,6 +948,7 @@
             "Let's Go Pikachu/Let's Go Eevee": "It makes its Rattata underlings gather food for it, dining solely on the most nutritious and delicious fare."
         },
         "region": "Alola",
+        "base": false,
         "relations": [
             "Raticate"
         ],
@@ -1246,7 +1248,8 @@
         "evolves_from": [
             "Pikachu"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Sandshrew": {
         "number": "0027",
@@ -1323,7 +1326,8 @@
         "evolves_from": [],
         "evolves_into": [
             "Alolan Sandslash"
-        ]
+        ],
+        "base": false
     },
     "Sandslash": {
         "number": "0028",
@@ -1400,7 +1404,8 @@
         "evolves_from": [
             "Alolan Sandshrew"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Nidoran-f": {
         "number": "0029",
@@ -1815,7 +1820,8 @@
         "evolves_from": [],
         "evolves_into": [
             "Alolan Ninetales"
-        ]
+        ],
+        "base": false
     },
     "Ninetales": {
         "number": "0038",
@@ -1894,7 +1900,8 @@
         "evolves_from": [
             "Alolan Vulpix"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Jigglypuff": {
         "number": "0039",
@@ -2458,7 +2465,8 @@
         "evolves_from": [],
         "evolves_into": [
             "Alolan Dugtrio"
-        ]
+        ],
+        "base": false
     },
     "Dugtrio": {
         "number": "0051",
@@ -2536,7 +2544,8 @@
         "evolves_from": [
             "Alolan Diglett"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Meowth": {
         "number": "0052",
@@ -2610,13 +2619,13 @@
         },
         "region": "Alola",
         "relations": [
-            "Meowth",
-            "Galarian Meowth"
+            "Meowth"
         ],
         "evolves_from": [],
         "evolves_into": [
             "Alolan Persian"
-        ]
+        ],
+        "base": false
     },
     "Galarian Meowth": {
         "number": "0052",
@@ -2635,13 +2644,13 @@
         },
         "region": "Galar",
         "relations": [
-            "Meowth",
-            "Alolan Meowth"
+            "Meowth"
         ],
         "evolves_from": [],
         "evolves_into": [
             "Perrserker"
-        ]
+        ],
+        "base": false
     },
     "Persian": {
         "number": "0053",
@@ -2719,7 +2728,8 @@
         "evolves_from": [
             "Alolan Meowth"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Psyduck": {
         "number": "0054",
@@ -2984,7 +2994,8 @@
         "evolves_from": [],
         "evolves_into": [
             "Hisuian Arcanine"
-        ]
+        ],
+        "base": false
     },
     "Arcanine": {
         "number": "0059",
@@ -3057,7 +3068,8 @@
         "evolves_from": [
             "Hisuian Growlithe"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Poliwag": {
         "number": "0060",
@@ -3797,7 +3809,8 @@
         "evolves_from": [],
         "evolves_into": [
             "Alolan Graveler"
-        ]
+        ],
+        "base": false
     },
     "Graveler": {
         "number": "0075",
@@ -3879,7 +3892,8 @@
         ],
         "evolves_into": [
             "Alolan Golem"
-        ]
+        ],
+        "base": false
     },
     "Golem": {
         "number": "0076",
@@ -3958,7 +3972,8 @@
         "evolves_from": [
             "Alolan Graveler"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Ponyta": {
         "number": "0077",
@@ -4029,7 +4044,8 @@
         "evolves_from": [],
         "evolves_into": [
             "Galarian Rapidash"
-        ]
+        ],
+        "base": false
     },
     "Rapidash": {
         "number": "0078",
@@ -4100,7 +4116,8 @@
         "evolves_from": [
             "Galarian Ponyta"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Slowpoke": {
         "number": "0079",
@@ -4175,7 +4192,8 @@
         "evolves_into": [
             "Galarian Slowbro",
             "Galarian Slowking"
-        ]
+        ],
+        "base": false
     },
     "Slowbro": {
         "number": "0080",
@@ -4272,7 +4290,8 @@
         "evolves_from": [
             "Galarian Slowpoke"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Magnemite": {
         "number": "0081",
@@ -4438,7 +4457,8 @@
         "evolves_from": [],
         "evolves_into": [
             "Sirfetch'd"
-        ]
+        ],
+        "base": false
     },
     "Doduo": {
         "number": "0084",
@@ -4673,7 +4693,8 @@
         "evolves_from": [],
         "evolves_into": [
             "Alolan Muk"
-        ]
+        ],
+        "base": false
     },
     "Muk": {
         "number": "0089",
@@ -4750,7 +4771,8 @@
         "evolves_from": [
             "Alolan Grimer"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Shellder": {
         "number": "0090",
@@ -5283,7 +5305,8 @@
         "evolves_from": [],
         "evolves_into": [
             "Hisuian Electrode"
-        ]
+        ],
+        "base": false
     },
     "Electrode": {
         "number": "0101",
@@ -5351,7 +5374,8 @@
         "evolves_from": [
             "Hisuian Voltorb"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Exeggcute": {
         "number": "0102",
@@ -5468,7 +5492,8 @@
         "evolves_from": [
             "Exeggcute"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Cubone": {
         "number": "0104",
@@ -5588,7 +5613,8 @@
         "evolves_from": [
             "Cubone"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Hitmonlee": {
         "number": "0106",
@@ -5823,7 +5849,8 @@
         "evolves_from": [
             "Koffing"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Rhyhorn": {
         "number": "0111",
@@ -6416,7 +6443,8 @@
         ],
         "evolves_into": [
             "Mr. Rime"
-        ]
+        ],
+        "base": false
     },
     "Scyther": {
         "number": "0123",
@@ -7570,7 +7598,8 @@
             "Articuno"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Zapdos": {
         "number": "0145",
@@ -7630,7 +7659,8 @@
             "Zapdos"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Moltres": {
         "number": "0146",
@@ -7690,7 +7720,8 @@
             "Moltres"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Dratini": {
         "number": "0147",
@@ -8163,7 +8194,8 @@
         "evolves_from": [
             "Quilava"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Totodile": {
         "number": "0158",
@@ -9666,7 +9698,8 @@
         "evolves_from": [],
         "evolves_into": [
             "Clodsire"
-        ]
+        ],
+        "base": false
     },
     "Quagsire": {
         "number": "0195",
@@ -9908,7 +9941,8 @@
         "evolves_from": [
             "Galarian Slowpoke"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Misdreavus": {
         "number": "0200",
@@ -10395,7 +10429,8 @@
         "evolves_from": [],
         "evolves_into": [
             "Overqwil"
-        ]
+        ],
+        "base": false
     },
     "Scizor": {
         "number": "0212",
@@ -10633,7 +10668,8 @@
         "evolves_from": [],
         "evolves_into": [
             "Sneasler"
-        ]
+        ],
+        "base": false
     },
     "Teddiursa": {
         "number": "0216",
@@ -10708,8 +10744,7 @@
             "Teddiursa"
         ],
         "evolves_into": [
-            "Ursaluna",
-            "Ursaluna Bloodmoon"
+            "Ursaluna"
         ]
     },
     "Slugma": {
@@ -10930,7 +10965,8 @@
         "evolves_from": [],
         "evolves_into": [
             "Cursola"
-        ]
+        ],
+        "base": false
     },
     "Remoraid": {
         "number": "0223",
@@ -12476,7 +12512,8 @@
         "evolves_from": [],
         "evolves_into": [
             "Galarian Linoone"
-        ]
+        ],
+        "base": false
     },
     "Linoone": {
         "number": "0264",
@@ -12539,7 +12576,8 @@
         ],
         "evolves_into": [
             "Obstagoon"
-        ]
+        ],
+        "base": false
     },
     "Wurmple": {
         "number": "0265",
@@ -17857,7 +17895,8 @@
         "evolves_into": [
             "Wormadam Sandy Cloak",
             "Mothim"
-        ]
+        ],
+        "base": false
     },
     "Burmy Trash Cloak": {
         "number": "0412",
@@ -17881,7 +17920,8 @@
         "evolves_into": [
             "Wormadam Trash Cloak",
             "Mothim"
-        ]
+        ],
+        "base": false
     },
     "Wormadam Plant Cloak": {
         "number": "0413",
@@ -17937,7 +17977,8 @@
         "evolves_from": [
             "Burmy Sandy Cloak"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Wormadam Trash Cloak": {
         "number": "0413",
@@ -17960,7 +18001,8 @@
         "evolves_from": [
             "Burmy Trash Cloak"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Mothim": {
         "number": "0414",
@@ -18229,7 +18271,8 @@
             "Cherrim Overcast Form"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Shellos West Sea": {
         "number": "0422",
@@ -21108,7 +21151,8 @@
         "evolves_from": [
             "Dewott"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Patrat": {
         "number": "0504",
@@ -22351,7 +22395,8 @@
         "evolves_from": [
             "Petilil"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Basculin Red-striped Form": {
         "number": "0550",
@@ -22581,7 +22626,8 @@
         "evolves_from": [],
         "evolves_into": [
             "Galarian Darmanitan"
-        ]
+        ],
+        "base": false
     },
     "Darmanitan": {
         "number": "0555",
@@ -22600,9 +22646,7 @@
         "region": "Unova",
         "base": true,
         "relations": [
-            "Darmanitan Zen Mode",
-            "Galarian Darmanitan",
-            "Galarian Darmanitan Zen Mode"
+            "Galarian Darmanitan"
         ],
         "evolves_from": [
             "Darumaka"
@@ -22624,12 +22668,11 @@
             "Shield": "When wounded, it stops moving. It goes as still as stone to meditate, sharpening its mind and spirit."
         },
         "relations": [
-            "Darmanitan",
-            "Galarian Darmanitan",
             "Galarian Darmanitan Zen Mode"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": true
     },
     "Galarian Darmanitan": {
         "number": "0555",
@@ -22647,14 +22690,13 @@
         },
         "region": "Galar",
         "relations": [
-            "Darmanitan",
-            "Darmanitan Zen Mode",
-            "Galarian Darmanitan Zen Mode"
+            "Darmanitan"
         ],
         "evolves_from": [
             "Galarian Darumaka"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Galarian Darmanitan Zen Mode": {
         "number": "0555",
@@ -22672,12 +22714,11 @@
         },
         "region": "Galar",
         "relations": [
-            "Darmanitan",
-            "Darmanitan Zen Mode",
-            "Galarian Darmanitan"
+            "Darmanitan Zen Mode"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Maractus": {
         "number": "0556",
@@ -22883,7 +22924,8 @@
         "evolves_from": [],
         "evolves_into": [
             "Runerigus"
-        ]
+        ],
+        "base": false
     },
     "Cofagrigus": {
         "number": "0563",
@@ -23136,7 +23178,8 @@
         "evolves_from": [],
         "evolves_into": [
             "Hisuian Zoroark"
-        ]
+        ],
+        "base": false
     },
     "Zoroark": {
         "number": "0571",
@@ -23189,7 +23232,8 @@
         "evolves_from": [
             "Hisuian Zorua"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Minccino": {
         "number": "0572",
@@ -24535,7 +24579,8 @@
             "Stunfisk"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Mienfoo": {
         "number": "0619",
@@ -24852,7 +24897,8 @@
         "evolves_from": [
             "Rufflet"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Vullaby": {
         "number": "0629",
@@ -26934,7 +26980,8 @@
         ],
         "evolves_into": [
             "Hisuian Goodra"
-        ]
+        ],
+        "base": false
     },
     "Goodra": {
         "number": "0706",
@@ -26990,7 +27037,8 @@
         "evolves_from": [
             "Hisuian Sliggoo"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Klefki": {
         "number": "0707",
@@ -27359,7 +27407,8 @@
         "evolves_from": [
             "Bergmite"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Noibat": {
         "number": "0714",
@@ -27699,7 +27748,8 @@
         "evolves_from": [
             "Dartrix"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Litten": {
         "number": "0725",
@@ -32138,9 +32188,7 @@
         "relations": [
             "Ursaluna"
         ],
-        "evolves_from": [
-            "Ursaring"
-        ],
+        "evolves_from": [],
         "evolves_into": []
     },
     "Basculegion Male": {
