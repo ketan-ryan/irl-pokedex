@@ -10458,7 +10458,9 @@
             "Ultra Sun": "It stores the excess energy from Mega Evolution, so after a long time passes, its body starts to melt.",
             "Ultra Moon": "It’s better at beating things than grasping them. When it battles for a long time, the weight of its pincers becomes too much to bear."
         },
-        "evolves_from": [],
+        "evolves_from": [
+            "Scizor"
+        ],
         "evolves_into": []
     },
     "Shuckle": {
@@ -26200,7 +26202,9 @@
             "Meowstic Female"
         ],
         "base": true,
-        "evolves_from": [],
+        "evolves_from": [
+            "Espurr"
+        ],
         "evolves_into": []
     },
     "Meowstic Female": {
@@ -26222,7 +26226,9 @@
         "relations": [
             "Meowstic Male"
         ],
-        "evolves_from": [],
+        "evolves_from": [
+            "Espurr"
+        ],
         "evolves_into": []
     },
     "Honedge": {
