@@ -16,6 +16,7 @@ with open(dex_path, 'r', encoding='utf-8') as fp:
                     data[key]['relations'].append(original)
                 else:
                     data[key]['relations'] = [original]
+                data[key]['base'] = False
                 
                 # Link the original pokemon to the regional form
                 if original in data:

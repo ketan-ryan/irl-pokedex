@@ -6767,7 +6767,8 @@
             "Tauros Aqua Breed"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Tauros Blaze Breed": {
         "number": "0128",
@@ -6791,7 +6792,8 @@
             "Tauros Aqua Breed"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Tauros Aqua Breed": {
         "number": "0128",
@@ -6815,7 +6817,8 @@
             "Tauros Blaze Breed"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Magikarp": {
         "number": "0129",
@@ -15672,6 +15675,7 @@
             "Brilliant Diamond/Shining Pearl": "Its appearance changes with the weather. Recently, its molecules were found to be just like water."
         },
         "region": "Hoenn",
+        "base": true,
         "evolves_from": [],
         "evolves_into": []
     },
@@ -15690,6 +15694,7 @@
             "Ultra Sun": "This is the form Castform takes on bright days. In an experiment where Castform was placed in front of a heater, it didn’t change to this form.",
             "Ultra Moon": "Castform changes to this form when it basks in bright sunlight. When you touch its glowing skin, it feels all dried out!"
         },
+        "base": false,
         "evolves_from": [],
         "evolves_into": []
     },
@@ -15708,6 +15713,7 @@
             "Ultra Sun": "Castform changes to this form when rain hits it. Its body is soft and slightly swollen with water.",
             "Ultra Moon": "This is Castform’s form when pelted by rain. In an experiment where it was placed in a shower, this Pokémon didn’t change to this form."
         },
+        "base": false,
         "evolves_from": [],
         "evolves_into": []
     },
@@ -15726,6 +15732,7 @@
             "Ultra Sun": "This is the form Castform takes when hit by hail. In an experiment where it was placed in a freezer, it didn’t change to this form.",
             "Ultra Moon": "This is Castform’s form when caught in a hailstorm. Its whole body is chilled, and its skin is partially frozen!"
         },
+        "base": false,
         "evolves_from": [],
         "evolves_into": []
     },
@@ -17012,7 +17019,8 @@
         ],
         "base": true,
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "display_name": "Deoxys"
     },
     "Deoxys Attack Forme": {
         "number": "0386",
@@ -17033,7 +17041,8 @@
             "Deoxys Defense Forme"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Deoxys Speed Forme": {
         "number": "0386",
@@ -17054,7 +17063,8 @@
             "Deoxys Defense Forme"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Deoxys Defense Forme": {
         "number": "0386",
@@ -17075,7 +17085,8 @@
             "Deoxys Speed Forme"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Turtwig": {
         "number": "0387",
@@ -17871,7 +17882,8 @@
         "evolves_into": [
             "Wormadam Plant Cloak",
             "Mothim"
-        ]
+        ],
+        "display_name": "Burmy"
     },
     "Burmy Sandy Cloak": {
         "number": "0412",
@@ -17954,7 +17966,8 @@
         "evolves_from": [
             "Burmy Plant Cloak"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "display_name": "Wormadam"
     },
     "Wormadam Sandy Cloak": {
         "number": "0413",
@@ -18250,7 +18263,8 @@
         "evolves_from": [
             "Cherubi"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "display_name": "Cherrim"
     },
     "Cherrim Sunshine Form": {
         "number": "0421",
@@ -18305,7 +18319,8 @@
         "evolves_from": [],
         "evolves_into": [
             "Gastrodon West Sea"
-        ]
+        ],
+        "display_name": "Shellos"
     },
     "Shellos East Sea": {
         "number": "0422",
@@ -18337,7 +18352,8 @@
         "evolves_from": [],
         "evolves_into": [
             "Gastrodon East Sea"
-        ]
+        ],
+        "base": false
     },
     "Gastrodon West Sea": {
         "number": "0423",
@@ -18370,7 +18386,8 @@
         "evolves_from": [
             "Shellos West Sea"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "display_name": "Gastrodon"
     },
     "Gastrodon East Sea": {
         "number": "0423",
@@ -18402,7 +18419,8 @@
         "evolves_from": [
             "Shellos East Sea"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Ambipom": {
         "number": "0424",
@@ -20346,7 +20364,8 @@
             "Mow Rotom"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Wash Rotom": {
         "number": "0479",
@@ -20372,7 +20391,8 @@
             "Mow Rotom"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Frost Rotom": {
         "number": "0479",
@@ -20398,7 +20418,8 @@
             "Mow Rotom"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Fan Rotom": {
         "number": "0479",
@@ -20424,7 +20445,8 @@
             "Mow Rotom"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Mow Rotom": {
         "number": "0479",
@@ -20450,7 +20472,8 @@
             "Fan Rotom"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Uxie": {
         "number": "0480",
@@ -20574,7 +20597,8 @@
             "Dialga"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Palkia": {
         "number": "0484",
@@ -20622,7 +20646,8 @@
             "Palkia"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Heatran": {
         "number": "0485",
@@ -20699,7 +20724,8 @@
         ],
         "base": true,
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "display_name": "Giratina"
     },
     "Giratina Origin Forme": {
         "number": "0487",
@@ -20718,7 +20744,8 @@
             "Giratina Altered Forme"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Cresselia": {
         "number": "0488",
@@ -20843,7 +20870,8 @@
         ],
         "base": true,
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "display_name": "Shaymin"
     },
     "Shaymin Sky Forme": {
         "number": "0492",
@@ -20862,7 +20890,8 @@
             "Shaymin Land Forme"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Arceus": {
         "number": "0493",
@@ -22424,7 +22453,8 @@
         ],
         "base": true,
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "display_name": "Basculin"
     },
     "Basculin Blue-striped Form": {
         "number": "0550",
@@ -22451,7 +22481,8 @@
             "Basculin White-striped Form"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Basculin White-striped Form": {
         "number": "0550",
@@ -22476,7 +22507,8 @@
         "evolves_into": [
             "Basculegion Male",
             "Basculegion Female"
-        ]
+        ],
+        "base": false
     },
     "Sandile": {
         "number": "0551",
@@ -22672,7 +22704,7 @@
         ],
         "evolves_from": [],
         "evolves_into": [],
-        "base": true
+        "base": false
     },
     "Galarian Darmanitan": {
         "number": "0555",
@@ -23806,7 +23838,8 @@
         "evolves_from": [],
         "evolves_into": [
             "Jellicent-m"
-        ]
+        ],
+        "display_name": "Frillish"
     },
     "Frillish-f": {
         "number": "0592",
@@ -23835,7 +23868,8 @@
         "evolves_from": [],
         "evolves_into": [
             "Jellicent-f"
-        ]
+        ],
+        "base": false
     },
     "Jellicent-m": {
         "number": "0593",
@@ -23865,7 +23899,8 @@
         "evolves_from": [
             "Frillish-m"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "display_name": "Jellicent"
     },
     "Jellicent-f": {
         "number": "0593",
@@ -23894,7 +23929,8 @@
         "evolves_from": [
             "Frillish-f"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Alomomola": {
         "number": "0594",
@@ -25236,7 +25272,8 @@
         ],
         "base": true,
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "display_name": "Tornadus"
     },
     "Tornadus Therian Forme": {
         "number": "0641",
@@ -25255,7 +25292,8 @@
             "Tornadus Incarnate Forme"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Thundurus Incarnate Forme": {
         "number": "0642",
@@ -25281,7 +25319,8 @@
         ],
         "base": true,
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "display_name": "Thundurus"
     },
     "Thundurus Therian Forme": {
         "number": "0642",
@@ -25300,7 +25339,8 @@
             "Thundurus Incarnate Forme"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Reshiram": {
         "number": "0643",
@@ -25370,7 +25410,8 @@
         ],
         "base": true,
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "display_name": "Landorus"
     },
     "Landorus Therian Forme": {
         "number": "0645",
@@ -25389,7 +25430,8 @@
             "Landorus Incarnate Forme"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Kyurem": {
         "number": "0646",
@@ -25437,7 +25479,8 @@
             "Black Kyurem"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Black Kyurem": {
         "number": "0646",
@@ -25458,7 +25501,8 @@
             "White Kyurem"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Keldeo": {
         "number": "0647",
@@ -25499,7 +25543,8 @@
             "Keldeo"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Meloetta Aria Forme": {
         "number": "0648",
@@ -25523,7 +25568,8 @@
         ],
         "base": true,
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "display_name": "Meloetta"
     },
     "Meloetta Pirouette Forme": {
         "number": "0648",
@@ -25542,7 +25588,8 @@
             "Meloetta Aria Forme"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Genesect": {
         "number": "0649",
@@ -26044,7 +26091,11 @@
         ],
         "evolves_into": [
             "Florges"
-        ]
+        ],
+        "relations": [
+            "Floette Eternal Flower"
+        ],
+        "base": true
     },
     "Floette Eternal Flower": {
         "number": "0670",
@@ -26061,7 +26112,11 @@
             "Ultra Moon": "Terrifying energy is concealed within its ominous flower, but Floette still swings it about innocently."
         },
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "relations": [
+            "Floette"
+        ],
+        "base": false
     },
     "Florges": {
         "number": "0671",
@@ -26247,7 +26302,8 @@
         ],
         "base": true,
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "display_name": "Meowstic"
     },
     "Meowstic Female": {
         "number": "0678",
@@ -26269,7 +26325,8 @@
             "Meowstic Male"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Honedge": {
         "number": "0679",
@@ -26336,7 +26393,8 @@
         "evolves_from": [
             "Doublade"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "display_name": "Aegislash"
     },
     "Aegislash Blade Forme": {
         "number": "0681",
@@ -26356,7 +26414,8 @@
             "Aegislash Shield Forme"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Spritzee": {
         "number": "0682",
@@ -27145,7 +27204,8 @@
         "evolves_from": [],
         "evolves_into": [
             "Gourgeist Average Size"
-        ]
+        ],
+        "display_name": "Pumpkaboo"
     },
     "Pumpkaboo Small Size": {
         "number": "0710",
@@ -27171,7 +27231,8 @@
         "evolves_from": [],
         "evolves_into": [
             "Gourgeist Small Size"
-        ]
+        ],
+        "base": false
     },
     "Pumpkaboo Large Size": {
         "number": "0710",
@@ -27197,7 +27258,8 @@
         "evolves_from": [],
         "evolves_into": [
             "Gourgeist Large Size"
-        ]
+        ],
+        "base": false
     },
     "Pumpkaboo Super Size": {
         "number": "0710",
@@ -27223,7 +27285,8 @@
         "evolves_from": [],
         "evolves_into": [
             "Gourgeist Super Size"
-        ]
+        ],
+        "base": false
     },
     "Gourgeist Average Size": {
         "number": "0711",
@@ -27250,7 +27313,8 @@
         "evolves_from": [
             "Pumpkaboo Average Size"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "display_name": "Gourgeist"
     },
     "Gourgeist Small Size": {
         "number": "0711",
@@ -27276,7 +27340,8 @@
         "evolves_from": [
             "Pumpkaboo Small Size"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Gourgeist Large Size": {
         "number": "0711",
@@ -27302,7 +27367,8 @@
         "evolves_from": [
             "Pumpkaboo Large Size"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Gourgeist Super Size": {
         "number": "0711",
@@ -27328,7 +27394,8 @@
         "evolves_from": [
             "Pumpkaboo Super Size"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Bergmite": {
         "number": "0712",
@@ -27523,7 +27590,8 @@
             "Zygarde Complete Forme"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "display_name": "Zygarde"
     },
     "Zygarde 10% Forme": {
         "number": "0718",
@@ -27547,7 +27615,8 @@
             "Zygarde Complete Forme"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Zygarde Complete Forme": {
         "number": "0718",
@@ -27570,7 +27639,8 @@
             "Zygarde 50% Forme"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Diancie": {
         "number": "0719",
@@ -27608,7 +27678,8 @@
             "Hoopa Unbound"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "display_name": "Hoopa"
     },
     "Hoopa Unbound": {
         "number": "0720",
@@ -27628,7 +27699,8 @@
             "Hoopa Confined"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Volcanion": {
         "number": "0721",
@@ -28166,7 +28238,8 @@
             "Oricorio Sensu Style"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "display_name": "Oricorio"
     },
     "Oricorio Pom-pom Style": {
         "number": "0741",
@@ -28192,7 +28265,8 @@
             "Oricorio Sensu Style"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Oricorio Pa'u Style": {
         "number": "0741",
@@ -28216,7 +28290,8 @@
             "Oricorio Sensu Style"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Oricorio Sensu Style": {
         "number": "0741",
@@ -28242,7 +28317,8 @@
             "Oricorio Pa'u Style"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Cutiefly": {
         "number": "0742",
@@ -28353,7 +28429,8 @@
         "evolves_from": [
             "Rockruff"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "display_name": "Lycanroc"
     },
     "Lycanroc Midnight Form": {
         "number": "0745",
@@ -28384,7 +28461,8 @@
         "evolves_from": [
             "Rockruff"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Lycanroc Dusk Form": {
         "number": "0745",
@@ -28411,7 +28489,8 @@
         "evolves_from": [
             "Rockruff"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Wishiwashi": {
         "number": "0746",
@@ -28459,7 +28538,8 @@
             "Wishiwashi"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Mareanie": {
         "number": "0747",
@@ -29096,7 +29176,7 @@
         "evolves_from": [],
         "evolves_into": []
     },
-    "Type: Null": {
+    "Type Null": {
         "number": "0772",
         "type": "Normal",
         "species": "Synthetic Pokémon",
@@ -29117,7 +29197,8 @@
         "evolves_from": [],
         "evolves_into": [
             "Silvally"
-        ]
+        ],
+        "display_name": "Type: Null"
     },
     "Silvally": {
         "number": "0773",
@@ -29163,7 +29244,8 @@
         ],
         "base": true,
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "display_name": "Minior"
     },
     "Minior Core Form": {
         "number": "0774",
@@ -29185,7 +29267,8 @@
             "Minior Meteor Form"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Komala": {
         "number": "0775",
@@ -29775,7 +29858,8 @@
             "Ultra Necrozma"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Dawn Wings Necrozma": {
         "number": "0800",
@@ -29798,7 +29882,8 @@
             "Ultra Necrozma"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Ultra Necrozma": {
         "number": "0800",
@@ -29819,7 +29904,8 @@
             "Dawn Wings Necrozma"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Magearna": {
         "number": "0801",
@@ -30868,7 +30954,8 @@
         "evolves_from": [
             "Toxel"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "display_name": "Toxtricity"
     },
     "Toxtricity Low Key Form": {
         "number": "0849",
@@ -30894,7 +30981,8 @@
         "evolves_from": [
             "Toxel"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Sizzlipede": {
         "number": "0850",
@@ -31450,7 +31538,8 @@
         ],
         "base": true,
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "display_name": "Eiscue"
     },
     "Eiscue Noice Face": {
         "number": "0875",
@@ -31472,7 +31561,8 @@
             "Eiscue Ice Face"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Indeedee Male": {
         "number": "0876",
@@ -31497,7 +31587,8 @@
         ],
         "base": true,
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "display_name": "Indeedee"
     },
     "Indeedee Female": {
         "number": "0876",
@@ -31521,7 +31612,8 @@
             "Indeedee Male"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Morpeko Full Belly Mode": {
         "number": "0877",
@@ -31542,7 +31634,8 @@
         ],
         "base": true,
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "display_name": "Morpeko"
     },
     "Morpeko Hangry Mode": {
         "number": "0877",
@@ -31562,7 +31655,8 @@
             "Morpeko Full Belly Mode"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Cufant": {
         "number": "0878",
@@ -31814,7 +31908,8 @@
             "Zacian"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Zamazenta": {
         "number": "0889",
@@ -31854,7 +31949,8 @@
             "Zamazenta"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Eternatus": {
         "number": "0890",
@@ -31892,7 +31988,8 @@
             "Eternatus"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Kubfu": {
         "number": "0891",
@@ -31935,7 +32032,8 @@
         "evolves_from": [
             "Kubfu"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "display_name": "Urshifu"
     },
     "Urshifu Rapid Strike Style": {
         "number": "0892",
@@ -31957,7 +32055,8 @@
         "evolves_from": [
             "Kubfu"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Zarude": {
         "number": "0893",
@@ -32085,7 +32184,8 @@
             "Calyrex Shadow Rider"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Calyrex Shadow Rider": {
         "number": "0898",
@@ -32106,7 +32206,8 @@
             "Calyrex Ice Rider"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Wyrdeer": {
         "number": "0899",
@@ -32189,7 +32290,8 @@
             "Ursaluna"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Basculegion Male": {
         "number": "0902",
@@ -32213,7 +32315,8 @@
         "evolves_from": [
             "Basculin White-striped Form"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "display_name": "Basculegion"
     },
     "Basculegion Female": {
         "number": "0902",
@@ -32236,7 +32339,8 @@
         "evolves_from": [
             "Basculin White-striped Form"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Sneasler": {
         "number": "0903",
@@ -32297,7 +32401,8 @@
         ],
         "base": true,
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "display_name": "Enamorus"
     },
     "Enamorus Therian Forme": {
         "number": "0905",
@@ -32316,7 +32421,8 @@
             "Enamorus Incarnate Forme"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Sprigatito": {
         "number": "0906",
@@ -32549,7 +32655,8 @@
         "evolves_from": [
             "Lechonk"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "display_name": "Oinkologne"
     },
     "Oinkologne Female": {
         "number": "0916",
@@ -32573,7 +32680,8 @@
         "evolves_from": [
             "Lechonk"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Tarountula": {
         "number": "0917",
@@ -32765,7 +32873,8 @@
         "evolves_from": [
             "Tandemaus"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "display_name": "Maushold"
     },
     "Maushold Family Of Three": {
         "number": "0925",
@@ -32789,7 +32898,8 @@
         "evolves_from": [
             "Tandemaus"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Fidough": {
         "number": "0926",
@@ -32916,7 +33026,8 @@
         ],
         "base": true,
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "display_name": "Squawkabilly"
     },
     "Squawkabilly Blue Plumage": {
         "number": "0931",
@@ -32940,7 +33051,8 @@
             "Squawkabilly White Plumage"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Squawkabilly Yellow Plumage": {
         "number": "0931",
@@ -32964,7 +33076,8 @@
             "Squawkabilly White Plumage"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Squawkabilly White Plumage": {
         "number": "0931",
@@ -32988,7 +33101,8 @@
             "Squawkabilly Yellow Plumage"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Nacli": {
         "number": "0932",
@@ -33672,7 +33786,8 @@
         "evolves_from": [
             "Finizen"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "display_name": "Palafin"
     },
     "Palafin Hero Form": {
         "number": "0964",
@@ -33694,7 +33809,8 @@
         "evolves_from": [
             "Finizen"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Varoom": {
         "number": "0965",
@@ -33971,7 +34087,8 @@
         ],
         "base": true,
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "display_name": "Tatsugiri"
     },
     "Tatsugiri Droopy Form": {
         "number": "0978",
@@ -33993,7 +34110,8 @@
             "Tatsugiri Stretchy Form"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Tatsugiri Stretchy Form": {
         "number": "0978",
@@ -34015,7 +34133,8 @@
             "Tatsugiri Droopy Form"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Annihilape": {
         "number": "0979",
@@ -34103,7 +34222,8 @@
         "evolves_from": [
             "Dunsparce"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "display_name": "Dudunsparce"
     },
     "Dudunsparce Three-segment Form": {
         "number": "0982",
@@ -34127,7 +34247,8 @@
         "evolves_from": [
             "Dunsparce"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Kingambit": {
         "number": "0983",
@@ -34437,7 +34558,8 @@
         "evolves_from": [],
         "evolves_into": [
             "Gholdengo"
-        ]
+        ],
+        "display_name": "Gimmighoul"
     },
     "Gimmighoul Roaming Form": {
         "number": "0999",
@@ -34458,7 +34580,8 @@
         "evolves_from": [],
         "evolves_into": [
             "Gholdengo"
-        ]
+        ],
+        "base": false
     },
     "Gholdengo": {
         "number": "1000",
@@ -34789,7 +34912,8 @@
         ],
         "base": true,
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "display_name": "Ogerpon"
     },
     "Ogerpon Hearthflame Mask": {
         "number": "1017",
@@ -34812,7 +34936,8 @@
             "Ogerpon Wellspring Mask"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Ogerpon Cornerstone Mask": {
         "number": "1017",
@@ -34835,7 +34960,8 @@
             "Ogerpon Wellspring Mask"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Ogerpon Wellspring Mask": {
         "number": "1017",
@@ -34858,7 +34984,8 @@
             "Ogerpon Cornerstone Mask"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Archaludon": {
         "number": "1018",
@@ -35011,7 +35138,8 @@
             "Terapagos Stellar Form"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Terapagos Stellar Form": {
         "number": "1024",
@@ -35032,7 +35160,8 @@
             "Terapagos Terastal Form"
         ],
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Pecharunt": {
         "number": "1025",

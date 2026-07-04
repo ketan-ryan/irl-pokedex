@@ -80,6 +80,8 @@ pub struct PokemonInfo {
     pub dex_entries: HashMap<String, String>,
     #[serde(default)]
     pub region: Option<String>,
+    pub base: Option<bool>,
+    pub display_name: Option<String>,
 }
 
 impl Default for PokemonInfo {
@@ -93,6 +95,8 @@ impl Default for PokemonInfo {
             abilities: Vec::new(),
             dex_entries: HashMap::new(),
             region: Some("Undiscovered".to_string()),
+            base: None,
+            display_name: None,
         }
     }
 }

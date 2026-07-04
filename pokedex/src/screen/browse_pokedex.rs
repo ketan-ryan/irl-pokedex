@@ -150,7 +150,25 @@ impl PokedexBrowser {
     ) -> (Self, Task<Message>) {
         let mut pokemon_names: Vec<String> = pokemon_data.keys().cloned().collect();
 
-        pokemon_names.retain(|name| config.classes.contains(name));
+        // TODO: proper filtering
+        pokemon_names.retain(|name| {
+            pokemon_data.get(name).unwrap().base.is_none_or(|base| base) && !name.contains("mega ")
+        });
+
+        pokemon_names = pokemon_names
+            .iter()
+            .map(|name| {
+                // Some pokemon have different names in the class map and pokedex json,
+                // depending on how they were generated
+                let mapped: Option<&String> = config.name_maps.get(name);
+                if mapped.is_some() {
+                    mapped.unwrap()
+                } else {
+                    name
+                }
+                .to_lowercase()
+            })
+            .collect();
 
         // Sort by pokemon number for better ordering
         pokemon_names.sort_by_key(|name| {
@@ -382,7 +400,6 @@ impl PokedexBrowser {
 
                 let start_index = (effective_scroll_pos / rh).floor() as usize;
                 let end_index = start_index + (self.items_per_page * 2);
-                debug!("{} {}", start_index, end_index);
 
                 self.last_scroll_time = Some(Instant::now());
                 self.pending_scroll_load =
@@ -646,6 +663,7 @@ impl PokedexBrowser {
                     0.2 + (screen_pos as f32 / (TOP_SCREEN_ITEMS - 1) as f32) * (0.8 - 0.2);
 
                 let info = self.pokemon_data.get(name).unwrap();
+
                 let is_owned = self.owned_pokemon.contains(name);
                 self.render_pokemon_item(name, info, is_owned, opacity, false, false, true)
             })
@@ -798,8 +816,9 @@ impl PokedexBrowser {
                 let is_owned = self.owned_pokemon.contains(name);
                 let selected = self.selected.selected_pokemon.as_ref() == Some(name);
                 let was_selected = self.selected.previously_selected.as_ref() == Some(name);
+
                 Some(self.render_pokemon_item(
-                    name,
+                    &name,
                     info,
                     is_owned,
                     0.9,
@@ -1091,12 +1110,13 @@ impl PokedexBrowser {
                 .height(Length::Fixed(20.0)),
         ));
 
+        let dname = info.display_name.clone().unwrap_or(name.to_string());
         // Pokemon info
         let info_column = column![
             text(format!(
                 "{}\t{}",
                 info.number,
-                register::to_proper_case(name)
+                register::to_proper_case(&dname)
             ))
             .size(14)
             .color(Color::from_rgba(0.0, 0.0, 0.0, opacity)),
