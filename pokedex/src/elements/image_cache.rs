@@ -24,8 +24,9 @@ pub struct ImageCache {
     pub visible_end: usize,
     // Buffer size
     pub buffer_size: usize,
-    // Track which images are currently being loaded
-    pub loading: Arc<StdRwLock<std::collections::HashSet<String>>>,
+    // Track which images are currently being loaded and which load cycle owns them
+    pub loading: Arc<StdRwLock<HashMap<String, u64>>>,
+    load_generation: Arc<StdRwLock<u64>>,
 }
 
 impl ImageCache {
@@ -36,8 +37,33 @@ impl ImageCache {
             visible_start: 0,
             visible_end: 0,
             buffer_size,
-            loading: Arc::new(StdRwLock::new(std::collections::HashSet::new())),
+            loading: Arc::new(StdRwLock::new(HashMap::new())),
+            load_generation: Arc::new(StdRwLock::new(0)),
         }
+    }
+
+    fn current_generation(&self) -> u64 {
+        *self.load_generation.read().unwrap()
+    }
+
+    fn begin_load_cycle(&self) -> u64 {
+        let mut generation = self.load_generation.write().unwrap();
+        *generation += 1;
+        let next_generation = *generation;
+
+        let mut loading = self.loading.write().unwrap();
+        loading.clear();
+
+        next_generation
+    }
+
+    fn mark_loading(&self, pokemon_name: String, generation: u64) {
+        let mut loading = self.loading.write().unwrap();
+        loading.insert(pokemon_name, generation);
+    }
+
+    pub(crate) fn is_generation_current(&self, generation: u64) -> bool {
+        self.current_generation() == generation
     }
 
     /// Update the visible range and return commands to load new images
@@ -50,6 +76,8 @@ impl ImageCache {
     ) -> iced::Task<Message> {
         self.visible_start = start;
         self.visible_end = end;
+
+        let generation = self.begin_load_cycle();
 
         trace!("Starting at: {}, ending at: {}", start, end);
 
@@ -103,11 +131,12 @@ impl ImageCache {
             let should_load = {
                 let cache = self.sync_cache.read().unwrap();
                 let loading = self.loading.read().unwrap();
-                !cache.contains_key(&name) && !loading.contains(&name)
+                !cache.contains_key(&name) && !loading.contains_key(&name)
             };
 
             if should_load {
-                let load_task = self.load_image_async(sprite_folder.clone(), name.clone());
+                let load_task =
+                    self.load_image_async(sprite_folder.clone(), name.clone(), generation);
 
                 // Prioritize visible range
                 if i >= start && i < end {
@@ -127,14 +156,17 @@ impl ImageCache {
     }
 
     /// Asynchronously load an image
-    fn load_image_async(&self, sprite_folder: String, pokemon_name: String) -> iced::Task<Message> {
+    fn load_image_async(
+        &self,
+        sprite_folder: String,
+        pokemon_name: String,
+        generation: u64,
+    ) -> iced::Task<Message> {
         let loading = self.loading.clone();
+        let load_generation = self.load_generation.clone();
 
         // Mark as loading
-        {
-            let mut loading_set = loading.write().unwrap();
-            loading_set.insert(pokemon_name.clone());
-        }
+        self.mark_loading(pokemon_name.clone(), generation);
 
         iced::Task::perform(
             async move {
@@ -144,21 +176,34 @@ impl ImageCache {
                         let handle = Handle::from_bytes(bytes.clone());
                         let offset = Some(crate::screen::register::find_image_com(&bytes));
 
-                        Ok((pokemon_name, handle, offset))
+                        Ok((pokemon_name, handle, offset, generation))
                     }
-                    Err(err) => Err((pokemon_name, err)),
+                    Err(err) => Err((pokemon_name, err, generation)),
                 }
             },
-            move |result| match result {
-                Ok((name, handle, offset)) => {
-                    let mut loading_set = loading.write().unwrap();
-                    loading_set.remove(&name);
-                    Message::ImageLoaded(name, handle, offset)
-                }
-                Err((name, _)) => {
-                    let mut loading_set = loading.write().unwrap();
-                    loading_set.remove(&name);
-                    Message::ImageLoadFailed(name)
+            move |result| {
+                let current_generation = *load_generation.read().unwrap();
+                let should_accept = current_generation == generation;
+
+                match result {
+                    Ok((name, handle, offset, _)) => {
+                        if should_accept {
+                            let mut loading_set = loading.write().unwrap();
+                            loading_set.remove(&name);
+                            Message::ImageLoaded(name, handle, offset, generation)
+                        } else {
+                            Message::ImageLoaded(name, handle, offset, generation)
+                        }
+                    }
+                    Err((name, _, _)) => {
+                        if should_accept {
+                            let mut loading_set = loading.write().unwrap();
+                            loading_set.remove(&name);
+                            Message::ImageLoadFailed(name, generation)
+                        } else {
+                            Message::ImageLoadFailed(name, generation)
+                        }
+                    }
                 }
             },
         )
@@ -170,12 +215,10 @@ impl ImageCache {
         handle: Handle,
     ) -> iced::Task<Message> {
         let loading = self.loading.clone();
+        let generation = self.current_generation();
 
         // Mark as loading for COM computation if not already
-        {
-            let mut loading_set = loading.write().unwrap();
-            loading_set.insert(pokemon_name.clone());
-        }
+        self.mark_loading(pokemon_name.clone(), generation);
 
         iced::Task::perform(
             async move {
@@ -196,11 +239,11 @@ impl ImageCache {
                 match result {
                     Ok((name, offset)) => {
                         loading_set.remove(&name);
-                        Message::ImageCenterOfMass(name, offset)
+                        Message::ImageCenterOfMass(name, offset, generation)
                     }
                     Err((name, _)) => {
                         loading_set.remove(&name);
-                        Message::ImageCenterOfMass(name, 0.5)
+                        Message::ImageCenterOfMass(name, 0.5, generation)
                     }
                 }
             },

@@ -14,7 +14,7 @@ use iced::{
     window,
 };
 
-use log::{debug, error};
+use log::error;
 
 use crate::{
     elements::{
@@ -77,9 +77,9 @@ pub struct PokedexBrowser {
 pub enum Message {
     Tick(std::time::Instant),
     Scrolled(scrollable::Viewport),
-    ImageLoaded(String, Handle, Option<f32>),
-    ImageCenterOfMass(String, f32),
-    ImageLoadFailed(String),
+    ImageLoaded(String, Handle, Option<f32>, u64),
+    ImageCenterOfMass(String, f32, u64),
+    ImageLoadFailed(String, u64),
     IOInput(IOAction),
     SelectPokemon(String, bool),
     AnimateScroll,
@@ -108,11 +108,11 @@ const ROW_HEIGHT: f32 = 40.0;
 /// Computes the first visible row to show when a selection moves off-screen.
 ///
 /// # Arguments
-/// /// * `selected_index` - The index of the newly selected Pokémon.
-/// /// * `selected_slot` - The current row position of the selection within the viewport.
-/// /// * `items_per_page` - The number of visible rows in the list.
-/// /// * `current_first_visible` - The first visible row before the new selection.
-/// /// * `preserve_relative_slot` - Whether the selection should keep the same row position when scrolling.
+/// * `selected_index` - The index of the newly selected Pokémon.
+/// * `selected_slot` - The current row position of the selection within the viewport.
+/// * `items_per_page` - The number of visible rows in the list.
+/// * `current_first_visible` - The first visible row before the new selection.
+/// * `preserve_relative_slot` - Whether the selection should keep the same row position when scrolling.
 ///
 /// # Returns
 /// The first row index that should be visible after the selection change.
@@ -407,21 +407,27 @@ impl PokedexBrowser {
 
                 Action::Run(iced::Task::batch(tasks))
             }
-            Message::ImageLoaded(name, handle, offset) => {
-                self.image_cache
-                    .insert(name.clone(), handle.clone(), offset);
+            Message::ImageLoaded(name, handle, offset, generation) => {
+                if self.image_cache.is_generation_current(generation) {
+                    self.image_cache
+                        .insert(name.clone(), handle.clone(), offset);
+                }
 
                 Action::None
             }
-            Message::ImageCenterOfMass(name, offset) => {
-                self.image_cache.update_offset(&name, offset);
-                if self.selected.selected_pokemon.as_ref() == Some(&name) {
-                    self.selected_com_offset = Some(offset);
+            Message::ImageCenterOfMass(name, offset, generation) => {
+                if self.image_cache.is_generation_current(generation) {
+                    self.image_cache.update_offset(&name, offset);
+                    if self.selected.selected_pokemon.as_ref() == Some(&name) {
+                        self.selected_com_offset = Some(offset);
+                    }
                 }
                 Action::None
             }
-            Message::ImageLoadFailed(name) => {
-                error!("Failed to load image for: {}", name);
+            Message::ImageLoadFailed(name, generation) => {
+                if self.image_cache.is_generation_current(generation) {
+                    error!("Failed to load image for: {}", name);
+                }
                 Action::None
             }
             Message::IOInput(action) => {

@@ -2619,7 +2619,8 @@
         },
         "region": "Alola",
         "relations": [
-            "Meowth"
+            "Meowth",
+            "Galarian Meowth"
         ],
         "evolves_from": [],
         "evolves_into": [
@@ -2644,7 +2645,8 @@
         },
         "region": "Galar",
         "relations": [
-            "Meowth"
+            "Meowth",
+            "Alolan Meowth"
         ],
         "evolves_from": [],
         "evolves_into": [
@@ -15679,7 +15681,12 @@
         "region": "Hoenn",
         "base": true,
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "relations": [
+            "Castform Sunny Form",
+            "Castform Rainy Form",
+            "Castform Snowy Form"
+        ]
     },
     "Castform Sunny Form": {
         "number": "0351",
@@ -15698,7 +15705,12 @@
         },
         "base": false,
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "relations": [
+            "Castform",
+            "Castform Rainy Form",
+            "Castform Snowy Form"
+        ]
     },
     "Castform Rainy Form": {
         "number": "0351",
@@ -15717,7 +15729,12 @@
         },
         "base": false,
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "relations": [
+            "Castform",
+            "Castform Sunny Form",
+            "Castform Snowy Form"
+        ]
     },
     "Castform Snowy Form": {
         "number": "0351",
@@ -15736,7 +15753,12 @@
         },
         "base": false,
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "relations": [
+            "Castform",
+            "Castform Rainy Form",
+            "Castform Sunny Form"
+        ]
     },
     "Kecleon": {
         "number": "0352",
@@ -22680,7 +22702,9 @@
         "region": "Unova",
         "base": true,
         "relations": [
-            "Galarian Darmanitan"
+            "Darmanitan Zen Mode",
+            "Galarian Darmanitan",
+            "Galarian Darmanitan Zen Mode"
         ],
         "evolves_from": [
             "Darumaka"
@@ -22702,6 +22726,8 @@
             "Shield": "When wounded, it stops moving. It goes as still as stone to meditate, sharpening its mind and spirit."
         },
         "relations": [
+            "Darmanitan",
+            "Galarian Darmanitan",
             "Galarian Darmanitan Zen Mode"
         ],
         "evolves_from": [],
@@ -22724,7 +22750,9 @@
         },
         "region": "Galar",
         "relations": [
-            "Darmanitan"
+            "Galarian Darmanitan Zen Mode",
+            "Darmanitan",
+            "Darmanitan Zen Mode"
         ],
         "evolves_from": [
             "Galarian Darumaka"
@@ -22748,6 +22776,8 @@
         },
         "region": "Galar",
         "relations": [
+            "Galarian Darmanitan",
+            "Darmanitan",
             "Darmanitan Zen Mode"
         ],
         "evolves_from": [],
@@ -29225,7 +29255,7 @@
         },
         "region": "Alola",
         "evolves_from": [
-            "Type: Null"
+            "Type Null"
         ],
         "evolves_into": []
     },
