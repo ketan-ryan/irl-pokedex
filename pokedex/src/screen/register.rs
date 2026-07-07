@@ -1289,53 +1289,23 @@ pub fn to_proper_case(s: &str) -> String {
 pub fn find_image_com(bytes: &[u8]) -> f32 {
     let img = image::load_from_memory(bytes).unwrap().into_rgba8();
     let (width, height) = img.dimensions();
+    if width == 0 || height == 0 {
+        return 0.5;
+    }
 
-    // row-based CoM
-    let mut row_weighted_sum = 0.0;
-    let mut row_total_weight = 0.0;
+    let mut sum_x: u64 = 0;
+    let mut count: u64 = 0;
 
-    for row in 0..height {
-        let mut row_mass = 0.0;
-        let mut row_x_sum = 0.0;
-
-        for col in 0..width {
-            let pixel = img.get_pixel(col, row);
-            if pixel[3] > 0 {
-                row_mass += 1.0;
-                row_x_sum += col as f32;
-            }
-        }
-
-        if row_mass > 0.0 {
-            // give more weight to dense areas
-            row_weighted_sum += (row_x_sum / row_mass) * row_mass;
-            row_total_weight += row_mass;
+    for (i, pixel) in img.as_raw().chunks_exact(4).enumerate() {
+        if pixel[3] > 0 {
+            sum_x += (i % width as usize) as u64;
+            count += 1;
         }
     }
 
-    let row_com = (row_weighted_sum / row_total_weight) / width as f32;
-
-    // col-based CoM
-    let mut col_weighted_sum = 0.0;
-    let mut col_total_weight = 0.0;
-
-    for col in 0..width {
-        let mut col_mass = 0.0;
-
-        for row in 0..height {
-            let pixel = img.get_pixel(col, row);
-            if pixel[3] > 0 {
-                col_mass += 1.0;
-            }
-        }
-
-        if col_mass > 0.0 {
-            col_weighted_sum += (col as f32 / width as f32) * col_mass;
-            col_total_weight += col_mass;
-        }
+    if count == 0 {
+        return 0.5;
     }
 
-    let col_com = col_weighted_sum / col_total_weight;
-
-    (row_com + col_com) / 2.0
+    (sum_x as f32 / count as f32) / width as f32
 }

@@ -4,8 +4,9 @@ use std::sync::{Arc, RwLock as StdRwLock};
 use crate::io;
 use crate::screen::browse_pokedex::Message;
 use anyhow::anyhow;
+use iced::Task;
 use iced::widget::image::Handle;
-use log::trace;
+use log::{debug, trace};
 
 #[derive(Debug, Clone)]
 pub struct ImageCacheEntry {
@@ -42,7 +43,7 @@ impl ImageCache {
         }
     }
 
-    fn current_generation(&self) -> u64 {
+    pub(crate) fn current_generation(&self) -> u64 {
         *self.load_generation.read().unwrap()
     }
 
@@ -155,7 +156,6 @@ impl ImageCache {
         )
     }
 
-    /// Asynchronously load an image
     fn load_image_async(
         &self,
         sprite_folder: String,
@@ -163,47 +163,25 @@ impl ImageCache {
         generation: u64,
     ) -> iced::Task<Message> {
         let loading = self.loading.clone();
-        let load_generation = self.load_generation.clone();
 
-        // Mark as loading
         self.mark_loading(pokemon_name.clone(), generation);
 
         iced::Task::perform(
             async move {
                 let result = io::load_png(sprite_folder, &pokemon_name.to_lowercase());
                 match result {
-                    Ok(bytes) => {
-                        let handle = Handle::from_bytes(bytes.clone());
-                        let offset = Some(crate::screen::register::find_image_com(&bytes));
-
-                        Ok((pokemon_name, handle, offset, generation))
-                    }
+                    Ok(bytes) => Ok((pokemon_name, Handle::from_bytes(bytes), generation)),
                     Err(err) => Err((pokemon_name, err, generation)),
                 }
             },
-            move |result| {
-                let current_generation = *load_generation.read().unwrap();
-                let should_accept = current_generation == generation;
-
-                match result {
-                    Ok((name, handle, offset, _)) => {
-                        if should_accept {
-                            let mut loading_set = loading.write().unwrap();
-                            loading_set.remove(&name);
-                            Message::ImageLoaded(name, handle, offset, generation)
-                        } else {
-                            Message::ImageLoaded(name, handle, offset, generation)
-                        }
-                    }
-                    Err((name, _, _)) => {
-                        if should_accept {
-                            let mut loading_set = loading.write().unwrap();
-                            loading_set.remove(&name);
-                            Message::ImageLoadFailed(name, generation)
-                        } else {
-                            Message::ImageLoadFailed(name, generation)
-                        }
-                    }
+            move |result| match result {
+                Ok((name, handle, generation)) => {
+                    loading.write().unwrap().remove(&name);
+                    Message::ImageLoaded(name, handle, generation)
+                }
+                Err((name, _, generation)) => {
+                    loading.write().unwrap().remove(&name);
+                    Message::ImageLoadFailed(name, generation)
                 }
             },
         )
@@ -213,38 +191,36 @@ impl ImageCache {
         &self,
         pokemon_name: String,
         handle: Handle,
+        generation: u64,
     ) -> iced::Task<Message> {
         let loading = self.loading.clone();
-        let generation = self.current_generation();
 
-        // Mark as loading for COM computation if not already
         self.mark_loading(pokemon_name.clone(), generation);
 
         iced::Task::perform(
             async move {
-                let result = match handle {
-                    Handle::Bytes(_, bytes) => {
-                        let offset = crate::screen::register::find_image_com(bytes.as_ref());
-                        Ok((pokemon_name, offset))
-                    }
-                    _ => Err((
-                        pokemon_name,
-                        anyhow!("unsupported image handle variant for COM"),
-                    )),
+                let bytes = match handle {
+                    Handle::Bytes(_, bytes) => bytes,
+                    _ => return Err((pokemon_name, generation)),
                 };
-                result
+                let name = pokemon_name.clone();
+                match tokio::task::spawn_blocking(move || {
+                    crate::screen::register::find_image_com(bytes.as_ref())
+                })
+                .await
+                {
+                    Ok(offset) => Ok((name, offset, generation)),
+                    Err(_) => Err((pokemon_name, generation)),
+                }
             },
-            move |result| {
-                let mut loading_set = loading.write().unwrap();
-                match result {
-                    Ok((name, offset)) => {
-                        loading_set.remove(&name);
-                        Message::ImageCenterOfMass(name, offset, generation)
-                    }
-                    Err((name, _)) => {
-                        loading_set.remove(&name);
-                        Message::ImageCenterOfMass(name, 0.5, generation)
-                    }
+            move |result| match result {
+                Ok((name, offset, generation)) => {
+                    loading.write().unwrap().remove(&name);
+                    Message::ImageCenterOfMass(name, offset, generation)
+                }
+                Err((name, generation)) => {
+                    loading.write().unwrap().remove(&name);
+                    Message::ImageCenterOfMass(name, 0.5, generation)
                 }
             },
         )

@@ -6,6 +6,7 @@ use iced::advanced::graphics::core::widget;
 use iced::animation::Animation;
 use iced::event::{self, Status};
 use iced::keyboard::{Event::KeyPressed, Key, key::Named};
+use iced::wgpu::hal;
 use iced::widget::scrollable::{Direction, Scrollbar};
 use iced::widget::{Id, Scrollable, mouse_area, operation, stack};
 use iced::{
@@ -77,7 +78,7 @@ pub struct PokedexBrowser {
 pub enum Message {
     Tick(std::time::Instant),
     Scrolled(scrollable::Viewport),
-    ImageLoaded(String, Handle, Option<f32>, u64),
+    ImageLoaded(String, Handle, u64),
     ImageCenterOfMass(String, f32, u64),
     ImageLoadFailed(String, u64),
     IOInput(IOAction),
@@ -407,26 +408,30 @@ impl PokedexBrowser {
 
                 Action::Run(iced::Task::batch(tasks))
             }
-            Message::ImageLoaded(name, handle, offset, generation) => {
-                if self.image_cache.is_generation_current(generation) {
-                    self.image_cache
-                        .insert(name.clone(), handle.clone(), offset);
+            Message::ImageLoaded(name, handle, generation) => {
+                if !self.image_cache.is_generation_current(generation) {
+                    return Action::None;
                 }
-
+                self.image_cache.insert(name.clone(), handle.clone(), None);
+                Action::Run(
+                    self.image_cache
+                        .compute_center_of_mass_async(name, handle, generation),
+                )
+            }
+            Message::ImageLoadFailed(_name, generation) => {
+                if !self.image_cache.is_generation_current(generation) {
+                    return Action::None;
+                }
+                // existing failure handling
                 Action::None
             }
             Message::ImageCenterOfMass(name, offset, generation) => {
-                if self.image_cache.is_generation_current(generation) {
-                    self.image_cache.update_offset(&name, offset);
-                    if self.selected.selected_pokemon.as_ref() == Some(&name) {
-                        self.selected_com_offset = Some(offset);
-                    }
+                if !self.image_cache.is_generation_current(generation) {
+                    return Action::None;
                 }
-                Action::None
-            }
-            Message::ImageLoadFailed(name, generation) => {
-                if self.image_cache.is_generation_current(generation) {
-                    error!("Failed to load image for: {}", name);
+                self.image_cache.update_offset(&name, offset);
+                if self.selected.selected_pokemon.as_deref() == Some(name.as_str()) {
+                    self.selected_com_offset = Some(offset);
                 }
                 Action::None
             }
@@ -480,9 +485,11 @@ impl PokedexBrowser {
                 }
 
                 if let Some(handle) = self.image_cache.get(&name) {
-                    return Action::Run(
-                        self.image_cache.compute_center_of_mass_async(name, handle),
-                    );
+                    return Action::Run(self.image_cache.compute_center_of_mass_async(
+                        name,
+                        handle,
+                        self.image_cache.current_generation(),
+                    ));
                 }
 
                 Action::None
