@@ -6,7 +6,6 @@ use iced::advanced::graphics::core::widget;
 use iced::animation::Animation;
 use iced::event::{self, Status};
 use iced::keyboard::{Event::KeyPressed, Key, key::Named};
-use iced::wgpu::hal;
 use iced::widget::scrollable::{Direction, Scrollbar};
 use iced::widget::{Id, Scrollable, mouse_area, operation, stack};
 use iced::{
@@ -14,8 +13,6 @@ use iced::{
     widget::{Space, canvas, column, container, image, image::Handle, row, scrollable, svg, text},
     window,
 };
-
-use log::error;
 
 use crate::{
     elements::{
@@ -64,6 +61,7 @@ pub struct PokedexBrowser {
     // scroll-based image loading with 200ms debounce
     last_scroll_time: Option<Instant>,
     pending_scroll_load: Option<(usize, usize)>,
+    last_load_dispatch_time: Option<Instant>,
 
     search_icon: svg::Handle,
     filter_icon: svg::Handle,
@@ -78,7 +76,7 @@ pub struct PokedexBrowser {
 pub enum Message {
     Tick(std::time::Instant),
     Scrolled(scrollable::Viewport),
-    ImageLoaded(String, Handle, u64),
+    ImageLoaded(String, Handle, f32, u64),
     ImageCenterOfMass(String, f32, u64),
     ImageLoadFailed(String, u64),
     IOInput(IOAction),
@@ -237,6 +235,7 @@ impl PokedexBrowser {
                 .easing(iced::animation::Easing::EaseInOut),
             last_scroll_time: None,
             pending_scroll_load: None,
+            last_load_dispatch_time: None,
 
             search_interaction: IconButtonInteraction::default(),
             filter_interaction: IconButtonInteraction::default(),
@@ -309,21 +308,26 @@ impl PokedexBrowser {
                 self.grid.tick(dt);
 
                 // Check if we have a pending scroll load and 200ms has elapsed
-                if let Some(last_scroll) = self.last_scroll_time {
-                    if let Some((start_index, end_index)) = self.pending_scroll_load.take() {
-                        if now.duration_since(last_scroll) >= Duration::from_millis(200) {
-                            // Enough time has elapsed, load the images
-                            let load_task = self.image_cache.update_visible_range(
-                                self.config.sprites_location.clone(),
-                                start_index,
-                                end_index,
-                                self.selected.selected_idx,
-                            );
-                            return Action::Run(load_task);
-                        } else {
-                            // Not enough time yet, keep the pending load
-                            self.pending_scroll_load = Some((start_index, end_index));
-                        }
+                if let Some((start_index, end_index)) = self.pending_scroll_load {
+                    let settled = self
+                        .last_scroll_time
+                        .is_some_and(|t| now.duration_since(t) >= Duration::from_millis(200));
+
+                    let throttle_elapsed = self
+                        .last_load_dispatch_time
+                        .is_none_or(|t| now.duration_since(t) >= Duration::from_millis(150));
+
+                    if settled || throttle_elapsed {
+                        self.pending_scroll_load = None;
+                        self.last_load_dispatch_time = Some(now);
+
+                        let load_task = self.image_cache.update_visible_range(
+                            self.config.sprites_location.clone(),
+                            start_index,
+                            end_index,
+                            self.selected.selected_idx,
+                        );
+                        return Action::Run(load_task);
                     }
                 }
 
@@ -408,22 +412,36 @@ impl PokedexBrowser {
 
                 Action::Run(iced::Task::batch(tasks))
             }
-            Message::ImageLoaded(name, handle, generation) => {
+            Message::ImageLoaded(name, handle, com, generation) => {
                 if !self.image_cache.is_generation_current(generation) {
                     return Action::None;
                 }
-                self.image_cache.insert(name.clone(), handle.clone(), None);
-                Action::Run(
-                    self.image_cache
-                        .compute_center_of_mass_async(name, handle, generation),
-                )
+
+                self.image_cache.insert(name.clone(), handle, Some(com));
+
+                if self.selected.selected_pokemon.as_deref() == Some(name.as_str()) {
+                    self.selected_com_offset = Some(com);
+                }
+
+                match self
+                    .image_cache
+                    .dispatch_next_load(self.config.as_ref().sprites_location.clone(), generation)
+                {
+                    Some(next) => Action::Run(next),
+                    None => Action::None,
+                }
             }
             Message::ImageLoadFailed(_name, generation) => {
                 if !self.image_cache.is_generation_current(generation) {
                     return Action::None;
                 }
-                // existing failure handling
-                Action::None
+                match self
+                    .image_cache
+                    .dispatch_next_load(self.config.as_ref().sprites_location.clone(), generation)
+                {
+                    Some(next) => Action::Run(next),
+                    None => Action::None,
+                }
             }
             Message::ImageCenterOfMass(name, offset, generation) => {
                 if !self.image_cache.is_generation_current(generation) {
@@ -463,7 +481,7 @@ impl PokedexBrowser {
             Message::SelectPokemon(name, should_check_selected) => {
                 self.selected.previously_selected = self.selected.selected_pokemon.clone();
                 self.selected.selected_pokemon = Some(name.clone());
-                self.selected_com_offset = None;
+                self.selected_com_offset = self.image_cache.get_offset(&name); // None until ImageLoaded arrives
 
                 if let Some(index) = self
                     .image_cache
@@ -476,20 +494,6 @@ impl PokedexBrowser {
 
                     self.last_scroll_time = Some(Instant::now());
                     self.pending_scroll_load = Some(self.load_range_for_index(index));
-                }
-
-                // COM lookup if already cached
-                if let Some(offset) = self.image_cache.get_offset(&name) {
-                    self.selected_com_offset = Some(offset);
-                    return Action::None;
-                }
-
-                if let Some(handle) = self.image_cache.get(&name) {
-                    return Action::Run(self.image_cache.compute_center_of_mass_async(
-                        name,
-                        handle,
-                        self.image_cache.current_generation(),
-                    ));
                 }
 
                 Action::None

@@ -3,10 +3,11 @@ use std::sync::{Arc, RwLock as StdRwLock};
 
 use crate::io;
 use crate::screen::browse_pokedex::Message;
-use anyhow::anyhow;
-use iced::Task;
 use iced::widget::image::Handle;
-use log::{debug, trace};
+use log::trace;
+use std::collections::VecDeque;
+
+const MAX_CONCURRENT_LOADS: usize = 2;
 
 #[derive(Debug, Clone)]
 pub struct ImageCacheEntry {
@@ -28,6 +29,7 @@ pub struct ImageCache {
     // Track which images are currently being loaded and which load cycle owns them
     pub loading: Arc<StdRwLock<HashMap<String, u64>>>,
     load_generation: Arc<StdRwLock<u64>>,
+    pending_queue: Arc<StdRwLock<VecDeque<String>>>,
 }
 
 impl ImageCache {
@@ -40,6 +42,7 @@ impl ImageCache {
             buffer_size,
             loading: Arc::new(StdRwLock::new(HashMap::new())),
             load_generation: Arc::new(StdRwLock::new(0)),
+            pending_queue: Arc::new(StdRwLock::new(VecDeque::new())),
         }
     }
 
@@ -52,8 +55,8 @@ impl ImageCache {
         *generation += 1;
         let next_generation = *generation;
 
-        let mut loading = self.loading.write().unwrap();
-        loading.clear();
+        self.loading.write().unwrap().clear();
+        self.pending_queue.write().unwrap().clear();
 
         next_generation
     }
@@ -92,23 +95,17 @@ impl ImageCache {
             let mut cache = self.sync_cache.write().unwrap();
             let pokemon_order = &self.pokemon_order;
             cache.retain(|name, _| {
-                if let Some(index) = pokemon_order.iter().position(|n| n == name) {
-                    // trace!("retaining {}", name);
-                    index >= load_start && index < load_end
-                } else {
-                    false
-                }
+                pokemon_order
+                    .iter()
+                    .position(|n| n == name)
+                    .is_some_and(|index| index >= load_start && index < load_end)
             });
         }
 
         trace!("Cleaned up old images");
 
-        // Separate visible and buffer images
-        let mut visible_commands = Vec::new();
-        let mut buffer_commands = Vec::new();
-
         // start at the currently selected image and load images spiraling outward
-        let selected = selected_option.unwrap_or(load_start + load_end / 2);
+        let selected = selected_option.unwrap_or(load_start + (load_end - load_start) / 2);
         let indices = (0..(load_end - load_start))
             .flat_map(|offset| {
                 let above = selected + offset;
@@ -122,38 +119,60 @@ impl ImageCache {
                     ]
                 }
             })
-            .flatten()
-            .collect::<Vec<_>>();
+            .flatten();
+
+        // Preserve spiral order, but keep visible-range names ahead of buffer-only names.
+        let mut visible_names = Vec::new();
+        let mut buffer_names = Vec::new();
 
         for i in indices {
             let name = self.pokemon_order[i].clone();
-
-            // Skip if already loaded or loading
-            let should_load = {
-                let cache = self.sync_cache.read().unwrap();
-                let loading = self.loading.read().unwrap();
-                !cache.contains_key(&name) && !loading.contains_key(&name)
-            };
-
-            if should_load {
-                let load_task =
-                    self.load_image_async(sprite_folder.clone(), name.clone(), generation);
-
-                // Prioritize visible range
-                if i >= start && i < end {
-                    visible_commands.push(load_task);
-                } else {
-                    buffer_commands.push(load_task);
-                }
+            let already_cached = self.sync_cache.read().unwrap().contains_key(&name);
+            if already_cached {
+                continue;
+            }
+            if i >= start && i < end {
+                visible_names.push(name);
+            } else {
+                buffer_names.push(name);
             }
         }
 
-        // Load visible images first, then buffer images
-        iced::Task::batch(
-            visible_commands
-                .into_iter()
-                .chain(buffer_commands.into_iter()),
-        )
+        let queue: VecDeque<String> = visible_names.into_iter().chain(buffer_names).collect();
+        *self.pending_queue.write().unwrap() = queue;
+
+        let tasks: Vec<_> = (0..MAX_CONCURRENT_LOADS)
+            .map_while(|_| self.dispatch_next_load(sprite_folder.clone(), generation))
+            .collect();
+
+        iced::Task::batch(tasks)
+    }
+
+    /// Pop the next name off the pending queue (if any) for the given generation
+    /// and start loading it. Returns None if the queue is empty or stale.
+    pub fn dispatch_next_load(
+        &self,
+        sprite_folder: String,
+        generation: u64,
+    ) -> Option<iced::Task<Message>> {
+        if !self.is_generation_current(generation) {
+            return None;
+        }
+
+        loop {
+            let name = self.pending_queue.write().unwrap().pop_front()?;
+
+            let already_have = {
+                let cache = self.sync_cache.read().unwrap();
+                let loading = self.loading.read().unwrap();
+                cache.contains_key(&name) || loading.contains_key(&name)
+            };
+
+            if !already_have {
+                return Some(self.load_image_async(sprite_folder, name, generation));
+            }
+            // else loop and try the next queued name
+        }
     }
 
     fn load_image_async(
@@ -168,18 +187,30 @@ impl ImageCache {
 
         iced::Task::perform(
             async move {
-                let result = io::load_png(sprite_folder, &pokemon_name.to_lowercase());
-                match result {
-                    Ok(bytes) => Ok((pokemon_name, Handle::from_bytes(bytes), generation)),
-                    Err(err) => Err((pokemon_name, err, generation)),
+                let name = pokemon_name.clone();
+                let decoded = tokio::task::spawn_blocking(move || {
+                    let bytes = io::load_png(sprite_folder, &name.to_lowercase())?;
+                    let img = image::load_from_memory(&bytes)?.into_rgba8();
+                    let (width, height) = img.dimensions();
+                    let com = find_image_com_rgba(&img);
+                    Ok::<_, anyhow::Error>((width, height, img.into_raw(), com))
+                })
+                .await;
+
+                match decoded {
+                    Ok(Ok((width, height, pixels, com))) => {
+                        let handle = Handle::from_rgba(width, height, pixels);
+                        Ok((pokemon_name, handle, com, generation))
+                    }
+                    _ => Err((pokemon_name, generation)),
                 }
             },
             move |result| match result {
-                Ok((name, handle, generation)) => {
+                Ok((name, handle, com, generation)) => {
                     loading.write().unwrap().remove(&name);
-                    Message::ImageLoaded(name, handle, generation)
+                    Message::ImageLoaded(name, handle, com, generation)
                 }
-                Err((name, _, generation)) => {
+                Err((name, generation)) => {
                     loading.write().unwrap().remove(&name);
                     Message::ImageLoadFailed(name, generation)
                 }
@@ -257,5 +288,24 @@ impl ImageCache {
         cache
             .get(pokemon_name)
             .and_then(|entry| entry.center_of_mass)
+    }
+}
+pub fn find_image_com_rgba(img: &image::RgbaImage) -> f32 {
+    let (width, height) = img.dimensions();
+    if width == 0 || height == 0 {
+        return 0.5;
+    }
+    let mut sum_x: u64 = 0;
+    let mut count: u64 = 0;
+    for (i, pixel) in img.as_raw().chunks_exact(4).enumerate() {
+        if pixel[3] > 0 {
+            sum_x += (i % width as usize) as u64;
+            count += 1;
+        }
+    }
+    if count == 0 {
+        0.5
+    } else {
+        (sum_x as f32 / count as f32) / width as f32
     }
 }
