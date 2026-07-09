@@ -1,4 +1,3 @@
-pub mod grid;
 pub mod gstreamer_stream;
 pub mod icon_button;
 pub mod image_cache;
@@ -9,3 +8,4 @@ pub mod pokedex_spinner;
 pub mod pokemon_details;
 pub mod register_pokemon;
 pub mod registered_icon;
+pub mod scanlines;

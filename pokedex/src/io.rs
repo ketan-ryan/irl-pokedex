@@ -49,6 +49,12 @@ impl Default for PokemonType {
     }
 }
 
+/// Deserialize a slash-delimited Pokémon type string into a vector of enum values.
+/// Ex: "steel/fairy" becomes [steel, fairy]
+/// Args:
+/// - deserializer: The serde deserializer for the incoming type string.
+///
+/// Returns: A list of parsed Pokémon types.
 fn deserialize_types<'de, D>(deserializer: D) -> Result<Vec<PokemonType>, D::Error>
 where
     D: Deserializer<'de>,
@@ -117,6 +123,12 @@ pub struct PokedexConfig {
     pub saved_imgs_dir: String,
 }
 
+/// Build the asset paths for the given Pokémon types.
+///
+/// Args:
+/// - types: The Pokémon types whose image paths should be generated.
+///
+/// Returns: A vector of asset paths for the provided type images.
 pub fn get_type_images(types: Vec<PokemonType>) -> Vec<String> {
     types
         .iter()
@@ -124,6 +136,9 @@ pub fn get_type_images(types: Vec<PokemonType>) -> Vec<String> {
         .collect()
 }
 
+/// Load and validate the application configuration, model settings, and local data files.
+///
+/// Returns: A fully initialized pokedex configuration, or an error if validation fails.
 pub fn validate_config() -> Result<PokedexConfig, PokedexError> {
     let config = load_settings()?;
 
@@ -217,6 +232,9 @@ pub fn validate_config() -> Result<PokedexConfig, PokedexError> {
     })
 }
 
+/// Read the YAML settings file into a string-to-string configuration map.
+///
+/// Returns: The parsed settings map, or an error if the file cannot be read.
 pub fn load_settings() -> Result<HashMap<String, String>, PokedexError> {
     let cfg_path = get_local_path()?.join("pokedex_settings.yaml");
     Config::builder()
@@ -230,6 +248,12 @@ pub fn load_settings() -> Result<HashMap<String, String>, PokedexError> {
         .map_err(|e| PokedexError::MalformedConfig(e.to_string()))
 }
 
+/// Load the Pokémon dex data from the specified JSON file.
+///
+/// Args:
+/// - filename: The JSON file containing pokedex entries.
+///
+/// Returns: A map of normalized Pokémon names to their metadata.
 pub fn load_dex_entries(filename: &str) -> Result<HashMap<String, PokemonInfo>, PokedexError> {
     let dex_path = get_local_path()?.join(filename);
     let dex = std::fs::read_to_string(dex_path).map_err(|e| match e.kind() {
@@ -248,6 +272,12 @@ pub fn load_dex_entries(filename: &str) -> Result<HashMap<String, PokemonInfo>, 
         })
 }
 
+/// Load the configured Pokémon class names from the provided JSON file.
+///
+/// Args:
+/// - filename: The JSON file containing the class list.
+///
+/// Returns: A vector of available class names.
 pub fn load_classes(filename: &str) -> Result<Vec<String>, PokedexError> {
     let classes_path = get_local_path()?.join(filename);
     let classes = std::fs::read_to_string(classes_path).map_err(|e| match e.kind() {
@@ -258,6 +288,12 @@ pub fn load_classes(filename: &str) -> Result<Vec<String>, PokedexError> {
     serde_json::from_str(&classes).map_err(|e| PokedexError::MalformedClasses(e.to_string()))
 }
 
+/// Load any configured name aliases used to resolve image names to pokedex entries.
+///
+/// Args:
+/// - filename: The JSON file containing the name maps.
+///
+/// Returns: A map of image-name aliases to pokedex names.
 pub fn load_name_maps(filename: &str) -> HashMap<String, String> {
     // If we couldn't get a local path, an error would have been thrown by the time this gets called
     let maps_path = get_local_path().unwrap().join(filename);
@@ -278,6 +314,13 @@ pub fn load_name_maps(filename: &str) -> HashMap<String, String> {
     return HashMap::new();
 }
 
+/// Load the default PNG sprite bytes for the given Pokémon from the configured sprite folder.
+///
+/// Args:
+/// - sprite_folder: The folder that contains the Pokémon sprite images.
+/// - pokemon_name: The Pokémon whose sprite should be loaded.
+///
+/// Returns: The PNG bytes for the selected sprite, or an error if none can be found.
 pub fn load_png(sprite_folder: String, pokemon_name: &str) -> Result<Vec<u8>, anyhow::Error> {
     let folder = get_local_path()?.join(sprite_folder).join(pokemon_name);
 
@@ -304,6 +347,9 @@ pub fn load_png(sprite_folder: String, pokemon_name: &str) -> Result<Vec<u8>, an
     Ok(img.unwrap())
 }
 
+/// Resolve the local application directory that contains the executable and data files.
+///
+/// Returns: The local application directory path, or an error if it cannot be determined.
 pub fn get_local_path() -> Result<PathBuf, PokedexError> {
     // Get the path to the current executable
     let current_exe = env::current_exe();
@@ -326,6 +372,12 @@ pub fn get_local_path() -> Result<PathBuf, PokedexError> {
     Ok(exe_dir.into())
 }
 
+/// Save a captured video frame to the staging directory as a PNG for later classification.
+///
+/// Args:
+/// - frame: The video frame to persist.
+///
+/// Returns: Nothing, or an image error if saving fails.
 pub fn save_frame(frame: &VideoFrame) -> Result<(), image::ImageError> {
     // Save image to a temporary staging area while classification runs
     let path = get_local_path().map_err(|e| {
@@ -358,6 +410,12 @@ pub fn save_frame(frame: &VideoFrame) -> Result<(), image::ImageError> {
     Ok(())
 }
 
+/// Read the local dex file if it exists, or create it when missing.
+///
+/// Args:
+/// - path: An optional override path for the local dex file.
+///
+/// Returns: A reference-cell wrapper around the loaded Pokémon list.
 pub fn read_or_create_dex(path: Option<&String>) -> Result<RefCell<Vec<String>>, anyhow::Error> {
     let out_path = if path.is_none() {
         debug!(
@@ -397,6 +455,12 @@ pub fn read_or_create_dex(path: Option<&String>) -> Result<RefCell<Vec<String>>,
     return Ok(RefCell::new(map));
 }
 
+/// Persist the current Pokémon list to the local dex JSON file.
+///
+/// Args:
+/// - pokemon_list: The updated list of Pokémon names to save.
+///
+/// Returns: Nothing, or an error if the file cannot be written.
 pub async fn update_dex(pokemon_list: Vec<String>) -> Result<(), anyhow::Error> {
     let config = load_settings()?;
     let local_dex_path = config.get("local_dex_path");
@@ -426,6 +490,12 @@ pub async fn update_dex(pokemon_list: Vec<String>) -> Result<(), anyhow::Error> 
         .map_err(|e| e.into())
 }
 
+/// Ensure the saved-images directory exists and return its resolved path.
+///
+/// Args:
+/// - path: An optional override path for the saved-images directory.
+///
+/// Returns: The resolved directory path as a string.
 pub fn read_or_create_images_dir(path: Option<&String>) -> Result<String, anyhow::Error> {
     let out_path = if path.is_none() {
         debug!(
@@ -447,6 +517,13 @@ pub fn read_or_create_images_dir(path: Option<&String>) -> Result<String, anyhow
     Ok(path.to_str().expect("Failed to read path").to_owned())
 }
 
+/// Move the most recently staged image into the dex folder for a Pokémon.
+///
+/// Args:
+/// - dex_path: The base dex directory where Pokémon folders are stored.
+/// - pokemon_name: The Pokémon folder that should receive the image.
+///
+/// Returns: Nothing, or an error if the image cannot be copied.
 pub async fn add_dex_img(dex_path: String, pokemon_name: String) -> Result<(), anyhow::Error> {
     let imgs_path = get_local_path()?.join(STAGING_DIR);
 
@@ -476,6 +553,13 @@ pub async fn add_dex_img(dex_path: String, pokemon_name: String) -> Result<(), a
     Ok(())
 }
 
+/// Read all PNG images stored for a Pokémon from the dex directory.
+///
+/// Args:
+/// - dex_path: The base dex directory that contains Pokémon folders.
+/// - pokemon_name: The name of the Pokémon whose images should be read.
+///
+/// Returns: A vector of PNG image bytes for the requested Pokémon.
 pub async fn get_dex_images(
     dex_path: &PathBuf,
     pokemon_name: String,

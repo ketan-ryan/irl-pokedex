@@ -33,6 +33,13 @@ pub struct ImageCache {
 }
 
 impl ImageCache {
+    /// Create a new image cache with the provided Pokémon ordering and prefetch buffer size.
+    ///
+    /// Args:
+    /// - pokemon_names: The ordered list of Pokémon names to track.
+    /// - buffer_size: The number of surrounding entries to preload around the visible range.
+    ///
+    /// Returns: A new image cache instance.
     pub fn new(pokemon_names: Vec<String>, buffer_size: usize) -> Self {
         Self {
             sync_cache: Arc::new(StdRwLock::new(HashMap::new())),
@@ -46,10 +53,16 @@ impl ImageCache {
         }
     }
 
+    /// Return the current load-generation counter for the cache.
+    ///
+    /// Returns: The active generation identifier.
     pub(crate) fn current_generation(&self) -> u64 {
         *self.load_generation.read().unwrap()
     }
 
+    /// Start a new load cycle, clearing pending work and incrementing the generation counter.
+    ///
+    /// Returns: The new generation identifier for the cycle.
     fn begin_load_cycle(&self) -> u64 {
         let mut generation = self.load_generation.write().unwrap();
         *generation += 1;
@@ -61,16 +74,36 @@ impl ImageCache {
         next_generation
     }
 
+    /// Mark a Pokémon image as currently being loaded for the given generation.
+    ///
+    /// Args:
+    /// - pokemon_name: The name of the Pokémon being loaded.
+    /// - generation: The generation number that owns the load.
+    ///
     fn mark_loading(&self, pokemon_name: String, generation: u64) {
         let mut loading = self.loading.write().unwrap();
         loading.insert(pokemon_name, generation);
     }
 
+    /// Check whether the supplied generation is still the active load cycle.
+    ///
+    /// Args:
+    /// - generation: The generation number to validate.
+    ///
+    /// Returns: True when the generation is still current.
     pub(crate) fn is_generation_current(&self, generation: u64) -> bool {
         self.current_generation() == generation
     }
 
-    /// Update the visible range and return commands to load new images
+    /// Update the visible range and queue image loads for the current viewport and buffer.
+    ///
+    /// Args:
+    /// - sprite_folder: The folder containing the sprite images.
+    /// - start: The first visible index.
+    /// - end: The first index after the visible range.
+    /// - selected_option: The currently selected Pokémon index, if any.
+    ///
+    /// Returns: A batch of loading tasks for the queued image loads.
     pub fn update_visible_range(
         &mut self,
         sprite_folder: String,
@@ -148,8 +181,13 @@ impl ImageCache {
         iced::Task::batch(tasks)
     }
 
-    /// Pop the next name off the pending queue (if any) for the given generation
-    /// and start loading it. Returns None if the queue is empty or stale.
+    /// Pop the next queued Pokémon name for the active generation and start loading it.
+    ///
+    /// Args:
+    /// - sprite_folder: The folder containing the sprite images.
+    /// - generation: The generation number for the current load cycle.
+    ///
+    /// Returns: An optional loading task to execute for the next queued image.
     pub fn dispatch_next_load(
         &self,
         sprite_folder: String,
@@ -175,6 +213,14 @@ impl ImageCache {
         }
     }
 
+    /// Load an image asynchronously from disk and emit a message when the task completes.
+    ///
+    /// Args:
+    /// - sprite_folder: The folder containing the sprite images.
+    /// - pokemon_name: The Pokémon whose image should be loaded.
+    /// - generation: The generation number for the current load cycle.
+    ///
+    /// Returns: A task that resolves to an image-loading message.
     fn load_image_async(
         &self,
         sprite_folder: String,
@@ -218,52 +264,24 @@ impl ImageCache {
         )
     }
 
-    pub fn compute_center_of_mass_async(
-        &self,
-        pokemon_name: String,
-        handle: Handle,
-        generation: u64,
-    ) -> iced::Task<Message> {
-        let loading = self.loading.clone();
-
-        self.mark_loading(pokemon_name.clone(), generation);
-
-        iced::Task::perform(
-            async move {
-                let bytes = match handle {
-                    Handle::Bytes(_, bytes) => bytes,
-                    _ => return Err((pokemon_name, generation)),
-                };
-                let name = pokemon_name.clone();
-                match tokio::task::spawn_blocking(move || {
-                    crate::screen::register::find_image_com(bytes.as_ref())
-                })
-                .await
-                {
-                    Ok(offset) => Ok((name, offset, generation)),
-                    Err(_) => Err((pokemon_name, generation)),
-                }
-            },
-            move |result| match result {
-                Ok((name, offset, generation)) => {
-                    loading.write().unwrap().remove(&name);
-                    Message::ImageCenterOfMass(name, offset, generation)
-                }
-                Err((name, generation)) => {
-                    loading.write().unwrap().remove(&name);
-                    Message::ImageCenterOfMass(name, 0.5, generation)
-                }
-            },
-        )
-    }
-
-    /// Get handle for a specific pokemon (synchronous for rendering)
+    /// Return the cached image handle for a Pokémon, if it has already been loaded.
+    ///
+    /// Args:
+    /// - pokemon_name: The Pokémon whose cached handle should be returned.
+    ///
+    /// Returns: The cached image handle, if present.
     pub fn get(&self, pokemon_name: &str) -> Option<Handle> {
         let cache = self.sync_cache.read().unwrap();
         cache.get(pokemon_name).map(|entry| entry.handle.clone())
     }
 
-    /// Store a loaded image
+    /// Store a loaded image and its optional center-of-mass offset in the cache.
+    ///
+    /// Args:
+    /// - name: The Pokémon name used as the cache key.
+    /// - handle: The image handle to store.
+    /// - center_of_mass: The optional center-of-mass value for the image.
+    ///
     pub fn insert(&self, name: String, handle: Handle, center_of_mass: Option<f32>) {
         let mut cache = self.sync_cache.write().unwrap();
         cache.insert(
@@ -275,14 +293,12 @@ impl ImageCache {
         );
     }
 
-    pub fn update_offset(&self, pokemon_name: &str, center_of_mass: f32) {
-        let mut cache = self.sync_cache.write().unwrap();
-        if let Some(entry) = cache.get_mut(pokemon_name) {
-            entry.center_of_mass = Some(center_of_mass);
-        }
-    }
-
-    /// Get the center-of-mass offset for a loaded image
+    /// Return the cached center-of-mass offset for a loaded image, if available.
+    ///
+    /// Args:
+    /// - pokemon_name: The Pokémon whose cached offset should be returned.
+    ///
+    /// Returns: The cached center-of-mass offset, if present.
     pub fn get_offset(&self, pokemon_name: &str) -> Option<f32> {
         let cache = self.sync_cache.read().unwrap();
         cache
@@ -290,6 +306,12 @@ impl ImageCache {
             .and_then(|entry| entry.center_of_mass)
     }
 }
+/// Compute the horizontal center-of-mass of an RGBA image, normalized to the image width.
+///
+/// Args:
+/// - img: The RGBA image to analyze.
+///
+/// Returns: A normalized horizontal center-of-mass value between 0 and 1.
 pub fn find_image_com_rgba(img: &image::RgbaImage) -> f32 {
     let (width, height) = img.dimensions();
     if width == 0 || height == 0 {

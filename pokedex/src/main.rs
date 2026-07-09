@@ -131,6 +131,7 @@ enum WindowType {
 #[derive(Debug, Clone)]
 enum Message {
     Init,
+    #[allow(unused)]
     WindowOpened(window::Id),
     Home(home::Message),
     Register(register::Message),

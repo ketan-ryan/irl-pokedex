@@ -1,6 +1,6 @@
 use iced::{
-    Alignment, Border, Color, Element, Length, Shadow,
     widget::{button, container, mouse_area, row, svg, text},
+    Alignment, Border, Color, Element, Length, Shadow,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -64,6 +64,12 @@ impl Default for IconButtonColors {
 }
 
 impl IconButtonColors {
+    /// Resolve the colors and shadow that should be used for the given interaction state.
+    ///
+    /// Args:
+    /// - state: The current button interaction state.
+    ///
+    /// Returns: A tuple containing the background, icon, text, and shadow styling to render.
     fn resolve(&self, state: &IconButtonInteraction) -> (Color, Color, Color, Shadow) {
         match state {
             IconButtonInteraction::Pressed => (
@@ -96,7 +102,7 @@ impl IconButtonColors {
 
 // ─── Widget ──────────────────────────────────────────────────────────────────
 
-/// A rounded icon+label button with full state-driven color control.
+/// Build a rounded icon-and-label button with state-driven styling.
 ///
 /// Usage:
 /// ```
@@ -108,6 +114,15 @@ impl IconButtonColors {
 ///     Message::SearchInteraction,
 /// )
 /// ```
+///
+/// Args:
+/// - icon: The SVG handle to display inside the button.
+/// - label: An optional label shown next to the icon.
+/// - state: The current interaction state used to resolve styling.
+/// - colors: The color palette and border settings for the button.
+/// - on_interact: A callback that maps interaction states to application messages.
+///
+/// Returns: An iced element that renders the button widget.
 pub fn icon_button<'a, Message>(
     icon: svg::Handle,
     label: Option<&'a str>,
@@ -160,7 +175,6 @@ where
             ..Default::default()
         });
 
-    // Button wraps inner — background None so it doesn't paint a square behind
     let btn = button(inner)
         .height(Length::Fixed(40.0))
         .style(|_, _| button::Style {
@@ -168,7 +182,6 @@ where
             ..Default::default()
         });
 
-    // mouse_area feeds hover state back into your app
     mouse_area(btn)
         .on_enter(on_interact(IconButtonInteraction::Hovered))
         .on_exit(on_interact(IconButtonInteraction::None))

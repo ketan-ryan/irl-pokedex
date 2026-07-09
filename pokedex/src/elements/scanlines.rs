@@ -4,12 +4,15 @@ use iced::widget::canvas::{self, Geometry};
 use iced::{Color, Point, Rectangle, Renderer, Theme, mouse};
 
 #[derive(Debug)]
-pub struct Grid {
+pub struct Scanlines {
     pub offset: Vector,
     pub cache: canvas::Cache,
 }
 
-impl Grid {
+impl Scanlines {
+    /// Create a new scrolling scanlines window with a zeroed offset and an empty draw cache.
+    ///
+    /// Returns: A new grid instance ready for animation.
     pub fn new() -> Self {
         Self {
             offset: Vector::new(0.0, 0.0),
@@ -17,6 +20,12 @@ impl Grid {
         }
     }
 
+    /// Advance the grid animation by the given elapsed time and invalidate the cached drawing.
+    ///
+    /// Args:
+    /// - dt: The elapsed time since the last update.
+    ///
+    /// Returns: Nothing.
     pub fn tick(&mut self, dt: Duration) {
         self.cache.clear();
 
@@ -24,24 +33,31 @@ impl Grid {
         let speed = 10.0;
         let seconds = dt.as_secs_f32();
 
-        // self.offset.x += speed * seconds;
         self.offset.y -= speed * seconds;
     }
 }
 
 #[derive(Default, Debug)]
 pub struct Vector {
+    #[allow(unused)]
     pub x: f32,
     pub y: f32,
 }
 
 impl Vector {
+    /// Create a new vector with the provided x and y components.
+    ///
+    /// Args:
+    /// - x: The horizontal component.
+    /// - y: The vertical component.
+    ///
+    /// Returns: A new vector instance.
     pub fn new(x: f32, y: f32) -> Self {
         Self { x, y }
     }
 }
 
-impl<Message> canvas::Program<Message> for Grid {
+impl<Message> canvas::Program<Message> for Scanlines {
     type State = ();
 
     fn draw(
@@ -55,21 +71,7 @@ impl<Message> canvas::Program<Message> for Grid {
         let geo = self.cache.draw(renderer, bounds.size(), |frame| {
             let spacing = 10.0;
 
-            let x_offset = self.offset.x % spacing;
             let y_offset = self.offset.y % spacing;
-
-            // vertical lines
-            // let mut x = -x_offset;
-            // while x < bounds.width {
-            //     frame.stroke(
-            //         &canvas::Path::line(Point::new(x, 0.0), Point::new(x, bounds.height)),
-            //         canvas::Stroke {
-            //             width: 1.0,
-            //             ..Default::default()
-            //         },
-            //     );
-            //     x += spacing;
-            // }
 
             // horizontal lines
             let mut y = -y_offset;

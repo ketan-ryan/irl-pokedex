@@ -14,6 +14,15 @@ pub struct RegisteredIconWidget {
 }
 
 impl RegisteredIconWidget {
+    /// Create a new canvas widget for the requested registration state and opacity.
+    /// If registered, renders a simple pokeball icon.
+    /// Otherwise, renders an empty circle.
+    ///
+    /// Args:
+    /// - state: The icon state to render.
+    /// - opacity: The opacity to apply to the icon drawing.
+    ///
+    /// Returns: A new registered icon widget instance.
     pub fn new(state: IconState, opacity: f32) -> Self {
         Self {
             state,

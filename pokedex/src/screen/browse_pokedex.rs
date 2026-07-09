@@ -16,10 +16,10 @@ use iced::{
 
 use crate::{
     elements::{
-        grid::Grid,
         icon_button::{IconButtonColors, IconButtonInteraction, icon_button},
         image_cache::ImageCache,
         registered_icon::{IconState, RegisteredIconWidget},
+        scanlines::Scanlines,
     },
     io::{PokedexConfig, PokemonInfo},
     screen::register,
@@ -36,7 +36,7 @@ struct Selected {
 #[derive(Debug)]
 pub struct PokedexBrowser {
     config: Arc<PokedexConfig>,
-    grid: Grid,
+    grid: Scanlines,
     last_tick: Instant,
     pokemon_data: HashMap<String, PokemonInfo>,
     owned_pokemon: std::collections::HashSet<String>,
@@ -77,7 +77,6 @@ pub enum Message {
     Tick(std::time::Instant),
     Scrolled(scrollable::Viewport),
     ImageLoaded(String, Handle, f32, u64),
-    ImageCenterOfMass(String, f32, u64),
     ImageLoadFailed(String, u64),
     IOInput(IOAction),
     SelectPokemon(String, bool),
@@ -191,7 +190,7 @@ impl PokedexBrowser {
 
         let state = Self {
             config,
-            grid: Grid::new(),
+            grid: Scanlines::new(),
             last_tick: Instant::now(),
             pokemon_data,
             owned_pokemon,
@@ -442,16 +441,6 @@ impl PokedexBrowser {
                     Some(next) => Action::Run(next),
                     None => Action::None,
                 }
-            }
-            Message::ImageCenterOfMass(name, offset, generation) => {
-                if !self.image_cache.is_generation_current(generation) {
-                    return Action::None;
-                }
-                self.image_cache.update_offset(&name, offset);
-                if self.selected.selected_pokemon.as_deref() == Some(name.as_str()) {
-                    self.selected_com_offset = Some(offset);
-                }
-                Action::None
             }
             Message::IOInput(action) => {
                 let current_index = self.selected.selected_idx.unwrap_or(0);
