@@ -36,7 +36,7 @@ struct Selected {
 #[derive(Debug)]
 pub struct PokedexBrowser {
     config: Arc<PokedexConfig>,
-    grid: Scanlines,
+    scanlines: Scanlines,
     last_tick: Instant,
     pokemon_data: HashMap<String, PokemonInfo>,
     owned_pokemon: std::collections::HashSet<String>,
@@ -190,7 +190,7 @@ impl PokedexBrowser {
 
         let state = Self {
             config,
-            grid: Scanlines::new(),
+            scanlines: Scanlines::new(),
             last_tick: Instant::now(),
             pokemon_data,
             owned_pokemon,
@@ -304,7 +304,7 @@ impl PokedexBrowser {
                 let dt = now - self.last_tick;
                 self.last_tick = now;
 
-                self.grid.tick(dt);
+                self.scanlines.tick(dt);
 
                 // Check if we have a pending scroll load and 200ms has elapsed
                 if let Some((start_index, end_index)) = self.pending_scroll_load {
@@ -522,7 +522,6 @@ impl PokedexBrowser {
             Message::SearchInteraction(i) => {
                 if i == IconButtonInteraction::Released {
                     self.search_interaction = IconButtonInteraction::Hovered;
-                    // your action logic here, or fire a Command
                     println!("Search clicked!");
                 } else {
                     self.search_interaction = i;
@@ -532,7 +531,6 @@ impl PokedexBrowser {
             Message::FilterInteraction(i) => {
                 if i == IconButtonInteraction::Released {
                     self.filter_interaction = IconButtonInteraction::Hovered;
-                    // your action logic here, or fire a Command
                     println!("Filter clicked!");
                 } else {
                     self.filter_interaction = i;
@@ -695,7 +693,7 @@ impl PokedexBrowser {
         // scanlines
         elements.push(
             container(
-                canvas::Canvas::new(&self.grid)
+                canvas::Canvas::new(&self.scanlines)
                     .width(Length::Fill)
                     .height(Length::Fill),
             )
@@ -840,7 +838,7 @@ impl PokedexBrowser {
         // scanlines
         elements.push(
             container(
-                canvas::Canvas::new(&self.grid)
+                canvas::Canvas::new(&self.scanlines)
                     .width(Length::Fill)
                     .height(Length::Fill),
             )
