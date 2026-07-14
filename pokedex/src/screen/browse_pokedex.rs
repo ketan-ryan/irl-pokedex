@@ -14,6 +14,7 @@ use iced::{
     window,
 };
 
+use crate::elements::keyboard;
 use crate::{
     elements::{
         icon_button::{IconButtonColors, IconButtonInteraction, icon_button},
@@ -70,6 +71,10 @@ pub struct PokedexBrowser {
     search_interaction: IconButtonInteraction,
     filter_interaction: IconButtonInteraction,
     close_interaction: IconButtonInteraction,
+
+    keyboard: keyboard::Keyboard,
+    show_keyboard: bool,
+    last_submitted: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -84,6 +89,9 @@ pub enum Message {
     SearchInteraction(IconButtonInteraction),
     FilterInteraction(IconButtonInteraction),
     CloseInteraction(IconButtonInteraction),
+    OpenKeyboard,
+    Keyboard(keyboard::Message),
+    Noop,
 }
 
 pub enum Action {
@@ -239,6 +247,11 @@ impl PokedexBrowser {
             search_interaction: IconButtonInteraction::default(),
             filter_interaction: IconButtonInteraction::default(),
             close_interaction: IconButtonInteraction::default(),
+
+            keyboard: keyboard::Keyboard::new()
+                .with_font(iced::Font::with_name("Open Sans Semibold")),
+            show_keyboard: false,
+            last_submitted: None,
         };
 
         (state, load_task)
@@ -333,6 +346,9 @@ impl PokedexBrowser {
                 Action::None
             }
             Message::Scrolled(viewport) => {
+                if self.show_keyboard {
+                    return Action::None;
+                }
                 // Bottom scrollable's absolute position represents how far we've scrolled
                 let bot_scroll_pos = viewport.absolute_offset().y;
                 let rh = ROW_HEIGHT + 0.0;
@@ -443,28 +459,30 @@ impl PokedexBrowser {
                 }
             }
             Message::IOInput(action) => {
-                let current_index = self.selected.selected_idx.unwrap_or(0);
+                if !self.show_keyboard {
+                    let current_index = self.selected.selected_idx.unwrap_or(0);
 
-                let new_index = match action {
-                    IOAction::ScrollUp => current_index.saturating_sub(1),
-                    IOAction::ScrollDown => {
-                        (current_index + 1).min(self.image_cache.pokemon_order.len() - 1)
-                    }
-                    IOAction::Left => current_index.saturating_sub(10),
-                    IOAction::Right => {
-                        (current_index + 10).min(self.image_cache.pokemon_order.len() - 1)
-                    }
-                };
+                    let new_index = match action {
+                        IOAction::ScrollUp => current_index.saturating_sub(1),
+                        IOAction::ScrollDown => {
+                            (current_index + 1).min(self.image_cache.pokemon_order.len() - 1)
+                        }
+                        IOAction::Left => current_index.saturating_sub(10),
+                        IOAction::Right => {
+                            (current_index + 10).min(self.image_cache.pokemon_order.len() - 1)
+                        }
+                    };
 
-                if new_index != current_index {
-                    let should_check_selected = !matches!(action, IOAction::Left | IOAction::Right);
-                    let new_name = self.image_cache.pokemon_order[new_index].clone();
-                    return Action::Run(Task::done(Message::SelectPokemon(
-                        new_name,
-                        should_check_selected,
-                    )));
+                    if new_index != current_index {
+                        let should_check_selected =
+                            !matches!(action, IOAction::Left | IOAction::Right);
+                        let new_name = self.image_cache.pokemon_order[new_index].clone();
+                        return Action::Run(Task::done(Message::SelectPokemon(
+                            new_name,
+                            should_check_selected,
+                        )));
+                    }
                 }
-
                 Action::None
             }
             Message::SelectPokemon(name, should_check_selected) => {
@@ -523,6 +541,7 @@ impl PokedexBrowser {
                 if i == IconButtonInteraction::Released {
                     self.search_interaction = IconButtonInteraction::Hovered;
                     println!("Search clicked!");
+                    return Action::Run(Task::done(Message::OpenKeyboard));
                 } else {
                     self.search_interaction = i;
                 }
@@ -546,6 +565,20 @@ impl PokedexBrowser {
                 }
                 Action::None
             }
+            Message::OpenKeyboard => {
+                self.show_keyboard = true;
+                Action::None
+            }
+            Message::Keyboard(msg) => {
+                let (task, action) = self.keyboard.update(msg);
+                match action {
+                    keyboard::Action::Closed => self.show_keyboard = false,
+                    keyboard::Action::Submitted(text) => self.last_submitted = Some(text),
+                    keyboard::Action::KeyPressed(_) | keyboard::Action::None => {}
+                }
+                Action::Run(task.map(Message::Keyboard))
+            }
+            Message::Noop => Action::None,
         }
     }
 
@@ -626,6 +659,10 @@ impl PokedexBrowser {
         if self.scroll_animation.is_some() {
             subscriptions
                 .push(iced::time::every(Duration::from_millis(16)).map(|_| Message::AnimateScroll));
+        }
+
+        if self.show_keyboard {
+            subscriptions.push(self.keyboard.subscription().map(Message::Keyboard));
         }
 
         Subscription::batch(subscriptions)
@@ -1013,7 +1050,7 @@ impl PokedexBrowser {
         .into();
         elements.push(body);
 
-        let screen = iced::widget::Stack::with_children(elements);
+        let mut screen = iced::widget::Stack::with_children(elements);
 
         let search = icon_button(
             self.search_icon.clone(),
@@ -1039,26 +1076,56 @@ impl PokedexBrowser {
             Message::CloseInteraction,
         );
 
-        screen
-            .push(
-                container(column![
-                    Space::new().height(Length::FillPortion(8)),
-                    row![
-                        // Search button
-                        search,
-                        filter,
-                        close,
-                        Space::new().width(Length::FillPortion(13))
-                    ]
+        screen = screen.push(
+            container(column![
+                Space::new().height(Length::FillPortion(8)),
+                row![
+                    // Search button
+                    search,
+                    filter,
+                    close,
+                    Space::new().width(Length::FillPortion(13))
+                ]
+                .align_y(Alignment::End)
+                .height(Length::FillPortion(2))
+            ])
+            .style(|_| container::Style {
+                background: None,
+                ..Default::default()
+            }),
+        );
+
+        if self.show_keyboard {
+            screen = screen.push(stack![
+                mouse_area(
+                    container(Space::new())
+                        .width(Length::Fill)
+                        .height(Length::Fill)
+                        .style(move |_| container::Style {
+                            background: Some(iced::Background::Color(Color::from_rgba8(
+                                0, 0, 0, 0.2
+                            ))),
+                            ..Default::default()
+                        })
+                )
+                .on_press(Message::Noop)
+                .on_release(Message::Noop)
+                .on_enter(Message::Noop)
+                .on_exit(Message::Noop)
+                .on_scroll(|_delta| Message::Noop),
+                container(self.keyboard.view().map(Message::Keyboard))
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .align_x(Alignment::Center)
                     .align_y(Alignment::End)
-                    .height(Length::FillPortion(2))
-                ])
-                .style(|_| container::Style {
-                    background: None,
-                    ..Default::default()
-                }),
-            )
-            .into()
+                    .padding(Padding {
+                        bottom: 10.0,
+                        ..Default::default()
+                    })
+            ]);
+        }
+
+        screen.into()
     }
 
     /// Renders a single Pokémon row for either the top or bottom list view.
@@ -1170,7 +1237,7 @@ impl PokedexBrowser {
         );
 
         // only bottom screen should be clickables
-        let area = if !is_top_screen {
+        let area = if !is_top_screen && !self.show_keyboard {
             area.on_press(Message::SelectPokemon(name_, true))
         } else {
             area
