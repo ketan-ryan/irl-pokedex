@@ -106,6 +106,7 @@ pub enum IOAction {
     ScrollDown,
     Left,
     Right,
+    Input,
 }
 
 const TOP_SCREEN_ITEMS: usize = 8;
@@ -471,6 +472,7 @@ impl PokedexBrowser {
                         IOAction::Right => {
                             (current_index + 10).min(self.image_cache.pokemon_order.len() - 1)
                         }
+                        _ => current_index,
                     };
 
                     if new_index != current_index {
@@ -482,6 +484,20 @@ impl PokedexBrowser {
                             should_check_selected,
                         )));
                     }
+                } else {
+                    let (task, action) = match action {
+                        IOAction::ScrollUp => self.keyboard.handle_input(keyboard::InputAction::Up),
+                        IOAction::ScrollDown => {
+                            self.keyboard.handle_input(keyboard::InputAction::Down)
+                        }
+                        IOAction::Left => self.keyboard.handle_input(keyboard::InputAction::Left),
+                        IOAction::Right => self.keyboard.handle_input(keyboard::InputAction::Right),
+                        IOAction::Input => {
+                            self.keyboard.handle_input(keyboard::InputAction::Select)
+                        }
+                    };
+                    self.handle_action(action);
+                    return Action::Run(task.map(Message::Keyboard));
                 }
                 Action::None
             }
@@ -571,14 +587,21 @@ impl PokedexBrowser {
             }
             Message::Keyboard(msg) => {
                 let (task, action) = self.keyboard.update(msg);
-                match action {
-                    keyboard::Action::Closed => self.show_keyboard = false,
-                    keyboard::Action::Submitted(text) => self.last_submitted = Some(text),
-                    keyboard::Action::KeyPressed(_) | keyboard::Action::None => {}
-                }
+                self.handle_action(action);
                 Action::Run(task.map(Message::Keyboard))
             }
             Message::Noop => Action::None,
+        }
+    }
+
+    fn handle_action(&mut self, action: keyboard::Action) {
+        match action {
+            keyboard::Action::Closed => self.show_keyboard = false,
+            keyboard::Action::Submitted(text) => {
+                self.show_keyboard = false;
+                self.last_submitted = Some(text)
+            }
+            keyboard::Action::KeyPressed(_) | keyboard::Action::None => {}
         }
     }
 
@@ -652,6 +675,13 @@ impl PokedexBrowser {
                     }),
                     Status::Ignored,
                 ) => Some(Message::IOInput(IOAction::Right)),
+                (
+                    Event::Keyboard(KeyPressed {
+                        key: Key::Named(Named::Enter),
+                        ..
+                    }),
+                    Status::Ignored,
+                ) => Some(Message::IOInput(IOAction::Input)),
                 _ => None,
             }
         }));
@@ -774,6 +804,8 @@ impl PokedexBrowser {
             .into(),
         );
 
+        let owned = self.owned_pokemon.len();
+        let total = self.image_cache.pokemon_order.len();
         let body = stack![
             container(column![
                 // header
@@ -785,14 +817,14 @@ impl PokedexBrowser {
                             column![
                                 row![
                                     text("Registered").font(condensed).size(16.0),
-                                    text("0541").font(condensed).size(16.0)
+                                    text(owned).font(condensed).size(16.0)
                                 ]
                                 .spacing(10.0)
                             ],
                             column![
                                 row![
                                     text("Total").font(condensed).size(16.0),
-                                    text("1160").font(condensed).size(16.0)
+                                    text(total).font(condensed).size(16.0)
                                 ]
                                 .spacing(10.0)
                             ]
