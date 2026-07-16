@@ -14,6 +14,9 @@ use iced::{
     window,
 };
 
+use log::debug;
+
+use crate::elements::filter::FilterCriteria;
 use crate::elements::keyboard;
 use crate::{
     elements::{
@@ -75,6 +78,10 @@ pub struct PokedexBrowser {
     keyboard: keyboard::Keyboard,
     show_keyboard: bool,
     last_submitted: Option<String>,
+
+    // filtering
+    all_pokemon_names: Vec<String>,
+    filter: FilterCriteria,
 }
 
 #[derive(Debug, Clone)]
@@ -156,8 +163,8 @@ impl PokedexBrowser {
         owned_pokemon: std::collections::HashSet<String>,
     ) -> (Self, Task<Message>) {
         let mut pokemon_names: Vec<String> = pokemon_data.keys().cloned().collect();
+        let all_pokemon_names = pokemon_names.clone();
 
-        // TODO: proper filtering
         pokemon_names.retain(|name| {
             pokemon_data.get(name).unwrap().base.is_none_or(|base| base) && !name.contains("mega ")
         });
@@ -253,9 +260,64 @@ impl PokedexBrowser {
                 .with_font(iced::Font::with_name("Open Sans Semibold")),
             show_keyboard: false,
             last_submitted: None,
+
+            all_pokemon_names: all_pokemon_names,
+            filter: FilterCriteria::default(),
         };
 
         (state, load_task)
+    }
+
+    fn refilter(&mut self) -> Task<Message> {
+        let mut filtered: Vec<String> = self
+            .all_pokemon_names
+            .iter()
+            .filter(|name| {
+                self.filter
+                    .matches(name, self.pokemon_data.get(*name).unwrap())
+            })
+            .cloned()
+            .collect();
+
+        filtered.sort_by_cached_key(|name| self.filter.sort_key(name, &self.pokemon_data));
+        if !self.filter.sort_ascending {
+            filtered.reverse();
+        }
+
+        let new_selected_name = self
+            .selected
+            .selected_pokemon
+            .clone()
+            .filter(|n| filtered.contains(n))
+            .or_else(|| filtered.first().cloned());
+        let new_selected_idx = new_selected_name
+            .as_ref()
+            .and_then(|n| filtered.iter().position(|x| x == n));
+
+        self.image_cache.pokemon_order = filtered;
+
+        let reset_bottom = operation::scroll_to(
+            self.bot_scroll_id.clone(),
+            scrollable::AbsoluteOffset { x: 0.0, y: 0.0 },
+        );
+        let reset_top = operation::scroll_to(
+            self.top_scroll_id.clone(),
+            scrollable::AbsoluteOffset { x: 0.0, y: 0.0 },
+        );
+        let load = self.image_cache.update_visible_range(
+            self.config.sprites_location.clone(),
+            0,
+            self.items_per_page * 2,
+            new_selected_idx,
+        );
+
+        let mut tasks: Vec<Task<Message>> = vec![reset_bottom, reset_top, load];
+
+        if let Some(selected) = new_selected_name {
+            tasks.push(Task::done(Message::SelectPokemon(selected, true)));
+        }
+
+        Task::batch(tasks)
     }
 
     /// Returns the first and last visible list indices for a given scroll offset.
@@ -496,8 +558,8 @@ impl PokedexBrowser {
                             self.keyboard.handle_input(keyboard::InputAction::Select)
                         }
                     };
-                    self.handle_action(action);
-                    return Action::Run(task.map(Message::Keyboard));
+                    let follow_up = self.handle_action(action);
+                    return Action::Run(Task::batch([task.map(Message::Keyboard), follow_up]));
                 }
                 Action::None
             }
@@ -587,21 +649,31 @@ impl PokedexBrowser {
             }
             Message::Keyboard(msg) => {
                 let (task, action) = self.keyboard.update(msg);
-                self.handle_action(action);
-                Action::Run(task.map(Message::Keyboard))
+                let follow_up = self.handle_action(action);
+                Action::Run(Task::batch([task.map(Message::Keyboard), follow_up]))
             }
             Message::Noop => Action::None,
         }
     }
 
-    fn handle_action(&mut self, action: keyboard::Action) {
+    fn handle_action(&mut self, action: keyboard::Action) -> Task<Message> {
         match action {
-            keyboard::Action::Closed => self.show_keyboard = false,
+            keyboard::Action::Closed => {
+                self.show_keyboard = false;
+                Task::none()
+            }
             keyboard::Action::Submitted(text) => {
                 self.show_keyboard = false;
-                self.last_submitted = Some(text)
+                self.last_submitted = Some(text.clone());
+                self.filter.search = text;
+                self.refilter()
             }
-            keyboard::Action::KeyPressed(_) | keyboard::Action::None => {}
+            keyboard::Action::KeyPressed(_) => {
+                self.last_submitted = Some(self.keyboard.text().into());
+                self.filter.search = self.last_submitted.clone().unwrap_or("default".to_string());
+                self.refilter()
+            }
+            keyboard::Action::None => Task::none(),
         }
     }
 

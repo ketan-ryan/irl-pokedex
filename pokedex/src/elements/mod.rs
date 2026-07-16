@@ -1,3 +1,4 @@
+pub mod filter;
 pub mod gstreamer_stream;
 pub mod icon_button;
 pub mod image_cache;

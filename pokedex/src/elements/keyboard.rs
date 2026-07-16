@@ -406,7 +406,7 @@ impl Keyboard {
                     self.cursor -= 1;
                 }
                 self.cursor_visible = true;
-                (self.snap_scroll(), Action::None)
+                (self.snap_scroll(), Action::KeyPressed(' '))
             }
             Message::Shift => {
                 let now = Instant::now();
