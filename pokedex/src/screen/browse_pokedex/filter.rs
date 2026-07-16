@@ -1,5 +1,4 @@
 use crate::io::{PokemonInfo, PokemonType};
-use log::debug;
 use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone, PartialEq)]

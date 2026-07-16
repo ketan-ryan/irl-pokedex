@@ -14,18 +14,15 @@ use iced::{
     window,
 };
 
-use log::debug;
-
-use crate::elements::filter::FilterCriteria;
-use crate::elements::keyboard;
 use crate::{
     elements::{
         icon_button::{IconButtonColors, IconButtonInteraction, icon_button},
-        image_cache::ImageCache,
         registered_icon::{IconState, RegisteredIconWidget},
-        scanlines::Scanlines,
     },
     io::{PokedexConfig, PokemonInfo},
+    screen::browse_pokedex::{
+        filter::FilterCriteria, image_cache::ImageCache, keyboard, scanlines::Scanlines,
+    },
     screen::register,
 };
 
@@ -219,19 +216,19 @@ impl PokedexBrowser {
             bot_scroll_id: Id::unique(),
 
             pokeball_handle: Handle::from_bytes(
-                include_bytes!("../../assets/background.png").as_slice(),
+                include_bytes!("../../../assets/background.png").as_slice(),
             ),
             info_svg: svg::Handle::from_memory(
-                include_bytes!("../../assets/browse_screen/hint.svg").as_slice(),
+                include_bytes!("../../../assets/browse_screen/hint.svg").as_slice(),
             ),
             search_icon: svg::Handle::from_memory(
-                include_bytes!("../../assets/browse_screen/search.svg").as_slice(),
+                include_bytes!("../../../assets/browse_screen/search.svg").as_slice(),
             ),
             filter_icon: svg::Handle::from_memory(
-                include_bytes!("../../assets/browse_screen/filter.svg").as_slice(),
+                include_bytes!("../../../assets/browse_screen/filter.svg").as_slice(),
             ),
             close_icon: svg::Handle::from_memory(
-                include_bytes!("../../assets/browse_screen/x.svg").as_slice(),
+                include_bytes!("../../../assets/browse_screen/x.svg").as_slice(),
             ),
             selected: Selected {
                 selected_pokemon,
@@ -1291,7 +1288,7 @@ impl PokedexBrowser {
             text(format!(
                 "{}\t{}",
                 info.number,
-                register::to_proper_case(&dname)
+                register::register::to_proper_case(&dname)
             ))
             .size(14)
             .color(Color::from_rgba(0.0, 0.0, 0.0, opacity)),

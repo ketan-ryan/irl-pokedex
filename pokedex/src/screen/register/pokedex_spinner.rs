@@ -5,7 +5,7 @@ use iced::{Animation, Color, Element, Point, Radians, Rectangle, Renderer, Theme
 use std::f32::consts::TAU;
 use std::time::{Duration, Instant};
 
-use crate::screen::register::Message;
+use crate::screen::register::register::Message;
 
 #[derive(Debug)]
 pub struct PokedexSpinnerState {
