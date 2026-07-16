@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock as StdRwLock};
 
+use crate::browse_pokedex::Message;
 use crate::io;
-use crate::screen::browse_pokedex::Message;
 use iced::widget::image::Handle;
 use log::trace;
 use std::collections::VecDeque;

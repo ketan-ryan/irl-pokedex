@@ -9,8 +9,8 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use crate::elements::gstreamer_stream::{VideoError, VideoFrame, gstreamer_stream};
-use crate::elements::loading_screen::{QuadCanvas, QuadState};
 use crate::io;
+use crate::screen::home::loading_screen::{QuadCanvas, QuadState};
 
 #[derive(Debug, PartialEq)]
 enum State {
@@ -71,7 +71,7 @@ impl Home {
                 state: State::Loading,
                 bottom_handle: bottom_handle,
                 bottom_pressed_handle: iced::widget::image::Handle::from_bytes(
-                    include_bytes!("../../assets/bottom_screen_pressed.png").as_slice(),
+                    include_bytes!("../../../assets/bottom_screen_pressed.png").as_slice(),
                 ),
                 pressed: false,
                 last_frame_handle: None,
