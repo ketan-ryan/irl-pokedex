@@ -1,14 +1,14 @@
-use crate::io::{PokemonInfo, PokemonType};
+use crate::enums::{FilterMode, PokemonInfo, PokemonType, Region, SortDirection, SortKey};
 use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct FilterCriteria {
     pub search: String,
-    pub regions: HashSet<String>,
+    pub regions: HashSet<Region>,
     pub types: HashSet<PokemonType>,
-    pub filter_all: bool,
-    pub sort_ascending: bool,
-    pub is_alphabetical: bool,
+    pub filter_mode: FilterMode,
+    pub sort_key: SortKey,
+    pub sort_order: SortDirection,
     pub height_lower: f32,
     pub height_upper: f32,
     pub weight_lower: f32,
@@ -19,11 +19,11 @@ impl Default for FilterCriteria {
     fn default() -> Self {
         Self {
             search: String::new(),
-            regions: HashSet::new(),
-            types: HashSet::new(),
-            filter_all: true,
-            sort_ascending: true,
-            is_alphabetical: false,
+            regions: HashSet::from(Region::ALL),
+            types: HashSet::from(PokemonType::ALL),
+            filter_mode: FilterMode::Any,
+            sort_key: SortKey::Numerical,
+            sort_order: SortDirection::Ascending,
             height_lower: 0.0,
             height_upper: f32::MAX,
             weight_lower: 0.0,
@@ -84,21 +84,21 @@ impl FilterCriteria {
             active_results.push(info.types.iter().any(|t| self.types.contains(t)));
         }
 
-        // if self.is_height_active() {
-        //     active_results
-        //         .push(info.height >= self.height_lower && info.height <= self.height_upper); // assumes info.height: f32
-        // }
+        if self.is_height_active() {
+            let h = info.height.metric;
+            active_results.push(h >= self.height_lower && h <= self.height_upper);
+        }
 
-        // if self.is_weight_active() {
-        //     active_results
-        //         .push(info.weight >= self.weight_lower && info.weight <= self.weight_upper); // assumes info.weight: f32
-        // }
+        if self.is_weight_active() {
+            let w = info.weight.metric;
+            active_results.push(w >= self.weight_lower && w <= self.weight_upper);
+        }
 
         if active_results.is_empty() {
             return true;
         }
 
-        if self.filter_all {
+        if self.filter_mode == FilterMode::All {
             active_results.into_iter().all(|matched| matched)
         } else {
             active_results.into_iter().any(|matched| matched)
@@ -109,25 +109,25 @@ impl FilterCriteria {
     /// is applied separately (reverse the sorted Vec) since `sort_by_cached_key`
     /// takes no comparator — this also means the key is computed once per
     /// element instead of on every comparison.
-    pub fn sort_key(&self, name: &str, pokemon_data: &HashMap<String, PokemonInfo>) -> SortKey {
-        if self.is_alphabetical {
+    pub fn sort_key(&self, name: &str, pokemon_data: &HashMap<String, PokemonInfo>) -> Sorted {
+        if self.sort_key == SortKey::Alphabetical {
             let display = pokemon_data
                 .get(name)
                 .and_then(|i| i.display_name.as_deref())
                 .unwrap_or(name);
-            SortKey::Alpha(display.to_lowercase())
+            Sorted::Alpha(display.to_lowercase())
         } else {
             let num = pokemon_data
                 .get(name)
                 .and_then(|i| i.number.parse::<u32>().ok())
                 .unwrap_or(u32::MAX);
-            SortKey::Numeric(num, name.to_string()) // name as tie-break for determinism
+            Sorted::Numeric(num, name.to_string()) // name as tie-break for determinism
         }
     }
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum SortKey {
+pub enum Sorted {
     Alpha(String),
     Numeric(u32, String),
 }

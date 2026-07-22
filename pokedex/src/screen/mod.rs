@@ -1,4 +1,5 @@
 pub mod browse_pokedex;
+pub mod filter;
 pub mod home;
 pub mod register;
 
@@ -8,4 +9,5 @@ pub enum Screen {
     Home(home::home::Home),
     Register(register::register::Register),
     PokedexBrowser(browse_pokedex::browse_pokedex::PokedexBrowser),
+    Filter(filter::filter::Filter),
 }
