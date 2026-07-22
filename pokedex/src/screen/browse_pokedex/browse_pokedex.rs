@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
 use std::{collections::HashMap, time::Instant};
@@ -15,15 +16,15 @@ use iced::{
 };
 
 use crate::elements::icon_button::split_icon_button;
+use crate::enums::SortDirection;
 use crate::{
     elements::{
         icon_button::{IconButtonColors, IconButtonInteraction, icon_button},
         registered_icon::{IconState, RegisteredIconWidget},
+        scanlines::Scanlines,
     },
-    io::{PokedexConfig, PokemonInfo},
-    screen::browse_pokedex::{
-        filter::FilterCriteria, image_cache::ImageCache, keyboard, scanlines::Scanlines,
-    },
+    enums::{PokedexConfig, PokemonInfo},
+    screen::browse_pokedex::{filter_predicate::FilterCriteria, image_cache::ImageCache, keyboard},
     screen::register,
 };
 
@@ -80,7 +81,8 @@ pub struct PokedexBrowser {
 
     // filtering
     all_pokemon_names: Vec<String>,
-    filter: FilterCriteria,
+    criteria: FilterCriteria,
+    owned_filtered: HashSet<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -105,6 +107,7 @@ pub enum Action {
     None,
     GoHome,
     Run(Task<Message>),
+    OpenFilter,
 }
 
 #[derive(Debug, Clone)]
@@ -209,7 +212,7 @@ impl PokedexBrowser {
             scanlines: Scanlines::new(),
             last_tick: Instant::now(),
             pokemon_data,
-            owned_pokemon,
+            owned_pokemon: owned_pokemon.clone(),
             image_cache,
 
             // this offset is used for calculations
@@ -263,7 +266,8 @@ impl PokedexBrowser {
             last_submitted: None,
 
             all_pokemon_names: all_pokemon_names,
-            filter: FilterCriteria::default(),
+            owned_filtered: owned_pokemon,
+            criteria: FilterCriteria::default(),
         };
 
         (state, load_task)
@@ -274,14 +278,24 @@ impl PokedexBrowser {
             .all_pokemon_names
             .iter()
             .filter(|name| {
-                self.filter
+                self.criteria
                     .matches(name, self.pokemon_data.get(*name).unwrap())
             })
             .cloned()
             .collect();
 
-        filtered.sort_by_cached_key(|name| self.filter.sort_key(name, &self.pokemon_data));
-        if !self.filter.sort_ascending {
+        self.owned_filtered = self
+            .owned_pokemon
+            .iter()
+            .filter(|name| {
+                self.criteria
+                    .matches(name, self.pokemon_data.get(*name).unwrap())
+            })
+            .cloned()
+            .collect();
+
+        filtered.sort_by_cached_key(|name| self.criteria.sort_key(name, &self.pokemon_data));
+        if self.criteria.sort_order == SortDirection::Descending {
             filtered.reverse();
         }
 
@@ -319,6 +333,15 @@ impl PokedexBrowser {
         }
 
         Task::batch(tasks)
+    }
+
+    pub fn apply_filter(&mut self, criteria: FilterCriteria) {
+        self.criteria = criteria;
+        let _ = self.refilter();
+    }
+
+    pub fn criteria(&self) -> FilterCriteria {
+        return self.criteria.clone();
     }
 
     /// Returns the first and last visible list indices for a given scroll offset.
@@ -630,7 +653,7 @@ impl PokedexBrowser {
                 if i == IconButtonInteraction::Released {
                     self.search_close_interaction = IconButtonInteraction::Hovered;
                     println!("Search close clicked!");
-                    self.filter.search.clear();
+                    self.criteria.search.clear();
                     return Action::Run(self.refilter());
                 } else {
                     self.search_close_interaction = i;
@@ -640,7 +663,7 @@ impl PokedexBrowser {
             Message::FilterInteraction(i) => {
                 if i == IconButtonInteraction::Released {
                     self.filter_interaction = IconButtonInteraction::Hovered;
-                    println!("Filter clicked!");
+                    return Action::OpenFilter;
                 } else {
                     self.filter_interaction = i;
                 }
@@ -677,12 +700,12 @@ impl PokedexBrowser {
             keyboard::Action::Submitted(text) => {
                 self.show_keyboard = false;
                 self.last_submitted = Some(text.clone());
-                self.filter.search = text;
+                self.criteria.search = text;
                 self.refilter()
             }
             keyboard::Action::KeyPressed(_) => {
                 self.last_submitted = Some(self.keyboard.text().into());
-                self.filter.search = self.last_submitted.clone().unwrap_or("default".to_string());
+                self.criteria.search = self.last_submitted.clone().unwrap_or("default".to_string());
                 self.refilter()
             }
             keyboard::Action::None => Task::none(),
@@ -888,7 +911,7 @@ impl PokedexBrowser {
             .into(),
         );
 
-        let owned = self.owned_pokemon.len();
+        let owned = self.owned_filtered.len();
         let total = self.image_cache.pokemon_order.len();
         let body = stack![
             container(column![

@@ -1,4 +1,5 @@
 mod elements;
+mod enums;
 mod io;
 mod ml;
 mod screen;
@@ -18,8 +19,9 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use crate::elements::gstreamer_stream::VideoFrame;
-use crate::io::PokedexConfig;
+use crate::enums::PokedexConfig;
 use crate::screen::browse_pokedex::browse_pokedex;
+use crate::screen::filter::filter;
 use crate::screen::register::register;
 
 fn main() -> iced::Result {
@@ -136,9 +138,11 @@ enum Message {
     Home(home::Message),
     Register(register::Message),
     PokedexBrowser(browse_pokedex::Message),
+    Filter(filter::Message),
     OpenHome,
     OpenRegister(Arc<VideoFrame>),
     OpenPokedexBrowser,
+    OpenFilter,
 }
 
 impl App {
@@ -189,6 +193,7 @@ impl App {
                     register::Action::None => Task::none(),
                     register::Action::GoHome => Task::done(Message::OpenHome),
                     register::Action::Run(task) => task.map(Message::Register),
+                    register::Action::OpenPokedex => Task::done(Message::OpenPokedexBrowser),
                 }
             }
             Message::PokedexBrowser(message) => {
@@ -200,10 +205,26 @@ impl App {
                     browse_pokedex::Action::None => Task::none(),
                     browse_pokedex::Action::GoHome => Task::done(Message::OpenHome),
                     browse_pokedex::Action::Run(task) => task.map(Message::PokedexBrowser),
+                    browse_pokedex::Action::OpenFilter => Task::done(Message::OpenFilter),
+                }
+            }
+            Message::Filter(message) => {
+                let Screen::Filter(filter) = &mut self.screen else {
+                    return Task::none();
+                };
+
+                match filter.update(message) {
+                    filter::Action::None => Task::none(),
+                    filter::Action::Run(task) => task.map(Message::Filter),
+                    filter::Action::Return(browser) => {
+                        self.screen = Screen::PokedexBrowser(*browser);
+                        Task::none()
+                    }
                 }
             }
             Message::OpenRegister(result) => self.open_register(result),
             Message::OpenPokedexBrowser => self.open_browser(),
+            Message::OpenFilter => self.open_filter(),
         }
     }
 
@@ -212,7 +233,7 @@ impl App {
             Screen::Home(home) => home.subscription().map(Message::Home),
             Screen::Register(register) => register.subscription().map(Message::Register),
             Screen::PokedexBrowser(browser) => browser.subscription().map(Message::PokedexBrowser),
-
+            Screen::Filter(filter) => filter.subscription().map(Message::Filter),
             _ => Subscription::none(),
         }
     }
@@ -289,6 +310,17 @@ impl App {
         task.map(Message::PokedexBrowser)
     }
 
+    fn open_filter(&mut self) -> Task<Message> {
+        let Screen::PokedexBrowser(browser) = std::mem::replace(&mut self.screen, Screen::Loading)
+        else {
+            // put it back if it wasn't actually the browser screen
+            return Task::none();
+        };
+        let (filter, task) = filter::Filter::new(Box::new(browser));
+        self.screen = Screen::Filter(filter);
+        task.map(Message::Filter)
+    }
+
     fn view(&self, window_id: window::Id) -> Element<'_, Message> {
         if let Some(window) = self
             .windows
@@ -311,6 +343,7 @@ impl App {
                 Screen::Home(home) => home.top_view().map(Message::Home),
                 Screen::Register(register) => register.top_view().map(Message::Register),
                 Screen::PokedexBrowser(browser) => browser.top_view().map(Message::PokedexBrowser),
+                Screen::Filter(filter) => filter.top_view().map(Message::Filter),
                 Screen::Loading => {
                     let new_window_button = button("Go home").on_press(Message::OpenHome);
 
@@ -364,6 +397,7 @@ impl App {
             match &self.screen {
                 Screen::Home(home) => home.bottom_view().map(Message::Home),
                 Screen::Register(register) => register.bottom_view().map(Message::Register),
+                Screen::Filter(filter) => filter.bottom_view().map(Message::Filter),
                 Screen::PokedexBrowser(browser) => {
                     browser.bottom_view().map(Message::PokedexBrowser)
                 }
