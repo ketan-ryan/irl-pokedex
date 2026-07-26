@@ -14,6 +14,7 @@ use iced::{
     widget::{Space, canvas, column, container, image, image::Handle, row, scrollable, svg, text},
     window,
 };
+use log::debug;
 
 use crate::enums::SortDirection;
 use crate::{
@@ -305,6 +306,11 @@ impl PokedexBrowser {
             .as_ref()
             .and_then(|n| filtered.iter().position(|x| x == n));
 
+        debug!(
+            "Selecting new pokemon {:?} with idx {:?}",
+            new_selected_name, new_selected_idx
+        );
+
         self.image_cache.pokemon_order = filtered;
 
         let reset_bottom = operation::scroll_to(
@@ -325,15 +331,18 @@ impl PokedexBrowser {
         let mut tasks: Vec<Task<Message>> = vec![reset_bottom, reset_top, load];
 
         if let Some(selected) = new_selected_name {
+            debug!("Pushing selected task");
             tasks.push(Task::done(Message::SelectPokemon(selected, true)));
         }
 
         Task::batch(tasks)
     }
 
-    pub fn apply_filter(&mut self, criteria: FilterCriteria) {
+    pub fn apply_filter(&mut self, criteria: FilterCriteria) -> Task<Message> {
+        debug!("Applying criteria {:?}", criteria);
         self.criteria = criteria;
-        let _ = self.refilter();
+        self.filter_interaction = IconButtonInteraction::None;
+        self.refilter()
     }
 
     pub fn criteria(&self) -> FilterCriteria {
@@ -587,6 +596,11 @@ impl PokedexBrowser {
                 self.selected.previously_selected = self.selected.selected_pokemon.clone();
                 self.selected.selected_pokemon = Some(name.clone());
                 self.selected_com_offset = self.image_cache.get_offset(&name); // None until ImageLoaded arrives
+
+                debug!(
+                    "Selecting pokemon {} and should check? {}",
+                    name, should_check_selected
+                );
 
                 if let Some(index) = self
                     .image_cache

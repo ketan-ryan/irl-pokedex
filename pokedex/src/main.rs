@@ -130,6 +130,47 @@ enum WindowType {
     BottomScreen,
 }
 
+pub fn listen() -> Subscription<IOAction> {
+    event::listen_with(|event, status, _| match (event, status) {
+        (
+            Event::Keyboard(KeyPressed {
+                key: Key::Named(Named::ArrowUp),
+                ..
+            }),
+            Status::Ignored,
+        ) => Some(IOAction::ScrollUp),
+        (
+            Event::Keyboard(KeyPressed {
+                key: Key::Named(Named::ArrowDown),
+                ..
+            }),
+            Status::Ignored,
+        ) => Some(IOAction::ScrollDown),
+        (
+            Event::Keyboard(KeyPressed {
+                key: Key::Named(Named::ArrowLeft),
+                ..
+            }),
+            Status::Ignored,
+        ) => Some(IOAction::Left),
+        (
+            Event::Keyboard(KeyPressed {
+                key: Key::Named(Named::ArrowRight),
+                ..
+            }),
+            Status::Ignored,
+        ) => Some(IOAction::Right),
+        (
+            Event::Keyboard(KeyPressed {
+                key: Key::Named(Named::Enter),
+                ..
+            }),
+            Status::Ignored,
+        ) => Some(IOAction::Input),
+        _ => None,
+    })
+}
+
 #[derive(Debug, Clone)]
 enum Message {
     Init,
@@ -216,9 +257,9 @@ impl App {
                 match filter.update(message) {
                     filter::Action::None => Task::none(),
                     filter::Action::Run(task) => task.map(Message::Filter),
-                    filter::Action::Return(browser) => {
+                    filter::Action::Return(browser, task) => {
                         self.screen = Screen::PokedexBrowser(*browser);
-                        Task::none()
+                        task.map(Message::PokedexBrowser)
                     }
                 }
             }
