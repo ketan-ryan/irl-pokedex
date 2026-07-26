@@ -1,11 +1,13 @@
+use log::debug;
+
 use crate::enums::{FilterMode, PokemonInfo, PokemonType, Region, SortDirection, SortKey};
 use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct FilterCriteria {
     pub search: String,
-    pub regions: HashSet<Region>,
-    pub types: HashSet<PokemonType>,
+    pub regions: Vec<Region>,
+    pub types: Vec<PokemonType>,
     pub filter_mode: FilterMode,
     pub sort_key: SortKey,
     pub sort_order: SortDirection,
@@ -19,8 +21,8 @@ impl Default for FilterCriteria {
     fn default() -> Self {
         Self {
             search: String::new(),
-            regions: HashSet::from(Region::ALL),
-            types: HashSet::from(PokemonType::ALL),
+            regions: Vec::from(Region::ALL),
+            types: Vec::from(PokemonType::ALL),
             filter_mode: FilterMode::Any,
             sort_key: SortKey::Numerical,
             sort_order: SortDirection::Ascending,
@@ -69,29 +71,76 @@ impl FilterCriteria {
                 .display_name
                 .as_deref()
                 .is_some_and(|d| d.to_lowercase().contains(&query));
-            active_results.push(name_match || display_match);
+            let matches = name_match || display_match;
+            if self.filter_mode == FilterMode::Any {
+                active_results.push(matches);
+            } else if matches {
+                active_results.push(true);
+            } else {
+                return false;
+            }
         }
 
         if !self.regions.is_empty() {
-            active_results.push(
-                info.region
-                    .as_ref()
-                    .map_or(false, |region| self.regions.contains(region)),
-            );
+            if self.filter_mode == FilterMode::Any {
+                active_results.push(
+                    info.region
+                        .as_ref()
+                        .map_or(false, |region| self.regions.contains(region)),
+                );
+            } else if info
+                .region
+                .is_some_and(|region| self.regions.contains(&region))
+            {
+                active_results.push(true);
+            } else {
+                return false;
+            }
         }
 
         if !self.types.is_empty() {
-            active_results.push(info.types.iter().any(|t| self.types.contains(t)));
+            if self.filter_mode == FilterMode::Any {
+                active_results.push(info.types.iter().any(|t| self.types.contains(t)));
+            } else if info.types.len() == self.types.len() {
+                let set1: HashSet<&PokemonType> = info.types.iter().collect();
+                let set2: HashSet<&PokemonType> = self.types.iter().collect();
+
+                if set1 == set2 {
+                    debug!("Got exact type matches {:?} for {:?}", set1, name);
+                }
+
+                if set1 == set2 {
+                    active_results.push(true);
+                } else {
+                    return false;
+                }
+            } else {
+                return false;
+            }
         }
 
         if self.is_height_active() {
             let h = info.height.metric;
-            active_results.push(h >= self.height_lower && h <= self.height_upper);
+            let fits = h >= self.height_lower && h <= self.height_upper;
+            if self.filter_mode == FilterMode::Any {
+                active_results.push(fits);
+            } else if fits {
+                active_results.push(true);
+            } else {
+                return false;
+            }
         }
 
         if self.is_weight_active() {
             let w = info.weight.metric;
-            active_results.push(w >= self.weight_lower && w <= self.weight_upper);
+            let fits = w >= self.weight_lower && w <= self.weight_upper;
+            if self.filter_mode == FilterMode::Any {
+                active_results.push(fits);
+            } else if fits {
+                active_results.push(true);
+            } else {
+                return false;
+            }
         }
 
         if active_results.is_empty() {

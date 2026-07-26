@@ -1,4 +1,4 @@
-use std::{collections::HashSet, str::FromStr, time::Instant};
+use std::{collections::HashSet, ops::Index, str::FromStr, time::Instant};
 
 use iced::{
     Alignment, Background, Border, Color, Element, Font, Length, Padding, Shadow, Subscription,
@@ -12,13 +12,119 @@ use iced::{
 };
 
 use crate::{
-    elements::scanlines::Scanlines,
+    elements::{
+        scanlines::Scanlines,
+        selectable::{SectionShape, SelectionDirection, SelectionGrid, SelectionPosition},
+    },
     enums::{FilterMode, PokemonType, Region, SortDirection, SortKey},
-    screen::browse_pokedex::{browse_pokedex::PokedexBrowser, filter_predicate::FilterCriteria},
+    screen::browse_pokedex::{
+        self, browse_pokedex::PokedexBrowser, filter_predicate::FilterCriteria,
+    },
 };
 
 const OPEN_SANS: Font = iced::Font::with_name("Open Sans SemiBold");
 const CONDENSED: Font = iced::Font::with_name("Open Sans Condensed");
+
+impl SelectionGrid {
+    fn new(sections: Vec<SectionShape>) -> Self {
+        Self {
+            sections,
+            position: SelectionPosition {
+                section: 0,
+                row: 0,
+                col: 0,
+            },
+        }
+    }
+
+    fn position(&self) -> SelectionPosition {
+        self.position
+    }
+
+    fn navigate(&mut self, direction: SelectionDirection) {
+        let shape = self.sections[self.position.section];
+
+        match direction {
+            SelectionDirection::Right => {
+                if self.position.col + 1 < shape.cols {
+                    self.position.col += 1;
+                } else {
+                    self.enter_next();
+                }
+            }
+            SelectionDirection::Left => {
+                if self.position.col > 0 {
+                    self.position.col -= 1;
+                } else {
+                    self.enter_prev();
+                }
+            }
+            SelectionDirection::Down => {
+                if self.position.row + 1 < shape.rows {
+                    self.position.row += 1;
+                } else {
+                    self.enter_next();
+                }
+            }
+            SelectionDirection::Up => {
+                if self.position.row > 0 {
+                    self.position.row -= 1;
+                } else {
+                    self.enter_prev();
+                }
+            }
+        }
+    }
+
+    fn enter_next(&mut self) {
+        if self.position.section + 1 < self.sections.len() {
+            self.position.section += 1;
+            self.position.row = 0;
+            self.position.col = 0;
+        }
+        // Already in the last section: clamp, stay put.
+    }
+
+    fn enter_prev(&mut self) {
+        if self.position.section > 0 {
+            self.position.section -= 1;
+            let shape = self.sections[self.position.section];
+            self.position.row = shape.rows - 1;
+            self.position.col = shape.cols - 1;
+        }
+        // Already in the first section: clamp, stay put.
+    }
+}
+
+/// Section indices, in the fixed page (tab) order focus travels through.
+mod section {
+    pub const REGION: usize = 0;
+    pub const SORT_ORDER: usize = 1;
+    pub const HEIGHT: usize = 2;
+    pub const WEIGHT: usize = 3;
+    pub const TYPE: usize = 4;
+    pub const ACTIONS: usize = 5;
+}
+
+const REGION_GRID_COLS: usize = 3;
+const TYPE_GRID_COLS: usize = 6;
+
+fn build_selection_grid() -> SelectionGrid {
+    SelectionGrid::new(vec![
+        SectionShape {
+            rows: Region::ALL.len().div_ceil(REGION_GRID_COLS),
+            cols: REGION_GRID_COLS,
+        },
+        SectionShape { rows: 1, cols: 2 }, // Sort Order: direction, key
+        SectionShape { rows: 1, cols: 1 }, // Height
+        SectionShape { rows: 1, cols: 1 }, // Weight
+        SectionShape {
+            rows: PokemonType::ALL.len().div_ceil(TYPE_GRID_COLS),
+            cols: TYPE_GRID_COLS,
+        },
+        SectionShape { rows: 1, cols: 3 }, // Actions: Filter Mode, Clear, OK
+    ])
+}
 
 #[derive(Debug)]
 pub struct Filter {
@@ -30,11 +136,13 @@ pub struct Filter {
     pokeball_handle: Handle,
     filter_modal: svg::Handle,
 
-    selected_regions: HashSet<Region>,
-    selected_types: HashSet<PokemonType>,
+    selected_regions: Vec<Region>,
+    selected_types: Vec<PokemonType>,
     sort_key: SortKey,
     sort_direction: SortDirection,
     filter_mode: FilterMode,
+
+    selection: SelectionGrid,
 }
 
 #[derive(Clone, Debug)]
@@ -56,7 +164,7 @@ pub enum Message {
 pub enum Action {
     None,
     Run(Task<Message>),
-    Return(Box<PokedexBrowser>),
+    Return(Box<PokedexBrowser>, Task<crate::browse_pokedex::Message>),
 }
 
 mod colors {
@@ -86,7 +194,7 @@ mod colors {
 impl Filter {
     pub fn new(return_to: Box<PokedexBrowser>) -> (Self, Task<Message>) {
         let criteria = return_to.criteria();
-        let regions = criteria.clone().regions;
+        let selected_regions = criteria.clone().regions;
         let types = criteria.clone().types;
         let sort_key = criteria.clone().sort_key;
         let sort_direction = criteria.clone().sort_order;
@@ -107,14 +215,24 @@ impl Filter {
                     include_bytes!("../../../assets/browse_screen/filter_modal.svg").as_slice(),
                 ),
 
-                selected_regions: regions,
+                selected_regions,
                 selected_types: types,
                 sort_key,
                 sort_direction,
                 filter_mode,
+
+                selection: build_selection_grid(),
             },
             Task::none(),
         )
+    }
+
+    fn reset_from_criteria(&mut self) {
+        self.selected_regions = self.criteria.clone().regions;
+        self.selected_types = self.criteria.clone().types;
+        self.sort_key = self.criteria.clone().sort_key;
+        self.sort_direction = self.criteria.clone().sort_order;
+        self.filter_mode = self.criteria.clone().filter_mode;
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
@@ -135,25 +253,30 @@ impl Filter {
                     self.criteria.types = self.selected_types.clone();
                     self.criteria.sort_key = self.sort_key;
                     self.criteria.sort_order = self.sort_direction;
+                    self.criteria.filter_mode = self.filter_mode;
 
-                    browser.apply_filter(self.criteria.clone());
-                    Action::Return(browser)
+                    let task = browser.apply_filter(self.criteria.clone());
+                    Action::Return(browser, task)
                 }
                 None => Action::None,
             },
             Message::Cancel => match self.return_to.take() {
-                Some(browser) => Action::Return(browser),
+                Some(browser) => Action::Return(browser, Task::none()),
                 None => Action::None,
             },
             Message::RegionToggled(region) => {
-                if !self.selected_regions.remove(&region) {
-                    self.selected_regions.insert(region);
+                if let Some(index) = self.selected_regions.iter().position(|r| r == &region) {
+                    self.selected_regions.remove(index);
+                } else {
+                    self.selected_regions.push(region);
                 }
                 Action::None
             }
             Message::TypeToggled(pokemon_type) => {
-                if !self.selected_types.remove(&pokemon_type) {
-                    self.selected_types.insert(pokemon_type);
+                if self.selected_types.contains(&pokemon_type) {
+                    self.selected_types.retain(|type_| pokemon_type != *type_);
+                } else {
+                    self.selected_types.push(pokemon_type);
                 }
                 Action::None
             }
@@ -173,13 +296,10 @@ impl Filter {
             }
             Message::ClearAllFilters => {
                 self.criteria = FilterCriteria::default();
+                self.reset_from_criteria();
                 Action::None
             }
-            Message::OkPressed => {
-                println!("OK pressed (apply/close not implemented yet)");
-                Action::None
-            }
-            _ => Action::None,
+            Message::OkPressed => Action::Run(Task::done(Message::Apply)),
         }
     }
 
@@ -231,7 +351,7 @@ impl Filter {
     }
 
     pub fn bottom_view(&self) -> Element<'_, Message> {
-        let one: Vec<Region> = self.criteria.regions.clone().into_iter().collect();
+        let all: Vec<Region> = FilterCriteria::default().regions.clone();
 
         let controls_column = column![
             sort_order_row(self.sort_direction, self.sort_key),
@@ -241,7 +361,7 @@ impl Filter {
         .spacing(6)
         .width(Length::Fill);
 
-        let top_row = row![region_card(&self.selected_regions, one), controls_column]
+        let top_row = row![region_card(&self.selected_regions, all), controls_column]
             .spacing(20)
             .width(Length::Fill);
 
@@ -305,6 +425,7 @@ fn section_card<'a>(content: Element<'a, Message>) -> Element<'a, Message> {
                 width: 2.0,
                 radius: 16.0.into(),
             },
+            shadow: default_shadow(),
             ..Default::default()
         })
         .into()
@@ -313,10 +434,7 @@ fn section_card<'a>(content: Element<'a, Message>) -> Element<'a, Message> {
 // ---------------------------------------------------------------------
 // Region card
 // ---------------------------------------------------------------------
-fn region_card<'a>(
-    selected: &'a HashSet<Region>,
-    all_regions: Vec<Region>,
-) -> Element<'a, Message> {
+fn region_card<'a>(selected: &'a Vec<Region>, all_regions: Vec<Region>) -> Element<'a, Message> {
     let grid_rows: Vec<Element<'a, Message>> = all_regions
         .chunks(3)
         .map(|chunk| {
@@ -351,13 +469,12 @@ fn region_bubble<'a>(region: Region, selected: bool) -> Element<'a, Message> {
         .height(Length::Fill)
         .padding([8, 4])
         .style(move |_theme: &Theme, status: button::Status| {
-            let (background, text_color) = if selected {
+            let (background, text_color) = if status == button::Status::Hovered {
+                (colors::BUBBLE_HOVER_BG, colors::TEXT_DARK)
+            } else if selected {
                 (colors::BUBBLE_SELECTED_BG, Color::WHITE)
             } else {
-                match status {
-                    button::Status::Hovered => (colors::BUBBLE_HOVER_BG, colors::TEXT_DARK),
-                    _ => (colors::BUBBLE_BG, colors::TEXT_DARK),
-                }
+                (colors::BUBBLE_BG, colors::TEXT_DARK)
             };
 
             button::Style {
@@ -516,7 +633,7 @@ fn range_display<'a>(min_value: &str, max_value: &str, unit: Option<&str>) -> El
 // ---------------------------------------------------------------------
 // Type card
 // ---------------------------------------------------------------------
-fn type_card<'a>(selected: &'a HashSet<PokemonType>) -> Element<'a, Message> {
+fn type_card<'a>(selected: &'a Vec<PokemonType>) -> Element<'a, Message> {
     let grid_rows: Vec<Element<'a, Message>> = PokemonType::ALL
         .chunks(6)
         .map(|chunk| {
@@ -535,7 +652,11 @@ fn type_card<'a>(selected: &'a HashSet<PokemonType>) -> Element<'a, Message> {
     let content = column![
         section_title("Type"),
         column(grid_rows)
-            .spacing(3)
+            .spacing(4)
+            .padding(Padding {
+                top: 4.0,
+                ..Default::default()
+            })
             .width(Length::Fill)
             .height(Length::Fill),
     ]
