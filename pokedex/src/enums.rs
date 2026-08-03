@@ -10,6 +10,15 @@ use ort::session::Session;
 use serde::{Deserialize, Deserializer, Serialize};
 use strum_macros::{Display, EnumString};
 
+#[derive(Debug, Clone)]
+pub enum IOAction {
+    ScrollUp,
+    ScrollDown,
+    Left,
+    Right,
+    Select,
+}
+
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq)]
 pub enum Region {
     Kanto,
