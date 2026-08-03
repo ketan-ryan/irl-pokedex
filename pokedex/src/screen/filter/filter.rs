@@ -1,4 +1,4 @@
-use std::{collections::HashSet, ops::Index, str::FromStr, time::Instant};
+use std::{str::FromStr, time::Instant};
 
 use iced::{
     Alignment, Background, Border, Color, Element, Font, Length, Padding, Shadow, Subscription,
@@ -17,9 +17,7 @@ use crate::{
         selectable::{SectionShape, SelectionDirection, SelectionGrid, SelectionPosition},
     },
     enums::{FilterMode, PokemonType, Region, SortDirection, SortKey},
-    screen::browse_pokedex::{
-        self, browse_pokedex::PokedexBrowser, filter_predicate::FilterCriteria,
-    },
+    screen::browse_pokedex::{browse_pokedex::PokedexBrowser, filter_predicate::FilterCriteria},
 };
 
 const OPEN_SANS: Font = iced::Font::with_name("Open Sans SemiBold");

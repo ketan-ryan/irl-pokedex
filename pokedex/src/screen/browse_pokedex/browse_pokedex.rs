@@ -16,7 +16,7 @@ use iced::{
 };
 use log::debug;
 
-use crate::enums::SortDirection;
+use crate::enums::{IOAction, SortDirection};
 use crate::{
     elements::{
         icon_button::{IconButtonColors, IconButtonInteraction, icon_button},
@@ -106,15 +106,6 @@ pub enum Action {
     GoHome,
     Run(Task<Message>),
     OpenFilter,
-}
-
-#[derive(Debug, Clone)]
-pub enum IOAction {
-    ScrollUp,
-    ScrollDown,
-    Left,
-    Right,
-    Input,
 }
 
 const TOP_SCREEN_ITEMS: usize = 8;
@@ -583,7 +574,7 @@ impl PokedexBrowser {
                         }
                         IOAction::Left => self.keyboard.handle_input(keyboard::InputAction::Left),
                         IOAction::Right => self.keyboard.handle_input(keyboard::InputAction::Right),
-                        IOAction::Input => {
+                        IOAction::Select => {
                             self.keyboard.handle_input(keyboard::InputAction::Select)
                         }
                     };
@@ -749,48 +740,6 @@ impl PokedexBrowser {
     pub fn subscription(&self) -> Subscription<Message> {
         let mut subscriptions = Vec::new();
         subscriptions.push(window::frames().map(Message::Tick));
-
-        // TODO: Will need custom subscription / event to handle rpi IO
-        subscriptions.push(event::listen_with(|event, status, _| {
-            match (event, status) {
-                (
-                    Event::Keyboard(KeyPressed {
-                        key: Key::Named(Named::ArrowUp),
-                        ..
-                    }),
-                    Status::Ignored,
-                ) => Some(Message::IOInput(IOAction::ScrollUp)),
-                (
-                    Event::Keyboard(KeyPressed {
-                        key: Key::Named(Named::ArrowDown),
-                        ..
-                    }),
-                    Status::Ignored,
-                ) => Some(Message::IOInput(IOAction::ScrollDown)),
-                (
-                    Event::Keyboard(KeyPressed {
-                        key: Key::Named(Named::ArrowLeft),
-                        ..
-                    }),
-                    Status::Ignored,
-                ) => Some(Message::IOInput(IOAction::Left)),
-                (
-                    Event::Keyboard(KeyPressed {
-                        key: Key::Named(Named::ArrowRight),
-                        ..
-                    }),
-                    Status::Ignored,
-                ) => Some(Message::IOInput(IOAction::Right)),
-                (
-                    Event::Keyboard(KeyPressed {
-                        key: Key::Named(Named::Enter),
-                        ..
-                    }),
-                    Status::Ignored,
-                ) => Some(Message::IOInput(IOAction::Input)),
-                _ => None,
-            }
-        }));
 
         if self.scroll_animation.is_some() {
             subscriptions

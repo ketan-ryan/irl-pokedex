@@ -72,9 +72,7 @@ impl FilterCriteria {
                 .as_deref()
                 .is_some_and(|d| d.to_lowercase().contains(&query));
             let matches = name_match || display_match;
-            if self.filter_mode == FilterMode::Any {
-                active_results.push(matches);
-            } else if matches {
+            if matches {
                 active_results.push(true);
             } else {
                 return false;
@@ -147,11 +145,11 @@ impl FilterCriteria {
             return true;
         }
 
-        if self.filter_mode == FilterMode::All {
-            active_results.into_iter().all(|matched| matched)
-        } else {
-            active_results.into_iter().any(|matched| matched)
-        }
+        // if self.filter_mode == FilterMode::All {
+        // active_results.into_iter().all(|matched| matched)
+        // } else {
+        active_results.into_iter().all(|matched| matched)
+        // }
     }
 
     /// Sort key for a name, honoring `is_alphabetical`. Ascending/descending
