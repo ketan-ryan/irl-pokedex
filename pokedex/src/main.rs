@@ -250,7 +250,10 @@ impl App {
                 Screen::PokedexBrowser(browser) => Self::handle_browser_action(
                     browser.update(browse_pokedex::Message::IOInput(action)),
                 ),
-                Screen::Filter(_) => Task::none(),
+                Screen::Filter(filter) => {
+                    let action = filter.update(filter::Message::IOInput(action));
+                    self.handle_filter_action(action)
+                }
                 Screen::Loading => Task::none(),
             },
             Message::OpenRegister(result) => self.open_register(result),
@@ -313,7 +316,7 @@ impl App {
     fn load_files(&mut self) -> Task<Message> {
         let (top_id, open) = window::open(window::Settings {
             size: (640, 480).into(),
-            position: window::Position::Specific(iced::Point::new(1000.0, 200.0)),
+            position: window::Position::Specific(iced::Point::new(400.0, 100.0)),
             // resizable: false,
             // decorations: false,
             ..window::Settings::default()
@@ -321,7 +324,7 @@ impl App {
 
         let (bottom_id, open_second) = window::open(window::Settings {
             size: (640, 480).into(),
-            position: window::Position::Specific(iced::Point::new(1000.0, 800.0)),
+            position: window::Position::Specific(iced::Point::new(1000.0, 200.0)),
             // resizable: false,
             // decorations: false,
             ..window::Settings::default()

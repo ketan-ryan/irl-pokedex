@@ -16,7 +16,7 @@ use crate::{
         scanlines::Scanlines,
         selectable::{SectionShape, SelectionDirection, SelectionGrid, SelectionPosition},
     },
-    enums::{FilterMode, PokemonType, Region, SortDirection, SortKey},
+    enums::{FilterMode, IOAction, PokemonType, Region, SortDirection, SortKey},
     screen::browse_pokedex::{browse_pokedex::PokedexBrowser, filter_predicate::FilterCriteria},
 };
 
@@ -41,36 +41,32 @@ impl SelectionGrid {
 
     fn navigate(&mut self, direction: SelectionDirection) {
         let shape = self.sections[self.position.section];
+        let SelectionPosition { section, row, col } = self.position;
+        let moved_within_section = match direction {
+            SelectionDirection::Right if col + 1 < shape.cols => {
+                self.position.col += 1;
+                true
+            }
+            SelectionDirection::Left if col > 0 => {
+                self.position.col -= 1;
+                true
+            }
+            SelectionDirection::Down if row + 1 < shape.rows => {
+                self.position.row += 1;
+                true
+            }
+            SelectionDirection::Up if row > 0 => {
+                self.position.row -= 1;
+                true
+            }
+            _ => false,
+        };
 
-        match direction {
-            SelectionDirection::Right => {
-                if self.position.col + 1 < shape.cols {
-                    self.position.col += 1;
-                } else {
-                    self.enter_next();
-                }
+        if !moved_within_section {
+            if let Some(next) = escape(&self.sections, section, row, col, direction) {
+                self.position = next;
             }
-            SelectionDirection::Left => {
-                if self.position.col > 0 {
-                    self.position.col -= 1;
-                } else {
-                    self.enter_prev();
-                }
-            }
-            SelectionDirection::Down => {
-                if self.position.row + 1 < shape.rows {
-                    self.position.row += 1;
-                } else {
-                    self.enter_next();
-                }
-            }
-            SelectionDirection::Up => {
-                if self.position.row > 0 {
-                    self.position.row -= 1;
-                } else {
-                    self.enter_prev();
-                }
-            }
+            // else: no neighbor in that direction -- clamp, stay put.
         }
     }
 
@@ -91,6 +87,81 @@ impl SelectionGrid {
             self.position.col = shape.cols - 1;
         }
         // Already in the first section: clamp, stay put.
+    }
+}
+
+/// Layout-specific cross-section jumps. Returns where focus lands when a
+/// move would leave the current section's bounds, or `None` if there's no
+/// neighbor in that direction (edge of the page -- stay put).
+fn escape(
+    sections: &[SectionShape],
+    section: usize,
+    row: usize,
+    col: usize,
+    direction: SelectionDirection,
+) -> Option<SelectionPosition> {
+    use SelectionDirection::*;
+
+    let at = |section: usize, row: usize, col: usize| Some(SelectionPosition { section, row, col });
+    let rows_of = |s: usize| sections[s].rows;
+    let cols_of = |s: usize| sections[s].cols;
+
+    match (section, direction) {
+        // --- Region (3x3), top-left ---
+        (s, Right) if s == section::REGION => match row {
+            0 => at(section::SORT_ORDER, 0, 0),
+            1 => at(section::HEIGHT, 0, 0),
+            _ => at(section::WEIGHT, 0, 0),
+        },
+        (s, Down) if s == section::REGION => {
+            at(section::TYPE, 0, col.min(cols_of(section::TYPE) - 1))
+        }
+        (s, Up) | (s, Left) if s == section::REGION => None,
+
+        // --- Sort Order (1x2), top-right, aligned with Region row 0 ---
+        (s, Left) if s == section::SORT_ORDER => {
+            at(section::REGION, 0, cols_of(section::REGION) - 1)
+        }
+        (s, Down) if s == section::SORT_ORDER => at(section::HEIGHT, 0, 0),
+        (s, Up) | (s, Right) if s == section::SORT_ORDER => None,
+
+        // --- Height (1x1), top-right, aligned with Region row 1 ---
+        (s, Left) if s == section::HEIGHT => at(section::REGION, 1, cols_of(section::REGION) - 1),
+        (s, Up) if s == section::HEIGHT => at(section::SORT_ORDER, 0, 0),
+        (s, Down) if s == section::HEIGHT => at(section::WEIGHT, 0, 0),
+        (s, Right) if s == section::HEIGHT => None,
+
+        // --- Weight (1x1), top-right, aligned with Region row 2 ---
+        (s, Left) if s == section::WEIGHT => at(section::REGION, 2, cols_of(section::REGION) - 1),
+        (s, Up) if s == section::WEIGHT => at(section::HEIGHT, 0, 0),
+        (s, Down) if s == section::WEIGHT => at(section::TYPE, 0, cols_of(section::TYPE) - 1),
+        (s, Right) if s == section::WEIGHT => None,
+
+        // --- Type (3x6), full width, below Region & the right column ---
+        (s, Up) if s == section::TYPE => {
+            if col < cols_of(section::REGION) {
+                at(section::REGION, rows_of(section::REGION) - 1, col)
+            } else {
+                at(section::WEIGHT, 0, 0)
+            }
+        }
+        (s, Down) if s == section::TYPE => {
+            at(section::ACTIONS, 0, col.min(cols_of(section::ACTIONS) - 1))
+        }
+        (s, Left) | (s, Right) if s == section::TYPE => None,
+
+        // --- Actions (1x3), bottom, full width ---
+        (s, Up) if s == section::ACTIONS => {
+            let type_rows = rows_of(section::TYPE);
+            at(
+                section::TYPE,
+                type_rows - 1,
+                col.min(cols_of(section::TYPE) - 1),
+            )
+        }
+        (s, Down) | (s, Left) | (s, Right) if s == section::ACTIONS => None,
+
+        _ => None,
     }
 }
 
@@ -148,6 +219,7 @@ pub enum Message {
     Tick(Instant),
     Apply,
     Cancel,
+
     RegionToggled(Region),
     TypeToggled(PokemonType),
     SortDirectionToggled,
@@ -155,8 +227,11 @@ pub enum Message {
     HeightRowClicked,
     WeightRowClicked,
     FilterModeToggled,
+
     ClearAllFilters,
     OkPressed,
+
+    IOInput(IOAction),
 }
 
 pub enum Action {
@@ -187,6 +262,9 @@ mod colors {
     pub const PRIMARY_HOVER_BG: Color = Color::from_rgb(0.239, 0.561, 0.796);
 
     pub const TYPE_SELECTED_BORDER: Color = Color::from_rgb(0.106, 0.247, 0.451);
+
+    /// Cursor / keyboard-focus ring, distinct from selection state.
+    pub const FOCUS_RING: Color = Color::from_rgb(1.0, 0.706, 0.176);
 }
 
 impl Filter {
@@ -298,6 +376,17 @@ impl Filter {
                 Action::None
             }
             Message::OkPressed => Action::Run(Task::done(Message::Apply)),
+            Message::IOInput(input) => {
+                match input {
+                    IOAction::Left => self.selection.navigate(SelectionDirection::Left),
+                    IOAction::Right => self.selection.navigate(SelectionDirection::Right),
+                    IOAction::ScrollUp => self.selection.navigate(SelectionDirection::Up),
+                    IOAction::ScrollDown => self.selection.navigate(SelectionDirection::Down),
+                    _ => (),
+                };
+
+                Action::None
+            }
         }
     }
 
@@ -359,7 +448,9 @@ impl Filter {
         .spacing(6)
         .width(Length::Fill);
 
-        let top_row = row![region_card(&self.selected_regions, all), controls_column]
+        let focus = self.selection.position;
+
+        let top_row = row![region_card(&self.selected_regions, focus), controls_column]
             .spacing(20)
             .width(Length::Fill);
 
@@ -429,58 +520,114 @@ fn section_card<'a>(content: Element<'a, Message>) -> Element<'a, Message> {
         .into()
 }
 
+/// The rounded, bordered "holo" card background used by every section.
+/// `focused` draws the focus ring on the card's own border -- only pass
+/// `true` for cards that are themselves a single focus target (Height,
+/// Weight); cards whose *children* are individually focusable (Region,
+/// Type) should always pass `false` here.
+fn card<'a>(
+    content: Element<'a, Message>,
+    height: f32,
+    vertical_padding: f32,
+    focused: bool,
+) -> Element<'a, Message> {
+    container(content)
+        .padding([vertical_padding, 16.0])
+        .width(Length::Fill)
+        .height(Length::Fixed(height))
+        .style(move |_theme: &Theme| {
+            let (border_color, border_width) = if focused {
+                (colors::FOCUS_RING, 3.0)
+            } else {
+                (colors::CARD_BORDER, 2.0)
+            };
+
+            container::Style {
+                background: Some(Background::Color(colors::CARD_BG)),
+                border: Border {
+                    color: border_color,
+                    width: border_width,
+                    radius: 16.0.into(),
+                },
+                ..Default::default()
+            }
+        })
+        .into()
+}
+
 // ---------------------------------------------------------------------
 // Region card
 // ---------------------------------------------------------------------
-fn region_card<'a>(selected: &'a Vec<Region>, all_regions: Vec<Region>) -> Element<'a, Message> {
-    let grid_rows: Vec<Element<'a, Message>> = all_regions
-        .chunks(3)
-        .map(|chunk| {
+fn region_card<'a>(selected: &'a Vec<Region>, focus: SelectionPosition) -> Element<'a, Message> {
+    let grid_rows: Vec<Element<'a, Message>> = Region::ALL
+        .chunks(REGION_GRID_COLS)
+        .enumerate()
+        .map(|(row_idx, chunk)| {
             let bubbles: Vec<Element<'a, Message>> = chunk
                 .iter()
-                .map(|region| region_bubble(region.clone(), selected.contains(region)))
+                .enumerate()
+                .map(|(col_idx, region)| {
+                    let focused = focus.section == section::REGION
+                        && focus.row == row_idx
+                        && focus.col == col_idx;
+                    region_bubble(*region, selected.contains(region), focused)
+                })
                 .collect();
-            row(bubbles).spacing(12).width(Length::Fill).into()
+            row(bubbles)
+                .spacing(12)
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .into()
         })
         .collect();
 
-    let content = column![
-        section_title("Region"),
-        column(grid_rows).spacing(6).width(Length::Fill),
-    ]
-    .spacing(6)
-    .width(Length::Fill)
-    .height(Length::Fixed(150.0));
+    let grid = column(grid_rows)
+        .spacing(8)
+        .width(Length::Fill)
+        .height(Length::Fill);
 
-    section_card(content.into())
+    let content = column![section_title("Region"), grid]
+        .spacing(8)
+        .width(Length::Fill)
+        .height(Length::Fill);
+
+    card(content.into(), 150.0, 16.0, false)
 }
 
-fn region_bubble<'a>(region: Region, selected: bool) -> Element<'a, Message> {
+fn region_bubble<'a>(region: Region, selected: bool, focused: bool) -> Element<'a, Message> {
     let label = text(region.label())
         .size(16)
         .width(Length::Fill)
+        .height(Length::Fill)
         .align_x(Alignment::Center)
         .align_y(Alignment::Center);
 
     button(label)
         .width(Length::Fill)
         .height(Length::Fill)
-        .padding([8, 4])
+        .padding(4)
         .style(move |_theme: &Theme, status: button::Status| {
-            let (background, text_color) = if status == button::Status::Hovered {
-                (colors::BUBBLE_HOVER_BG, colors::TEXT_DARK)
-            } else if selected {
+            let (background, text_color) = if selected {
                 (colors::BUBBLE_SELECTED_BG, Color::WHITE)
             } else {
-                (colors::BUBBLE_BG, colors::TEXT_DARK)
+                match status {
+                    button::Status::Hovered => (colors::BUBBLE_HOVER_BG, colors::TEXT_DARK),
+                    _ => (colors::BUBBLE_BG, colors::TEXT_DARK),
+                }
+            };
+
+            let (border_color, border_width) = if focused {
+                (colors::FOCUS_RING, 3.0)
+            } else {
+                (colors::CARD_BORDER, 2.0)
             };
 
             button::Style {
                 background: Some(Background::Color(background)),
                 text_color,
                 border: Border {
-                    color: colors::CARD_BORDER,
-                    width: 2.0,
+                    color: border_color,
+                    width: border_width,
                     radius: 999.0.into(),
                 },
                 shadow: Shadow::default(),
