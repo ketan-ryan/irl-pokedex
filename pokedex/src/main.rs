@@ -220,17 +220,17 @@ impl App {
     fn load_files(&mut self) -> Task<Message> {
         let (top_id, open) = window::open(window::Settings {
             size: (640, 480).into(),
-            position: window::Position::Specific(iced::Point::new(1000.0, 200.0)),
-            resizable: false,
-            decorations: false,
+            position: window::Position::Specific(iced::Point::new(300.0, 200.0)),
+            // resizable: false,
+            // decorations: false,
             ..window::Settings::default()
         });
 
         let (bottom_id, open_second) = window::open(window::Settings {
             size: (640, 480).into(),
-            position: window::Position::Specific(iced::Point::new(1000.0, 800.0)),
-            resizable: false,
-            decorations: false,
+            position: window::Position::Specific(iced::Point::new(1000.0, 200.0)),
+            // resizable: false,
+            // decorations: false,
             ..window::Settings::default()
         });
 

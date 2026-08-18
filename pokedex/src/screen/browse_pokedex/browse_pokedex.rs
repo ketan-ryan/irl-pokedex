@@ -14,6 +14,7 @@ use iced::{
     window,
 };
 
+use crate::elements::icon_button::split_icon_button;
 use crate::{
     elements::{
         icon_button::{IconButtonColors, IconButtonInteraction, icon_button},
@@ -69,6 +70,7 @@ pub struct PokedexBrowser {
     close_icon: svg::Handle,
 
     search_interaction: IconButtonInteraction,
+    search_close_interaction: IconButtonInteraction,
     filter_interaction: IconButtonInteraction,
     close_interaction: IconButtonInteraction,
 
@@ -91,6 +93,7 @@ pub enum Message {
     SelectPokemon(String, bool),
     AnimateScroll,
     SearchInteraction(IconButtonInteraction),
+    SearchCloseInteraction(IconButtonInteraction),
     FilterInteraction(IconButtonInteraction),
     CloseInteraction(IconButtonInteraction),
     OpenKeyboard,
@@ -250,6 +253,7 @@ impl PokedexBrowser {
             last_load_dispatch_time: None,
 
             search_interaction: IconButtonInteraction::default(),
+            search_close_interaction: IconButtonInteraction::default(),
             filter_interaction: IconButtonInteraction::default(),
             close_interaction: IconButtonInteraction::default(),
 
@@ -619,6 +623,17 @@ impl PokedexBrowser {
                     return Action::Run(Task::done(Message::OpenKeyboard));
                 } else {
                     self.search_interaction = i;
+                }
+                Action::None
+            }
+            Message::SearchCloseInteraction(i) => {
+                if i == IconButtonInteraction::Released {
+                    self.search_close_interaction = IconButtonInteraction::Hovered;
+                    println!("Search close clicked!");
+                    self.filter.search.clear();
+                    return Action::Run(self.refilter());
+                } else {
+                    self.search_close_interaction = i;
                 }
                 Action::None
             }
@@ -1153,13 +1168,19 @@ impl PokedexBrowser {
 
         let mut screen = iced::widget::Stack::with_children(elements);
 
-        let search = icon_button(
+        let search = container(split_icon_button(
             self.search_icon.clone(),
             Some("Search"),
             &self.search_interaction,
             IconButtonColors::default(),
             Message::SearchInteraction,
-        );
+            self.close_icon.clone(),
+            None,
+            &self.search_close_interaction,
+            IconButtonColors::default(),
+            Message::SearchCloseInteraction,
+        ))
+        .padding(5);
 
         let filter = icon_button(
             self.filter_icon.clone(),
@@ -1185,7 +1206,7 @@ impl PokedexBrowser {
                     search,
                     filter,
                     close,
-                    Space::new().width(Length::FillPortion(13))
+                    Space::new().width(Length::FillPortion(25))
                 ]
                 .align_y(Alignment::End)
                 .height(Length::FillPortion(2))
