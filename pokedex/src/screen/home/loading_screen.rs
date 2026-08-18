@@ -7,7 +7,7 @@ use iced::{Color, Element, Point, Radians, Rectangle, Renderer, Theme, Vector};
 use std::f32::consts::PI;
 use std::time::{Duration, Instant};
 
-use crate::screen::home::Message;
+use crate::screen::home::home::Message;
 
 #[derive(Debug)]
 pub struct SpinnerState {
@@ -69,10 +69,10 @@ impl QuadState {
             time: Instant::now(),
             cache: canvas::Cache::new(),
             half_ball_handle: image::Handle::from_bytes(
-                include_bytes!("../../assets/pokeball_half.png").as_slice(),
+                include_bytes!("../../../assets/pokeball_half.png").as_slice(),
             ),
             ball_handle: image::Handle::from_bytes(
-                include_bytes!("../../assets/pokeball.png").as_slice(),
+                include_bytes!("../../../assets/pokeball.png").as_slice(),
             ),
             spinner: spinner,
             loaded_time: 0.0,
