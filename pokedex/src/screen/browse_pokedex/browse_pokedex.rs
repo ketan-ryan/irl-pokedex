@@ -5,35 +5,31 @@ use std::{collections::HashMap, time::Instant};
 
 use iced::advanced::graphics::core::widget;
 use iced::animation::Animation;
-use iced::event::{self, Status};
-use iced::keyboard::{Event::KeyPressed, Key, key::Named};
 use iced::widget::scrollable::{Direction, Scrollbar};
 use iced::widget::{Id, Scrollable, mouse_area, operation, stack};
 use iced::{
-    Alignment, Border, Color, Element, Event, Length, Padding, Subscription, Task,
+    Alignment, Border, Color, Element, Length, Padding, Subscription, Task,
     widget::{Space, canvas, column, container, image, image::Handle, row, scrollable, svg, text},
     window,
 };
 use log::debug;
 
-use crate::elements::icon_button::split_icon_button;
-use crate::enums::{IOAction, SortDirection};
 use crate::{
     elements::{
-        icon_button::{IconButtonColors, IconButtonInteraction, icon_button},
+        icon_button::{IconButtonColors, IconButtonInteraction, icon_button, split_icon_button},
         registered_icon::{IconState, RegisteredIconWidget},
         scanlines::Scanlines,
     },
-    enums::{PokedexConfig, PokemonInfo},
+    enums::{IOAction, PokedexConfig, PokemonEntry, PokemonInfo, SortDirection},
     screen::browse_pokedex::{filter_predicate::FilterCriteria, image_cache::ImageCache, keyboard},
     screen::register,
 };
 
 #[derive(Clone, Debug)]
 struct Selected {
-    selected_pokemon: Option<String>,
+    selected_pokemon: Option<PokemonEntry>,
     selected_idx: Option<usize>,
-    previously_selected: Option<String>,
+    previously_selected: Option<PokemonEntry>,
     selected_slot: usize,
 }
 
@@ -81,7 +77,7 @@ pub struct PokedexBrowser {
     last_submitted: Option<String>,
 
     // filtering
-    all_pokemon_names: Vec<String>,
+    all_pokemon_entries: Vec<PokemonEntry>,
     criteria: FilterCriteria,
     owned_filtered: HashSet<String>,
 }
@@ -93,7 +89,7 @@ pub enum Message {
     ImageLoaded(String, Handle, f32, u64),
     ImageLoadFailed(String, u64),
     IOInput(IOAction),
-    SelectPokemon(String, bool),
+    SelectPokemon(PokemonEntry, bool),
     AnimateScroll,
     SearchInteraction(IconButtonInteraction),
     SearchCloseInteraction(IconButtonInteraction),
@@ -158,10 +154,12 @@ impl PokedexBrowser {
         owned_pokemon: std::collections::HashSet<String>,
     ) -> (Self, Task<Message>) {
         let mut pokemon_names: Vec<String> = pokemon_data.keys().cloned().collect();
-        let all_pokemon_names = pokemon_names.clone();
 
         pokemon_names.retain(|name| {
-            pokemon_data.get(name).unwrap().base.is_none_or(|base| base) && !name.contains("mega ")
+            pokemon_data
+                .get(name)
+                .is_some_and(|data| data.base.is_none_or(|base| base))
+                && !name.contains("mega ")
         });
 
         pokemon_names = pokemon_names
@@ -169,13 +167,12 @@ impl PokedexBrowser {
             .map(|name| {
                 // Some pokemon have different names in the class map and pokedex json,
                 // depending on how they were generated
-                let mapped: Option<&String> = config.name_maps.get(name);
-                if mapped.is_some() {
-                    mapped.unwrap()
-                } else {
-                    name
-                }
-                .to_lowercase()
+                config
+                    .name_maps
+                    .get(name)
+                    .map(|s| s.as_str())
+                    .unwrap_or(name)
+                    .to_lowercase()
             })
             .collect();
 
@@ -187,10 +184,22 @@ impl PokedexBrowser {
                 .unwrap_or(9999)
         });
 
-        let selected_idx = 5;
-        let selected_pokemon = pokemon_names.get(selected_idx).cloned();
+        let all_pokemon_entries: Vec<PokemonEntry> = pokemon_names
+            .clone()
+            .into_iter()
+            .map(|name| {
+                let display = pokemon_data
+                    .get(&name)
+                    .and_then(|d| d.display_name.clone())
+                    .unwrap_or_else(|| name.clone());
+                PokemonEntry { key: name, display }
+            })
+            .collect();
 
-        let mut image_cache = ImageCache::new(pokemon_names, 25);
+        let selected_idx = 5;
+        let selected_pokemon = all_pokemon_entries.get(selected_idx).cloned();
+
+        let mut image_cache = ImageCache::new(all_pokemon_entries.clone(), 25);
 
         let load_task = image_cache.update_visible_range(
             config.as_ref().sprites_location.clone(),
@@ -257,7 +266,7 @@ impl PokedexBrowser {
             show_keyboard: false,
             last_submitted: None,
 
-            all_pokemon_names: all_pokemon_names,
+            all_pokemon_entries: all_pokemon_entries,
             owned_filtered: owned_pokemon,
             criteria: FilterCriteria::default(),
         };
@@ -266,12 +275,13 @@ impl PokedexBrowser {
     }
 
     fn refilter(&mut self) -> Task<Message> {
-        let mut filtered: Vec<String> = self
-            .all_pokemon_names
+        let mut filtered: Vec<PokemonEntry> = self
+            .all_pokemon_entries
             .iter()
-            .filter(|name| {
-                self.criteria
-                    .matches(name, self.pokemon_data.get(*name).unwrap())
+            .filter(|entry| {
+                self.pokemon_data
+                    .get(&entry.key)
+                    .is_some_and(|data| self.criteria.matches(&entry.display, data))
             })
             .cloned()
             .collect();
@@ -280,13 +290,14 @@ impl PokedexBrowser {
             .owned_pokemon
             .iter()
             .filter(|name| {
-                self.criteria
-                    .matches(name, self.pokemon_data.get(*name).unwrap())
+                self.pokemon_data
+                    .get(*name)
+                    .is_some_and(|data| self.criteria.matches(name, data))
             })
             .cloned()
             .collect();
 
-        filtered.sort_by_cached_key(|name| self.criteria.sort_key(name, &self.pokemon_data));
+        filtered.sort_by_cached_key(|name| self.criteria.sort_key(&name.key, &self.pokemon_data));
         if self.criteria.sort_order == SortDirection::Descending {
             filtered.reverse();
         }
@@ -295,8 +306,8 @@ impl PokedexBrowser {
             .selected
             .selected_pokemon
             .clone()
-            .filter(|n| filtered.contains(n))
-            .or_else(|| filtered.first().cloned());
+            .filter(|n| filtered.iter().any(|entry| entry == n))
+            .or_else(|| filtered.first().map(|entry| entry.to_owned()));
         let new_selected_idx = new_selected_name
             .as_ref()
             .and_then(|n| filtered.iter().position(|x| x == n));
@@ -464,16 +475,16 @@ impl PokedexBrowser {
                 let target_index = (first_visible + self.selected.selected_slot)
                     .min(self.image_cache.pokemon_order.len().saturating_sub(1));
 
-                if let Some(name) = self.image_cache.pokemon_order.get(target_index).cloned() {
-                    if self.selected.selected_pokemon.as_ref() != Some(&name) {
+                if let Some(entry) = self.image_cache.pokemon_order.get(target_index).cloned() {
+                    if self.selected.selected_pokemon.as_ref() != Some(&entry) {
                         self.selected.previously_selected = self.selected.selected_pokemon.clone();
-                        self.selected.selected_pokemon = Some(name.clone());
-                        self.selected_com_offset = self.image_cache.get_offset(&name);
+                        self.selected.selected_pokemon = Some(entry.clone());
+                        self.selected_com_offset = self.image_cache.get_offset(&entry.key);
                         if let Some(index) = self
                             .image_cache
                             .pokemon_order
                             .iter()
-                            .position(|n| n == &name)
+                            .position(|n| n == &entry)
                         {
                             self.selected.selected_idx = Some(index);
                             self.selected.selected_slot =
@@ -521,7 +532,13 @@ impl PokedexBrowser {
 
                 self.image_cache.insert(name.clone(), handle, Some(com));
 
-                if self.selected.selected_pokemon.as_deref() == Some(name.as_str()) {
+                if self
+                    .selected
+                    .selected_pokemon
+                    .as_ref()
+                    .map(|p| p.key.as_str())
+                    == Some(name.as_str())
+                {
                     self.selected_com_offset = Some(com);
                 }
 
@@ -564,9 +581,9 @@ impl PokedexBrowser {
                     if new_index != current_index {
                         let should_check_selected =
                             !matches!(action, IOAction::Left | IOAction::Right);
-                        let new_name = self.image_cache.pokemon_order[new_index].clone();
+                        let new_entry = self.image_cache.pokemon_order[new_index].clone();
                         return Action::Run(Task::done(Message::SelectPokemon(
-                            new_name,
+                            new_entry,
                             should_check_selected,
                         )));
                     }
@@ -587,21 +604,21 @@ impl PokedexBrowser {
                 }
                 Action::None
             }
-            Message::SelectPokemon(name, should_check_selected) => {
+            Message::SelectPokemon(entry, should_check_selected) => {
                 self.selected.previously_selected = self.selected.selected_pokemon.clone();
-                self.selected.selected_pokemon = Some(name.clone());
-                self.selected_com_offset = self.image_cache.get_offset(&name); // None until ImageLoaded arrives
+                self.selected.selected_pokemon = Some(entry.clone());
+                self.selected_com_offset = self.image_cache.get_offset(&entry.key); // None until ImageLoaded arrives
 
                 debug!(
-                    "Selecting pokemon {} and should check? {}",
-                    name, should_check_selected
+                    "Selecting pokemon {:?} and should check? {}",
+                    entry, should_check_selected
                 );
 
                 if let Some(index) = self
                     .image_cache
                     .pokemon_order
                     .iter()
-                    .position(|n| n == &name)
+                    .position(|n| n == &entry)
                 {
                     self.selected.selected_idx = Some(index);
                     self.update_selection_for_index(index, !should_check_selected);
@@ -647,7 +664,6 @@ impl PokedexBrowser {
             Message::SearchInteraction(i) => {
                 if i == IconButtonInteraction::Released {
                     self.search_interaction = IconButtonInteraction::Hovered;
-                    println!("Search clicked!");
                     return Action::Run(Task::done(Message::OpenKeyboard));
                 } else {
                     self.search_interaction = i;
@@ -657,7 +673,7 @@ impl PokedexBrowser {
             Message::SearchCloseInteraction(i) => {
                 if i == IconButtonInteraction::Released {
                     self.search_close_interaction = IconButtonInteraction::Hovered;
-                    println!("Search close clicked!");
+                    self.keyboard.clear();
                     self.criteria.search.clear();
                     return Action::Run(self.refilter());
                 } else {
@@ -789,7 +805,7 @@ impl PokedexBrowser {
             .enumerate()
             .skip(top_start_index)
             .take(items_to_show)
-            .map(|(idx, name)| {
+            .map(|(idx, entry)| {
                 // TOP_SCREEN_ITEMS - 1 is bottom of screen, 0 is top
                 // values don't matter as long as it's consistent regardless of
                 // if the top screen is full or not yet
@@ -803,10 +819,10 @@ impl PokedexBrowser {
                 let opacity =
                     0.2 + (screen_pos as f32 / (TOP_SCREEN_ITEMS - 1) as f32) * (0.8 - 0.2);
 
-                let info = self.pokemon_data.get(name).unwrap();
+                let info = self.pokemon_data.get(&entry.key).unwrap();
 
-                let is_owned = self.owned_pokemon.contains(name);
-                self.render_pokemon_item(name, info, is_owned, opacity, false, false, true)
+                let is_owned = self.owned_pokemon.contains(&entry.key);
+                self.render_pokemon_item(entry, info, is_owned, opacity, false, false, true)
             })
             .collect();
 
@@ -952,16 +968,23 @@ impl PokedexBrowser {
     pub fn bottom_view(&self) -> Element<'_, Message> {
         let items: Vec<Element<Message>> = self
             .image_cache
-            .pokemon_order
+            .pokemon_order // TODO: change pokemon order to vec of pokemonentry
             .iter()
-            .filter_map(|name| {
-                let info = self.pokemon_data.get(name).unwrap();
-                let is_owned = self.owned_pokemon.contains(name);
-                let selected = self.selected.selected_pokemon.as_ref() == Some(name);
-                let was_selected = self.selected.previously_selected.as_ref() == Some(name);
+            .filter_map(|entry| {
+                if self.pokemon_data.get(&entry.key).is_none() {
+                    debug!(
+                        "Failed to search {:?} in {:?}",
+                        entry,
+                        self.pokemon_data.keys()
+                    );
+                }
+                let info = self.pokemon_data.get(&entry.key).unwrap();
+                let is_owned = self.owned_pokemon.contains(&entry.key);
+                let selected = self.selected.selected_pokemon.as_ref() == Some(entry);
+                let was_selected = self.selected.previously_selected.as_ref() == Some(entry);
 
                 Some(self.render_pokemon_item(
-                    &name,
+                    &entry,
                     info,
                     is_owned,
                     0.9,
@@ -1001,8 +1024,8 @@ impl PokedexBrowser {
             });
 
         let image_element: Element<'_, Message> =
-            if let Some(name) = self.selected.selected_pokemon.as_ref() {
-                if let Some(handle) = self.image_cache.get(name) {
+            if let Some(entry) = self.selected.selected_pokemon.as_ref() {
+                if let Some(handle) = self.image_cache.get(&entry.key) {
                     let offset = self.selected_com_offset.unwrap_or(0.5);
                     let x_offset = (0.5 - offset) * 256.0;
 
@@ -1251,7 +1274,7 @@ impl PokedexBrowser {
     /// A rendered UI element for the Pokémon row.
     fn render_pokemon_item(
         &'_ self,
-        name: &str,
+        entry: &PokemonEntry,
         info: &PokemonInfo,
         is_owned: bool,
         opacity: f32,
@@ -1263,7 +1286,7 @@ impl PokedexBrowser {
         let mut item_row = row!().spacing(1.5).align_y(iced::Alignment::Center);
 
         // Add image or placeholder
-        if let Some(handle) = self.image_cache.get(name) {
+        if let Some(handle) = self.image_cache.get(&entry.key) {
             item_row = item_row.push(
                 image(handle)
                     .width(IMG_SIZE)
@@ -1289,7 +1312,7 @@ impl PokedexBrowser {
                 .height(Length::Fixed(20.0)),
         ));
 
-        let dname = info.display_name.clone().unwrap_or(name.to_string());
+        let dname = entry.display.clone();
         // Pokemon info
         let info_column = column![
             text(format!(
@@ -1316,8 +1339,6 @@ impl PokedexBrowser {
         } else {
             default_color
         };
-
-        let name_ = name.to_string();
 
         let size = if selected {
             35.0 + (10.0 * size_now)
@@ -1346,7 +1367,7 @@ impl PokedexBrowser {
 
         // only bottom screen should be clickables
         let area = if !is_top_screen && !self.show_keyboard {
-            area.on_press(Message::SelectPokemon(name_, true))
+            area.on_press(Message::SelectPokemon(entry.to_owned(), true))
         } else {
             area
         };

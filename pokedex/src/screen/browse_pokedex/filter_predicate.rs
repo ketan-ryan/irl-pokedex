@@ -44,12 +44,8 @@ impl FilterCriteria {
     }
 
     /// True when no constraint is active — everything matches.
-    pub fn is_empty(&self) -> bool {
-        self.search.trim().is_empty()
-            && self.regions.is_empty()
-            && self.types.is_empty()
-            && !self.is_height_active()
-            && !self.is_weight_active()
+    pub fn is_all_selected(&self) -> bool {
+        self.regions == Vec::from(Region::ALL) && self.types == Vec::from(PokemonType::ALL)
     }
 
     /// Whether `name`/`info` satisfies this filter. Each category below

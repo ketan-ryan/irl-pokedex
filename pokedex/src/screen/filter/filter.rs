@@ -228,6 +228,7 @@ pub enum Message {
     WeightRowClicked,
     FilterModeToggled,
 
+    SelectAllToggle,
     ClearAllFilters,
     OkPressed,
 
@@ -311,6 +312,14 @@ impl Filter {
         self.filter_mode = self.criteria.clone().filter_mode;
     }
 
+    fn set_criteria(&mut self) {
+        self.criteria.regions = self.selected_regions.clone();
+        self.criteria.types = self.selected_types.clone();
+        self.criteria.sort_key = self.sort_key;
+        self.criteria.sort_order = self.sort_direction;
+        self.criteria.filter_mode = self.filter_mode;
+    }
+
     pub fn subscription(&self) -> Subscription<Message> {
         window::frames().map(Message::Tick)
     }
@@ -325,11 +334,7 @@ impl Filter {
             }
             Message::Apply => match self.return_to.take() {
                 Some(mut browser) => {
-                    self.criteria.regions = self.selected_regions.clone();
-                    self.criteria.types = self.selected_types.clone();
-                    self.criteria.sort_key = self.sort_key;
-                    self.criteria.sort_order = self.sort_direction;
-                    self.criteria.filter_mode = self.filter_mode;
+                    self.set_criteria();
 
                     let task = browser.apply_filter(self.criteria.clone());
                     Action::Return(browser, task)
@@ -346,6 +351,7 @@ impl Filter {
                 } else {
                     self.selected_regions.push(region);
                 }
+                self.set_criteria();
                 Action::None
             }
             Message::TypeToggled(pokemon_type) => {
@@ -354,14 +360,17 @@ impl Filter {
                 } else {
                     self.selected_types.push(pokemon_type);
                 }
+                self.set_criteria();
                 Action::None
             }
             Message::SortDirectionToggled => {
                 self.sort_direction = self.sort_direction.toggled();
+                self.set_criteria();
                 Action::None
             }
             Message::SortKeyToggled => {
                 self.sort_key = self.sort_key.toggled();
+                self.set_criteria();
                 Action::None
             }
             Message::HeightRowClicked => Action::None,
@@ -372,6 +381,17 @@ impl Filter {
             }
             Message::ClearAllFilters => {
                 self.criteria = FilterCriteria::default();
+                self.reset_from_criteria();
+                Action::None
+            }
+            Message::SelectAllToggle => {
+                if self.criteria.is_all_selected() {
+                    self.criteria.regions = Vec::new();
+                    self.criteria.types = Vec::new();
+                } else {
+                    self.criteria.regions = Vec::from(Region::ALL);
+                    self.criteria.types = Vec::from(PokemonType::ALL);
+                }
                 self.reset_from_criteria();
                 Action::None
             }
@@ -438,8 +458,6 @@ impl Filter {
     }
 
     pub fn bottom_view(&self) -> Element<'_, Message> {
-        let all: Vec<Region> = FilterCriteria::default().regions.clone();
-
         let controls_column = column![
             sort_order_row(self.sort_direction, self.sort_key),
             height_row(),
@@ -470,7 +488,7 @@ impl Filter {
             column![
                 top_row,
                 type_card(&self.selected_types),
-                action_row(self.filter_mode),
+                action_row(self.filter_mode, self.criteria.is_all_selected()),
             ]
             .spacing(20)
             .padding(24)
@@ -503,38 +521,10 @@ fn section_title<'a>(label: &'static str) -> Element<'a, Message> {
         .into()
 }
 
-fn section_card<'a>(content: Element<'a, Message>) -> Element<'a, Message> {
+fn section_card<'a>(content: Element<'a, Message>, focused: bool) -> Element<'a, Message> {
     container(content)
         .padding(12)
         .width(Length::Fill)
-        .style(|_theme: &Theme| container::Style {
-            background: Some(Background::Color(colors::CARD_BG)),
-            border: Border {
-                color: colors::CARD_BORDER,
-                width: 2.0,
-                radius: 16.0.into(),
-            },
-            shadow: default_shadow(),
-            ..Default::default()
-        })
-        .into()
-}
-
-/// The rounded, bordered "holo" card background used by every section.
-/// `focused` draws the focus ring on the card's own border -- only pass
-/// `true` for cards that are themselves a single focus target (Height,
-/// Weight); cards whose *children* are individually focusable (Region,
-/// Type) should always pass `false` here.
-fn card<'a>(
-    content: Element<'a, Message>,
-    height: f32,
-    vertical_padding: f32,
-    focused: bool,
-) -> Element<'a, Message> {
-    container(content)
-        .padding([vertical_padding, 16.0])
-        .width(Length::Fill)
-        .height(Length::Fixed(height))
         .style(move |_theme: &Theme| {
             let (border_color, border_width) = if focused {
                 (colors::FOCUS_RING, 3.0)
@@ -549,6 +539,7 @@ fn card<'a>(
                     width: border_width,
                     radius: 16.0.into(),
                 },
+                shadow: default_shadow(),
                 ..Default::default()
             }
         })
@@ -591,21 +582,21 @@ fn region_card<'a>(selected: &'a Vec<Region>, focus: SelectionPosition) -> Eleme
         .width(Length::Fill)
         .height(Length::Fill);
 
-    card(content.into(), 150.0, 16.0, false)
+    section_card(content.into(), false)
+    // card(content.into(), 175.0, 16.0, false)
 }
 
 fn region_bubble<'a>(region: Region, selected: bool, focused: bool) -> Element<'a, Message> {
     let label = text(region.label())
         .size(16)
         .width(Length::Fill)
-        .height(Length::Fill)
         .align_x(Alignment::Center)
         .align_y(Alignment::Center);
 
     button(label)
         .width(Length::Fill)
         .height(Length::Fill)
-        .padding(4)
+        .padding([8, 4])
         .style(move |_theme: &Theme, status: button::Status| {
             let (background, text_color) = if selected {
                 (colors::BUBBLE_SELECTED_BG, Color::WHITE)
@@ -670,7 +661,7 @@ fn sort_order_row<'a>(direction: SortDirection, key: SortKey) -> Element<'a, Mes
     .height(Length::Fixed(30.0))
     .width(Length::Fill);
 
-    section_card(content.into())
+    section_card(content.into(), false)
 }
 
 fn sort_direction_button<'a>(direction: SortDirection) -> Element<'a, Message> {
@@ -725,7 +716,7 @@ fn height_row<'a>() -> Element<'a, Message> {
     .height(Length::Fixed(30.0))
     .width(Length::Fill);
 
-    mouse_area(section_card(content.into()))
+    mouse_area(section_card(content.into(), false))
         .on_press(Message::HeightRowClicked)
         .into()
 }
@@ -740,7 +731,7 @@ fn weight_row<'a>() -> Element<'a, Message> {
     .height(Length::Fixed(30.0))
     .width(Length::Fill);
 
-    mouse_area(section_card(content.into()))
+    mouse_area(section_card(content.into(), false))
         .on_press(Message::WeightRowClicked)
         .into()
 }
@@ -809,7 +800,7 @@ fn type_card<'a>(selected: &'a Vec<PokemonType>) -> Element<'a, Message> {
     .height(Length::Fixed(140.0))
     .width(Length::Fill);
 
-    section_card(content.into())
+    section_card(content.into(), false)
 }
 
 fn type_badge<'a>(pokemon_type: PokemonType, selected: bool) -> Element<'a, Message> {
@@ -841,37 +832,69 @@ fn type_badge<'a>(pokemon_type: PokemonType, selected: bool) -> Element<'a, Mess
 // ---------------------------------------------------------------------
 // Bottom action row
 // ---------------------------------------------------------------------
-fn action_row<'a>(filter_mode: FilterMode) -> Element<'a, Message> {
+fn action_row<'a>(filter_mode: FilterMode, all_selected: bool) -> Element<'a, Message> {
     row![
+        secondary_button(
+            "Select all".to_string(),
+            Message::SelectAllToggle,
+            Some(all_selected)
+        ),
         secondary_button(
             format!("Filter Mode: {}", filter_mode.label()),
             Message::FilterModeToggled,
+            None
         ),
-        secondary_button("Clear all filters".to_string(), Message::ClearAllFilters),
+        secondary_button(
+            "Clear all filters".to_string(),
+            Message::ClearAllFilters,
+            None
+        ),
         primary_button("OK".to_string(), Message::OkPressed),
     ]
     .width(Length::Fill)
-    .spacing(40)
+    .spacing(15)
     .into()
 }
 
-fn secondary_button<'a>(label: String, message: Message) -> Element<'a, Message> {
+fn secondary_button<'a>(
+    label: String,
+    message: Message,
+    selected: Option<bool>,
+) -> Element<'a, Message> {
+    let text_color = if selected.is_some_and(|sel| sel) {
+        Color::WHITE
+    } else {
+        colors::TEXT_DARK
+    };
     button(
         text(label)
             .align_y(Alignment::Center)
             .size(18)
-            .color(colors::TEXT_DARK),
+            .color(text_color),
     )
     .height(Length::Fixed(50.0))
-    .padding([12, 42])
-    .style(|_theme: &Theme, status: button::Status| {
+    .padding([12, 22])
+    .style(move |_theme: &Theme, status: button::Status| {
         let background = match status {
-            button::Status::Hovered => colors::CONTROL_HOVER_BG,
-            _ => Color::WHITE,
+            button::Status::Hovered => {
+                if selected.is_some_and(|sel| sel) {
+                    colors::PRIMARY_HOVER_BG
+                } else {
+                    colors::CONTROL_HOVER_BG
+                }
+            }
+            _ => {
+                if selected.is_some_and(|sel| sel) {
+                    colors::PRIMARY_BG
+                } else {
+                    Color::WHITE
+                }
+            }
         };
+
         button::Style {
             background: Some(Background::Color(background)),
-            text_color: colors::TEXT_DARK,
+            text_color: Color::WHITE,
             border: Border {
                 color: colors::CARD_BORDER,
                 width: 2.0,

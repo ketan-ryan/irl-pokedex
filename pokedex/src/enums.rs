@@ -65,6 +65,12 @@ impl Region {
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct PokemonEntry {
+    pub key: String,
+    pub display: String,
+}
+
 #[derive(Clone, Copy, Debug, Deserialize, Display, EnumString, Eq, Hash, PartialEq, Serialize)]
 #[strum(serialize_all = "lowercase")]
 pub enum PokemonType {
