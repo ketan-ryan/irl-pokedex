@@ -244,6 +244,7 @@ pub struct PokemonInfo {
     pub region: Option<Region>,
     pub base: Option<bool>,
     pub display_name: Option<String>,
+    pub relations: Option<Vec<String>>,
 }
 
 impl Default for PokemonInfo {
@@ -265,6 +266,7 @@ impl Default for PokemonInfo {
             region: Some(Region::Undiscovered),
             base: None,
             display_name: None,
+            relations: None,
         }
     }
 }

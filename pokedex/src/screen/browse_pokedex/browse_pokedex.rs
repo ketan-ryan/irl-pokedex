@@ -153,14 +153,54 @@ impl PokedexBrowser {
         pokemon_data: HashMap<String, PokemonInfo>,
         owned_pokemon: std::collections::HashSet<String>,
     ) -> (Self, Task<Message>) {
-        let mut pokemon_names: Vec<String> = pokemon_data.keys().cloned().collect();
+        let mut visited: HashSet<String> = HashSet::new();
+        let mut pokemon_names: Vec<String> = Vec::new();
 
-        pokemon_names.retain(|name| {
-            pokemon_data
-                .get(name)
-                .is_some_and(|data| data.base.is_none_or(|base| base))
-                && !name.contains("mega ")
-        });
+        for (name, info) in pokemon_data.iter() {
+            if visited.contains(name) {
+                continue;
+            }
+
+            // Build the full group: this pokemon plus any relations, minus mega forms
+            let mut group: Vec<String> = vec![name.clone()];
+            if let Some(relations) = &info.relations {
+                group.extend(relations.iter().cloned());
+            }
+            group.retain(|n| !n.contains("mega "));
+
+            for member in &group {
+                visited.insert(member.clone());
+            }
+
+            if group.is_empty() {
+                continue;
+            }
+
+            let base_form = group
+                .iter()
+                .find(|n| {
+                    pokemon_data
+                        .get(*n)
+                        .is_some_and(|d| d.base.is_none_or(|b| b))
+                })
+                .cloned();
+            let seen_form = group
+                .iter()
+                .find(|n| owned_pokemon.contains(&n.to_lowercase()))
+                .cloned();
+            let seen_form: Option<String> = seen_form.map(|s| s.to_lowercase());
+
+            let chosen = match (&base_form, &seen_form) {
+                (Some(base), Some(_)) if owned_pokemon.contains(base) => base.clone(),
+                (_, Some(seen)) => seen.clone(),
+                (Some(base), None) => base.clone(),
+                (None, None) => group.first().cloned().unwrap(),
+            };
+
+            if !pokemon_names.contains(&chosen) {
+                pokemon_names.push(chosen);
+            }
+        }
 
         pokemon_names = pokemon_names
             .iter()
@@ -190,7 +230,13 @@ impl PokedexBrowser {
             .map(|name| {
                 let display = pokemon_data
                     .get(&name)
-                    .and_then(|d| d.display_name.clone())
+                    .and_then(|d| {
+                        if owned_pokemon.contains(&name) {
+                            Some(name.clone())
+                        } else {
+                            d.display_name.clone()
+                        }
+                    })
                     .unwrap_or_else(|| name.clone());
                 PokemonEntry { key: name, display }
             })
@@ -279,9 +325,11 @@ impl PokedexBrowser {
             .all_pokemon_entries
             .iter()
             .filter(|entry| {
-                self.pokemon_data
-                    .get(&entry.key)
-                    .is_some_and(|data| self.criteria.matches(&entry.display, data))
+                self.pokemon_data.get(&entry.key).is_some_and(|data| {
+                    let check_base = !self.owned_pokemon.contains(&entry.key);
+                    let matches = self.criteria.matches(&entry.key, data, check_base);
+                    matches
+                })
             })
             .cloned()
             .collect();
@@ -292,7 +340,7 @@ impl PokedexBrowser {
             .filter(|name| {
                 self.pokemon_data
                     .get(*name)
-                    .is_some_and(|data| self.criteria.matches(name, data))
+                    .is_some_and(|data| self.criteria.matches(name, data, false))
             })
             .cloned()
             .collect();
@@ -968,7 +1016,7 @@ impl PokedexBrowser {
     pub fn bottom_view(&self) -> Element<'_, Message> {
         let items: Vec<Element<Message>> = self
             .image_cache
-            .pokemon_order // TODO: change pokemon order to vec of pokemonentry
+            .pokemon_order
             .iter()
             .filter_map(|entry| {
                 if self.pokemon_data.get(&entry.key).is_none() {
@@ -1312,7 +1360,7 @@ impl PokedexBrowser {
                 .height(Length::Fixed(20.0)),
         ));
 
-        let dname = entry.display.clone();
+        let dname = entry.key.clone();
         // Pokemon info
         let info_column = column![
             text(format!(

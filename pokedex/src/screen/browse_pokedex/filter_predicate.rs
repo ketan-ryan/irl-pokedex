@@ -53,10 +53,11 @@ impl FilterCriteria {
     /// category has an active constraint — an unset category never forces
     /// a match *or* an exclusion. `filter_all` then ANDs vs ORs the active
     /// categories together.
-    pub fn matches(&self, name: &str, info: &PokemonInfo) -> bool {
+    /// Do not check for base form if filtering from an owned pokemon
+    pub fn matches(&self, name: &str, info: &PokemonInfo, check_base: bool) -> bool {
         let mut active_results = Vec::with_capacity(5);
 
-        if name.contains("mega ") || info.base.is_some_and(|base| !base) {
+        if name.contains("mega ") || (check_base && info.base.is_some_and(|base| !base)) {
             return false;
         }
 
@@ -141,11 +142,7 @@ impl FilterCriteria {
             return true;
         }
 
-        // if self.filter_mode == FilterMode::All {
-        // active_results.into_iter().all(|matched| matched)
-        // } else {
         active_results.into_iter().all(|matched| matched)
-        // }
     }
 
     /// Sort key for a name, honoring `is_alphabetical`. Ascending/descending
