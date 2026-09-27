@@ -1,11 +1,9 @@
 use std::{
     cell::RefCell,
     collections::HashMap,
-    str::FromStr,
     sync::{Arc, Mutex},
 };
 
-use iced::Color;
 use ort::session::Session;
 use serde::{Deserialize, Deserializer, Serialize};
 use strum_macros::{Display, EnumString};
@@ -138,30 +136,6 @@ impl PokemonType {
             PokemonType::Rock => "rock",
             PokemonType::Normal => "normal",
             PokemonType::Unknown => "unknown",
-        }
-    }
-
-    pub fn accent_color(&self) -> Color {
-        match self {
-            PokemonType::Bug => Color::from_str("#9DFF00").unwrap(),
-            PokemonType::Dark => Color::from_str("#464646").unwrap(),
-            PokemonType::Dragon => Color::from_str("#351AAC").unwrap(),
-            PokemonType::Electric => Color::from_str("#FFEA00").unwrap(),
-            PokemonType::Fairy => Color::from_str("#FF7CCF").unwrap(),
-            PokemonType::Fighting => Color::from_str("#FFC400").unwrap(),
-            PokemonType::Fire => Color::from_str("#FF0000").unwrap(),
-            PokemonType::Flying => Color::from_str("#4CBAFF").unwrap(),
-            PokemonType::Ghost => Color::from_str("#8C4AFF").unwrap(),
-            PokemonType::Grass => Color::from_str("#12DE00").unwrap(),
-            PokemonType::Ground => Color::from_str("#D07A00").unwrap(),
-            PokemonType::Ice => Color::from_str("#00FFFF").unwrap(),
-            PokemonType::Normal => Color::from_str("#DEDEDE").unwrap(),
-            PokemonType::Poison => Color::from_str("#DE00AE").unwrap(),
-            PokemonType::Psychic => Color::from_str("#C640FB").unwrap(),
-            PokemonType::Rock => Color::from_str("#653600").unwrap(),
-            PokemonType::Steel => Color::from_str("#BABABA").unwrap(),
-            PokemonType::Unknown => Color::from_str("#00DEB9").unwrap(),
-            PokemonType::Water => Color::from_str("#006FFF").unwrap(),
         }
     }
 

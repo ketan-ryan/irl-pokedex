@@ -1,4 +1,4 @@
-use std::{str::FromStr, time::Instant};
+use std::{format, str::FromStr, time::Instant};
 
 use iced::{
     Alignment, Background, Border, Color, Element, Font, Length, Padding, Shadow, Subscription,
@@ -20,7 +20,6 @@ use crate::{
     screen::browse_pokedex::{browse_pokedex::PokedexBrowser, filter_predicate::FilterCriteria},
 };
 
-const OPEN_SANS: Font = iced::Font::with_name("Open Sans SemiBold");
 const CONDENSED: Font = iced::Font::with_name("Open Sans Condensed");
 
 impl SelectionGrid {
@@ -69,25 +68,6 @@ impl SelectionGrid {
             // else: no neighbor in that direction -- clamp, stay put.
         }
     }
-
-    fn enter_next(&mut self) {
-        if self.position.section + 1 < self.sections.len() {
-            self.position.section += 1;
-            self.position.row = 0;
-            self.position.col = 0;
-        }
-        // Already in the last section: clamp, stay put.
-    }
-
-    fn enter_prev(&mut self) {
-        if self.position.section > 0 {
-            self.position.section -= 1;
-            let shape = self.sections[self.position.section];
-            self.position.row = shape.rows - 1;
-            self.position.col = shape.cols - 1;
-        }
-        // Already in the first section: clamp, stay put.
-    }
 }
 
 /// Layout-specific cross-section jumps. Returns where focus lands when a
@@ -122,19 +102,32 @@ fn escape(
         (s, Left) if s == section::SORT_ORDER => {
             at(section::REGION, 0, cols_of(section::REGION) - 1)
         }
-        (s, Down) if s == section::SORT_ORDER => at(section::HEIGHT, 0, 0),
+        (s, Down) if s == section::SORT_ORDER => {
+            at(section::HEIGHT, 0, col.min(cols_of(section::HEIGHT) - 1))
+        }
         (s, Up) | (s, Right) if s == section::SORT_ORDER => None,
 
         // --- Height (1x1), top-right, aligned with Region row 1 ---
         (s, Left) if s == section::HEIGHT => at(section::REGION, 1, cols_of(section::REGION) - 1),
-        (s, Up) if s == section::HEIGHT => at(section::SORT_ORDER, 0, 0),
-        (s, Down) if s == section::HEIGHT => at(section::WEIGHT, 0, 0),
+        (s, Up) if s == section::HEIGHT => at(
+            section::SORT_ORDER,
+            0,
+            col.min(cols_of(section::SORT_ORDER) - 1),
+        ),
+        (s, Down) if s == section::HEIGHT => {
+            at(section::WEIGHT, 0, col.min(cols_of(section::WEIGHT) - 1))
+        }
         (s, Right) if s == section::HEIGHT => None,
 
         // --- Weight (1x1), top-right, aligned with Region row 2 ---
         (s, Left) if s == section::WEIGHT => at(section::REGION, 2, cols_of(section::REGION) - 1),
-        (s, Up) if s == section::WEIGHT => at(section::HEIGHT, 0, 0),
-        (s, Down) if s == section::WEIGHT => at(section::TYPE, 0, cols_of(section::TYPE) - 1),
+        (s, Up) if s == section::WEIGHT => {
+            at(section::HEIGHT, 0, col.min(cols_of(section::HEIGHT) - 1))
+        }
+        (s, Down) if s == section::WEIGHT => {
+            let targ_col = if col == 1 { 5 } else { 4 };
+            at(section::TYPE, 0, targ_col)
+        }
         (s, Right) if s == section::WEIGHT => None,
 
         // --- Type (3x6), full width, below Region & the right column ---
@@ -142,7 +135,8 @@ fn escape(
             if col < cols_of(section::REGION) {
                 at(section::REGION, rows_of(section::REGION) - 1, col)
             } else {
-                at(section::WEIGHT, 0, 0)
+                let targ_col = if col == 5 { 1 } else { 0 };
+                at(section::WEIGHT, 0, targ_col)
             }
         }
         (s, Down) if s == section::TYPE => {
@@ -185,13 +179,13 @@ fn build_selection_grid() -> SelectionGrid {
             cols: REGION_GRID_COLS,
         },
         SectionShape { rows: 1, cols: 2 }, // Sort Order: direction, key
-        SectionShape { rows: 1, cols: 1 }, // Height
-        SectionShape { rows: 1, cols: 1 }, // Weight
+        SectionShape { rows: 1, cols: 2 }, // Height
+        SectionShape { rows: 1, cols: 2 }, // Weight
         SectionShape {
             rows: PokemonType::ALL.len().div_ceil(TYPE_GRID_COLS),
             cols: TYPE_GRID_COLS,
         },
-        SectionShape { rows: 1, cols: 3 }, // Actions: Filter Mode, Clear, OK
+        SectionShape { rows: 1, cols: 4 }, // Actions: Select all, Filter Mode, Clear, OK
     ])
 }
 
@@ -218,7 +212,6 @@ pub struct Filter {
 pub enum Message {
     Tick(Instant),
     Apply,
-    Cancel,
 
     RegionToggled(Region),
     TypeToggled(PokemonType),
@@ -251,21 +244,26 @@ mod colors {
 
     // #D0ECFF
     pub const BUBBLE_BG: Color = color!(0xD0ECFF);
+    // #9CCBEE
     pub const BUBBLE_HOVER_BG: Color = Color::from_rgb(0.612, 0.796, 0.933);
+    // #1b3f73
     pub const BUBBLE_SELECTED_BG: Color = Color::from_rgb(0.106, 0.247, 0.451);
 
     // #003469
     pub const TEXT_DARK: Color = color!(0x003469);
 
+    // #ddecf8
     pub const CONTROL_HOVER_BG: Color = Color::from_rgb(0.867, 0.925, 0.973);
 
+    // #4fa3e0
     pub const PRIMARY_BG: Color = Color::from_rgb(0.310, 0.639, 0.878);
+    // #3d8fcb
     pub const PRIMARY_HOVER_BG: Color = Color::from_rgb(0.239, 0.561, 0.796);
 
-    pub const TYPE_SELECTED_BORDER: Color = Color::from_rgb(0.106, 0.247, 0.451);
-
     /// Cursor / keyboard-focus ring, distinct from selection state.
-    pub const FOCUS_RING: Color = Color::from_rgb(1.0, 0.706, 0.176);
+    pub const PRIMARY_FOCUS: Color = Color::WHITE;
+    // #30fff7
+    pub const SECONDARY_FOCUS: Color = Color::from_rgb(0.188, 1.0, 0.969);
 }
 
 impl Filter {
@@ -341,10 +339,6 @@ impl Filter {
                 }
                 None => Action::None,
             },
-            Message::Cancel => match self.return_to.take() {
-                Some(browser) => Action::Return(browser, Task::none()),
-                None => Action::None,
-            },
             Message::RegionToggled(region) => {
                 if let Some(index) = self.selected_regions.iter().position(|r| r == &region) {
                     self.selected_regions.remove(index);
@@ -396,17 +390,56 @@ impl Filter {
                 Action::None
             }
             Message::OkPressed => Action::Run(Task::done(Message::Apply)),
-            Message::IOInput(input) => {
-                match input {
-                    IOAction::Left => self.selection.navigate(SelectionDirection::Left),
-                    IOAction::Right => self.selection.navigate(SelectionDirection::Right),
-                    IOAction::ScrollUp => self.selection.navigate(SelectionDirection::Up),
-                    IOAction::ScrollDown => self.selection.navigate(SelectionDirection::Down),
-                    _ => (),
-                };
+            Message::IOInput(input) => match input {
+                IOAction::Left => {
+                    self.selection.navigate(SelectionDirection::Left);
+                    Action::None
+                }
+                IOAction::Right => {
+                    self.selection.navigate(SelectionDirection::Right);
+                    Action::None
+                }
+                IOAction::ScrollUp => {
+                    self.selection.navigate(SelectionDirection::Up);
+                    Action::None
+                }
+                IOAction::ScrollDown => {
+                    self.selection.navigate(SelectionDirection::Down);
+                    Action::None
+                }
+                IOAction::Select => match self.focused_message() {
+                    Some(message) => self.update(message),
+                    None => Action::None,
+                },
+            },
+        }
+    }
 
-                Action::None
+    fn focused_message(&self) -> Option<Message> {
+        let SelectionPosition { section, row, col } = self.selection.position;
+
+        match section {
+            s if s == section::REGION => {
+                let index = (row * REGION_GRID_COLS + col).min(Region::ALL.len() - 1);
+                Some(Message::RegionToggled(Region::ALL[index]))
             }
+            s if s == section::SORT_ORDER => match col {
+                0 => Some(Message::SortDirectionToggled),
+                _ => Some(Message::SortKeyToggled),
+            },
+            s if s == section::HEIGHT => Some(Message::HeightRowClicked),
+            s if s == section::WEIGHT => Some(Message::WeightRowClicked),
+            s if s == section::TYPE => {
+                let index = (row * TYPE_GRID_COLS + col).min(PokemonType::ALL.len() - 1);
+                Some(Message::TypeToggled(PokemonType::ALL[index]))
+            }
+            s if s == section::ACTIONS => match col {
+                0 => Some(Message::SelectAllToggle),
+                1 => Some(Message::FilterModeToggled),
+                2 => Some(Message::ClearAllFilters),
+                _ => Some(Message::OkPressed),
+            },
+            _ => None,
         }
     }
 
@@ -458,15 +491,15 @@ impl Filter {
     }
 
     pub fn bottom_view(&self) -> Element<'_, Message> {
+        let focus = self.selection.position();
+
         let controls_column = column![
-            sort_order_row(self.sort_direction, self.sort_key),
-            height_row(),
-            weight_row(),
+            sort_order_row(self.sort_direction, self.sort_key, focus),
+            height_row(focus),
+            weight_row(focus),
         ]
         .spacing(6)
         .width(Length::Fill);
-
-        let focus = self.selection.position;
 
         let top_row = row![region_card(&self.selected_regions, focus), controls_column]
             .spacing(20)
@@ -487,8 +520,8 @@ impl Filter {
             }),
             column![
                 top_row,
-                type_card(&self.selected_types),
-                action_row(self.filter_mode, self.criteria.is_all_selected()),
+                type_card(&self.selected_types, focus),
+                action_row(self.filter_mode, self.criteria.is_all_selected(), focus),
             ]
             .spacing(20)
             .padding(24)
@@ -527,7 +560,7 @@ fn section_card<'a>(content: Element<'a, Message>, focused: bool) -> Element<'a,
         .width(Length::Fill)
         .style(move |_theme: &Theme| {
             let (border_color, border_width) = if focused {
-                (colors::FOCUS_RING, 3.0)
+                (colors::PRIMARY_FOCUS, 3.0)
             } else {
                 (colors::CARD_BORDER, 2.0)
             };
@@ -558,9 +591,10 @@ fn region_card<'a>(selected: &'a Vec<Region>, focus: SelectionPosition) -> Eleme
                 .iter()
                 .enumerate()
                 .map(|(col_idx, region)| {
+                    let is_ragged_row = chunk.len() < REGION_GRID_COLS;
                     let focused = focus.section == section::REGION
                         && focus.row == row_idx
-                        && focus.col == col_idx;
+                        && (is_ragged_row || focus.col == col_idx);
                     region_bubble(*region, selected.contains(region), focused)
                 })
                 .collect();
@@ -608,7 +642,7 @@ fn region_bubble<'a>(region: Region, selected: bool, focused: bool) -> Element<'
             };
 
             let (border_color, border_width) = if focused {
-                (colors::FOCUS_RING, 3.0)
+                (colors::PRIMARY_FOCUS, 3.0)
             } else {
                 (colors::CARD_BORDER, 2.0)
             };
@@ -632,11 +666,18 @@ fn region_bubble<'a>(region: Region, selected: bool, focused: bool) -> Element<'
 // ---------------------------------------------------------------------
 // Sort order / height / weight rows
 // ---------------------------------------------------------------------
-fn sort_order_row<'a>(direction: SortDirection, key: SortKey) -> Element<'a, Message> {
+fn sort_order_row<'a>(
+    direction: SortDirection,
+    key: SortKey,
+    focus: SelectionPosition,
+) -> Element<'a, Message> {
     let control = container(
-        row![sort_direction_button(direction), sort_key_button(key)]
-            .spacing(4)
-            .align_y(Alignment::Center),
+        row![
+            sort_direction_button(direction, focus),
+            sort_key_button(key, focus)
+        ]
+        .spacing(4)
+        .align_y(Alignment::Center),
     )
     .padding([4, 10])
     .style(|_theme: &Theme| container::Style {
@@ -664,15 +705,20 @@ fn sort_order_row<'a>(direction: SortDirection, key: SortKey) -> Element<'a, Mes
     section_card(content.into(), false)
 }
 
-fn sort_direction_button<'a>(direction: SortDirection) -> Element<'a, Message> {
+fn sort_direction_button<'a>(
+    direction: SortDirection,
+    focus: SelectionPosition,
+) -> Element<'a, Message> {
+    let focused = focus.section == section::SORT_ORDER && focus.col == 0;
     button(text(direction.glyph()).align_y(Alignment::Center).size(14))
         .padding(6)
-        .style(control_button_style)
+        .style(move |theme, status| control_button_style(theme, status, focused))
         .on_press(Message::SortDirectionToggled)
         .into()
 }
 
-fn sort_key_button<'a>(key: SortKey) -> Element<'a, Message> {
+fn sort_key_button<'a>(key: SortKey, focus: SelectionPosition) -> Element<'a, Message> {
+    let focused = focus.section == section::SORT_ORDER && focus.col == 1;
     button(
         row![
             text(key.label()).size(16).align_y(Alignment::Center),
@@ -682,35 +728,50 @@ fn sort_key_button<'a>(key: SortKey) -> Element<'a, Message> {
         .align_y(Alignment::Center),
     )
     .padding([6, 10])
-    .style(control_button_style)
+    .style(move |theme, status| control_button_style(theme, status, focused))
     .on_press(Message::SortKeyToggled)
     .into()
 }
 
-fn control_button_style(_theme: &Theme, status: button::Status) -> button::Style {
+fn control_button_style(_theme: &Theme, status: button::Status, focused: bool) -> button::Style {
     let background = match status {
         button::Status::Hovered => Some(Background::Color(colors::CONTROL_HOVER_BG)),
         _ => None,
     };
 
-    button::Style {
-        background,
-        text_color: colors::TEXT_DARK,
-        border: Border {
+    let border = if focused {
+        Border {
+            color: colors::SECONDARY_FOCUS,
+            width: 3.0,
+            radius: 8.0.into(),
+        }
+    } else {
+        Border {
             color: Color::TRANSPARENT,
             width: 0.0,
             radius: 8.0.into(),
-        },
+        }
+    };
+
+    button::Style {
+        background,
+        text_color: colors::TEXT_DARK,
+        border: border,
         shadow: Shadow::default(),
         ..Default::default()
     }
 }
 
-fn height_row<'a>() -> Element<'a, Message> {
+fn height_row<'a>(focus: SelectionPosition) -> Element<'a, Message> {
+    let check_focus = if focus.section == section::HEIGHT {
+        Some(focus)
+    } else {
+        None
+    };
     let content = row![
         text("Height").size(16).color(colors::TEXT_DARK),
         Space::new().width(Length::Fill),
-        range_display("0'00\"", "99'99\"", None),
+        range_display("0'00\"", "99'99\"", None, check_focus),
     ]
     .align_y(Alignment::Center)
     .height(Length::Fixed(30.0))
@@ -721,11 +782,16 @@ fn height_row<'a>() -> Element<'a, Message> {
         .into()
 }
 
-fn weight_row<'a>() -> Element<'a, Message> {
+fn weight_row<'a>(focus: SelectionPosition) -> Element<'a, Message> {
+    let check_focus = if focus.section == section::WEIGHT {
+        Some(focus)
+    } else {
+        None
+    };
     let content = row![
         text("Weight").size(16).color(colors::TEXT_DARK),
         Space::new().width(Length::Fill),
-        range_display("0.0", "9999.0", Some("lbs")),
+        range_display("0.0", "9999.0", Some("lbs"), check_focus),
     ]
     .align_y(Alignment::Center)
     .height(Length::Fixed(30.0))
@@ -736,25 +802,47 @@ fn weight_row<'a>() -> Element<'a, Message> {
         .into()
 }
 
-fn range_display<'a>(min_value: &str, max_value: &str, unit: Option<&str>) -> Element<'a, Message> {
-    let value_box = |value: String| {
+fn range_display<'a>(
+    min_value: &str,
+    max_value: &str,
+    unit: Option<&str>,
+    focus: Option<SelectionPosition>,
+) -> Element<'a, Message> {
+    let value_box = |value: String, focused: bool| {
+        let (border_color, border_width) = if focused {
+            (colors::SECONDARY_FOCUS, 3.0)
+        } else {
+            (colors::CARD_BORDER, 2.0)
+        };
         container(text(value).size(15).color(colors::TEXT_DARK))
             .padding([6, 12])
-            .style(|_theme: &Theme| container::Style {
+            .style(move |_theme: &Theme| container::Style {
                 background: Some(Background::Color(Color::WHITE)),
                 border: Border {
-                    color: colors::CARD_BORDER,
-                    width: 2.0,
+                    color: border_color,
+                    width: border_width,
                     radius: 10.0.into(),
                 },
                 ..Default::default()
             })
     };
 
+    let min_box = if focus.is_some_and(|focus| focus.col == 0) {
+        value_box(min_value.to_string(), true)
+    } else {
+        value_box(min_value.to_string(), false)
+    };
+
+    let max_box = if focus.is_some_and(|focus| focus.col == 1) {
+        value_box(max_value.to_string(), true)
+    } else {
+        value_box(max_value.to_string(), false)
+    };
+
     let mut content = row![
-        value_box(min_value.to_string()),
+        min_box,
         text("~").size(15).color(colors::TEXT_DARK),
-        value_box(max_value.to_string()),
+        max_box,
     ]
     .spacing(8)
     .align_y(Alignment::Center);
@@ -769,13 +857,20 @@ fn range_display<'a>(min_value: &str, max_value: &str, unit: Option<&str>) -> El
 // ---------------------------------------------------------------------
 // Type card
 // ---------------------------------------------------------------------
-fn type_card<'a>(selected: &'a Vec<PokemonType>) -> Element<'a, Message> {
+fn type_card<'a>(selected: &'a Vec<PokemonType>, focus: SelectionPosition) -> Element<'a, Message> {
     let grid_rows: Vec<Element<'a, Message>> = PokemonType::ALL
         .chunks(6)
-        .map(|chunk| {
+        .enumerate()
+        .map(|(row_idx, chunk)| {
             let badges: Vec<Element<'a, Message>> = chunk
                 .iter()
-                .map(|pokemon_type| type_badge(*pokemon_type, selected.contains(pokemon_type)))
+                .enumerate()
+                .map(|(col_idx, pokemon_type)| {
+                    let focused = focus.section == section::TYPE
+                        && focus.row == row_idx
+                        && focus.col == col_idx;
+                    type_badge(*pokemon_type, selected.contains(pokemon_type), focused)
+                })
                 .collect();
             row(badges)
                 .spacing(2)
@@ -803,9 +898,37 @@ fn type_card<'a>(selected: &'a Vec<PokemonType>) -> Element<'a, Message> {
     section_card(content.into(), false)
 }
 
-fn type_badge<'a>(pokemon_type: PokemonType, selected: bool) -> Element<'a, Message> {
-    let icon = svg(svg::Handle::from_path(pokemon_type.asset_path())).height(Length::Fixed(24.0));
+fn color_to_hex(color: Color) -> String {
+    // Convert 0.0..=1.0 floats to 0..=255 integers
+    let r = (color.r * 255.0).round() as u8;
+    let g = (color.g * 255.0).round() as u8;
+    let b = (color.b * 255.0).round() as u8;
+
+    // Returns a 6-digit hex string like "#b7410e"
+    format!("#{:02x}{:02x}{:02x}", r, g, b)
+}
+
+fn type_badge<'a>(
+    pokemon_type: PokemonType,
+    selected: bool,
+    focused: bool,
+) -> Element<'a, Message> {
+    let source = std::fs::read_to_string(pokemon_type.asset_path()).unwrap_or_default();
+
+    let (border_color, border_width) = if focused {
+        (color_to_hex(colors::PRIMARY_FOCUS), 3.0)
+    } else {
+        (color_to_hex(Color::BLACK), 1.0)
+    };
+
+    let colored_svg = source.replacen(
+        r#"stroke="black"/>"#,
+        &format!(r#"stroke="{border_color}" stroke-width="{border_width}"/>"#),
+        1,
+    );
+    let icon = svg(svg::Handle::from_memory(colored_svg.into_bytes()));
     let mut elements: Vec<Element<Message>> = vec![icon.into()];
+
     if !selected {
         elements.push(
             svg(svg::Handle::from_path(pokemon_type.overlay_path()))
@@ -832,24 +955,35 @@ fn type_badge<'a>(pokemon_type: PokemonType, selected: bool) -> Element<'a, Mess
 // ---------------------------------------------------------------------
 // Bottom action row
 // ---------------------------------------------------------------------
-fn action_row<'a>(filter_mode: FilterMode, all_selected: bool) -> Element<'a, Message> {
+fn action_row<'a>(
+    filter_mode: FilterMode,
+    all_selected: bool,
+    focus: SelectionPosition,
+) -> Element<'a, Message> {
+    let selectall_focus = focus.section == section::ACTIONS && focus.col == 0;
+    let filtermode_focus = focus.section == section::ACTIONS && focus.col == 1;
+    let clear_focus = focus.section == section::ACTIONS && focus.col == 2;
+    let ok_focus = focus.section == section::ACTIONS && focus.col == 3;
     row![
         secondary_button(
             "Select all".to_string(),
             Message::SelectAllToggle,
-            Some(all_selected)
+            Some(all_selected),
+            selectall_focus
         ),
         secondary_button(
             format!("Filter Mode: {}", filter_mode.label()),
             Message::FilterModeToggled,
-            None
+            None,
+            filtermode_focus
         ),
         secondary_button(
             "Clear all filters".to_string(),
             Message::ClearAllFilters,
-            None
+            None,
+            clear_focus
         ),
-        primary_button("OK".to_string(), Message::OkPressed),
+        primary_button("OK".to_string(), Message::OkPressed, ok_focus),
     ]
     .width(Length::Fill)
     .spacing(15)
@@ -860,6 +994,7 @@ fn secondary_button<'a>(
     label: String,
     message: Message,
     selected: Option<bool>,
+    focused: bool,
 ) -> Element<'a, Message> {
     let text_color = if selected.is_some_and(|sel| sel) {
         Color::WHITE
@@ -892,12 +1027,18 @@ fn secondary_button<'a>(
             }
         };
 
+        let (border_color, border_width) = if focused {
+            (colors::SECONDARY_FOCUS, 3.0)
+        } else {
+            (colors::CARD_BORDER, 2.0)
+        };
+
         button::Style {
             background: Some(Background::Color(background)),
             text_color: Color::WHITE,
             border: Border {
-                color: colors::CARD_BORDER,
-                width: 2.0,
+                color: border_color,
+                width: border_width,
                 radius: 20.0.into(),
             },
             shadow: default_shadow(),
@@ -908,7 +1049,12 @@ fn secondary_button<'a>(
     .into()
 }
 
-fn primary_button<'a>(label: String, message: Message) -> Element<'a, Message> {
+fn primary_button<'a>(label: String, message: Message, focused: bool) -> Element<'a, Message> {
+    let (border_color, border_width) = if focused {
+        (colors::PRIMARY_FOCUS, 3.0)
+    } else {
+        (Color::TRANSPARENT, 0.0)
+    };
     button(
         text(label)
             .align_y(Alignment::Center)
@@ -917,7 +1063,7 @@ fn primary_button<'a>(label: String, message: Message) -> Element<'a, Message> {
     )
     .height(Length::Fixed(50.0))
     .padding([12, 30])
-    .style(|_theme: &Theme, status: button::Status| {
+    .style(move |_theme: &Theme, status: button::Status| {
         let background = match status {
             button::Status::Hovered => colors::PRIMARY_HOVER_BG,
             _ => colors::PRIMARY_BG,
@@ -926,8 +1072,8 @@ fn primary_button<'a>(label: String, message: Message) -> Element<'a, Message> {
             background: Some(Background::Color(background)),
             text_color: Color::WHITE,
             border: Border {
-                color: Color::TRANSPARENT,
-                width: 0.0,
+                color: border_color,
+                width: border_width,
                 radius: 20.0.into(),
             },
             shadow: default_shadow(),
