@@ -26,47 +26,57 @@ impl SelectionGrid {
     fn new(sections: Vec<SectionShape>) -> Self {
         Self {
             sections,
-            position: SelectionPosition {
-                section: 0,
-                row: 0,
-                col: 0,
-            },
+            position: None,
         }
     }
 
-    fn position(&self) -> SelectionPosition {
+    fn position(&self) -> Option<SelectionPosition> {
         self.position
     }
 
     fn navigate(&mut self, direction: SelectionDirection) {
-        let shape = self.sections[self.position.section];
-        let SelectionPosition { section, row, col } = self.position;
+        let Some(current) = self.position else {
+            // Nothing focused: any direction lands on the top-left region.
+            self.position = Some(SelectionPosition {
+                section: section::REGION,
+                row: 0,
+                col: 0,
+            });
+            return;
+        };
+
+        let shape = self.sections[current.section];
+        let SelectionPosition { section, row, col } = current;
+        let mut next_position = current;
+
         let moved_within_section = match direction {
             SelectionDirection::Right if col + 1 < shape.cols => {
-                self.position.col += 1;
+                next_position.col += 1;
                 true
             }
             SelectionDirection::Left if col > 0 => {
-                self.position.col -= 1;
+                next_position.col -= 1;
                 true
             }
             SelectionDirection::Down if row + 1 < shape.rows => {
-                self.position.row += 1;
+                next_position.row += 1;
                 true
             }
             SelectionDirection::Up if row > 0 => {
-                self.position.row -= 1;
+                next_position.row -= 1;
                 true
             }
             _ => false,
         };
 
-        if !moved_within_section {
-            if let Some(next) = escape(&self.sections, section, row, col, direction) {
-                self.position = next;
-            }
-            // else: no neighbor in that direction -- clamp, stay put.
-        }
+        self.position = if moved_within_section {
+            Some(next_position)
+        } else {
+            // escape() returning None means "no neighbor that way" -- i.e.
+            // off the edge of the page, so focus clears entirely rather
+            // than clamping in place.
+            escape(&self.sections, section, row, col, direction)
+        };
     }
 }
 
@@ -416,7 +426,7 @@ impl Filter {
     }
 
     fn focused_message(&self) -> Option<Message> {
-        let SelectionPosition { section, row, col } = self.selection.position;
+        let SelectionPosition { section, row, col } = self.selection.position?;
 
         match section {
             s if s == section::REGION => {
@@ -536,6 +546,10 @@ impl Filter {
 // ---------------------------------------------------------------------
 // Shared building blocks
 // ---------------------------------------------------------------------
+fn is_focused_at(focus: Option<SelectionPosition>, section: usize, row: usize, col: usize) -> bool {
+    focus.is_some_and(|f| f.section == section && f.row == row && f.col == col)
+}
+
 fn underline<'a>() -> Element<'a, Message> {
     container(Space::new().height(Length::Fixed(2.0)))
         .width(Length::Fill)
@@ -582,7 +596,10 @@ fn section_card<'a>(content: Element<'a, Message>, focused: bool) -> Element<'a,
 // ---------------------------------------------------------------------
 // Region card
 // ---------------------------------------------------------------------
-fn region_card<'a>(selected: &'a Vec<Region>, focus: SelectionPosition) -> Element<'a, Message> {
+fn region_card<'a>(
+    selected: &'a Vec<Region>,
+    focus: Option<SelectionPosition>,
+) -> Element<'a, Message> {
     let grid_rows: Vec<Element<'a, Message>> = Region::ALL
         .chunks(REGION_GRID_COLS)
         .enumerate()
@@ -592,9 +609,11 @@ fn region_card<'a>(selected: &'a Vec<Region>, focus: SelectionPosition) -> Eleme
                 .enumerate()
                 .map(|(col_idx, region)| {
                     let is_ragged_row = chunk.len() < REGION_GRID_COLS;
-                    let focused = focus.section == section::REGION
-                        && focus.row == row_idx
-                        && (is_ragged_row || focus.col == col_idx);
+                    let focused = focus.is_some_and(|f| {
+                        f.section == section::REGION
+                            && f.row == row_idx
+                            && (is_ragged_row || f.col == col_idx)
+                    });
                     region_bubble(*region, selected.contains(region), focused)
                 })
                 .collect();
@@ -669,7 +688,7 @@ fn region_bubble<'a>(region: Region, selected: bool, focused: bool) -> Element<'
 fn sort_order_row<'a>(
     direction: SortDirection,
     key: SortKey,
-    focus: SelectionPosition,
+    focus: Option<SelectionPosition>,
 ) -> Element<'a, Message> {
     let control = container(
         row![
@@ -707,9 +726,9 @@ fn sort_order_row<'a>(
 
 fn sort_direction_button<'a>(
     direction: SortDirection,
-    focus: SelectionPosition,
+    focus: Option<SelectionPosition>,
 ) -> Element<'a, Message> {
-    let focused = focus.section == section::SORT_ORDER && focus.col == 0;
+    let focused = is_focused_at(focus, section::SORT_ORDER, 0, 0);
     button(text(direction.glyph()).align_y(Alignment::Center).size(14))
         .padding(6)
         .style(move |theme, status| control_button_style(theme, status, focused))
@@ -717,8 +736,8 @@ fn sort_direction_button<'a>(
         .into()
 }
 
-fn sort_key_button<'a>(key: SortKey, focus: SelectionPosition) -> Element<'a, Message> {
-    let focused = focus.section == section::SORT_ORDER && focus.col == 1;
+fn sort_key_button<'a>(key: SortKey, focus: Option<SelectionPosition>) -> Element<'a, Message> {
+    let focused = is_focused_at(focus, section::SORT_ORDER, 0, 1);
     button(
         row![
             text(key.label()).size(16).align_y(Alignment::Center),
@@ -762,12 +781,8 @@ fn control_button_style(_theme: &Theme, status: button::Status, focused: bool) -
     }
 }
 
-fn height_row<'a>(focus: SelectionPosition) -> Element<'a, Message> {
-    let check_focus = if focus.section == section::HEIGHT {
-        Some(focus)
-    } else {
-        None
-    };
+fn height_row<'a>(focus: Option<SelectionPosition>) -> Element<'a, Message> {
+    let check_focus = focus.filter(|f| f.section == section::HEIGHT);
     let content = row![
         text("Height").size(16).color(colors::TEXT_DARK),
         Space::new().width(Length::Fill),
@@ -782,12 +797,8 @@ fn height_row<'a>(focus: SelectionPosition) -> Element<'a, Message> {
         .into()
 }
 
-fn weight_row<'a>(focus: SelectionPosition) -> Element<'a, Message> {
-    let check_focus = if focus.section == section::WEIGHT {
-        Some(focus)
-    } else {
-        None
-    };
+fn weight_row<'a>(focus: Option<SelectionPosition>) -> Element<'a, Message> {
+    let check_focus = focus.filter(|f| f.section == section::WEIGHT);
     let content = row![
         text("Weight").size(16).color(colors::TEXT_DARK),
         Space::new().width(Length::Fill),
@@ -857,7 +868,10 @@ fn range_display<'a>(
 // ---------------------------------------------------------------------
 // Type card
 // ---------------------------------------------------------------------
-fn type_card<'a>(selected: &'a Vec<PokemonType>, focus: SelectionPosition) -> Element<'a, Message> {
+fn type_card<'a>(
+    selected: &'a Vec<PokemonType>,
+    focus: Option<SelectionPosition>,
+) -> Element<'a, Message> {
     let grid_rows: Vec<Element<'a, Message>> = PokemonType::ALL
         .chunks(6)
         .enumerate()
@@ -866,9 +880,7 @@ fn type_card<'a>(selected: &'a Vec<PokemonType>, focus: SelectionPosition) -> El
                 .iter()
                 .enumerate()
                 .map(|(col_idx, pokemon_type)| {
-                    let focused = focus.section == section::TYPE
-                        && focus.row == row_idx
-                        && focus.col == col_idx;
+                    let focused = is_focused_at(focus, section::TYPE, row_idx, col_idx);
                     type_badge(*pokemon_type, selected.contains(pokemon_type), focused)
                 })
                 .collect();
@@ -958,12 +970,12 @@ fn type_badge<'a>(
 fn action_row<'a>(
     filter_mode: FilterMode,
     all_selected: bool,
-    focus: SelectionPosition,
+    focus: Option<SelectionPosition>,
 ) -> Element<'a, Message> {
-    let selectall_focus = focus.section == section::ACTIONS && focus.col == 0;
-    let filtermode_focus = focus.section == section::ACTIONS && focus.col == 1;
-    let clear_focus = focus.section == section::ACTIONS && focus.col == 2;
-    let ok_focus = focus.section == section::ACTIONS && focus.col == 3;
+    let selectall_focus = is_focused_at(focus, section::ACTIONS, 0, 0);
+    let filtermode_focus = is_focused_at(focus, section::ACTIONS, 0, 1);
+    let clear_focus = is_focused_at(focus, section::ACTIONS, 0, 2);
+    let ok_focus = is_focused_at(focus, section::ACTIONS, 0, 3);
     row![
         secondary_button(
             "Select all".to_string(),

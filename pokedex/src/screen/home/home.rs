@@ -1,9 +1,7 @@
 use log::{debug, error, warn};
 
-use iced::event::{self, Status};
-use iced::keyboard::{Event::KeyPressed, Key, key::Named};
 use iced::widget::{container, mouse_area, stack, text};
-use iced::{Color, Element, Event, Subscription, Task, time};
+use iced::{Color, Element, Subscription, Task, time};
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};

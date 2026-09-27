@@ -21,5 +21,5 @@ pub struct SectionShape {
 #[derive(Debug, Clone)]
 pub struct SelectionGrid {
     pub sections: Vec<SectionShape>,
-    pub position: SelectionPosition,
+    pub position: Option<SelectionPosition>,
 }
