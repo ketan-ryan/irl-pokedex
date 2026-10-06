@@ -10,22 +10,26 @@ use iced::event::Status;
 use iced::keyboard::Event::KeyPressed;
 use iced::keyboard::Key;
 use iced::keyboard::key::Named;
+use iced::widget::image::Handle;
 use include_assets::{NamedArchive, include_dir};
 use log::error;
 use screen::Screen;
 use screen::home::home;
 
-use iced::widget::{button, column, space};
+use iced::widget::{button, column, space, svg};
 use iced::window::{self};
 use iced::{Center, Element, Event, Fill, Subscription, Task, event};
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
+use std::time::Instant;
 
 use crate::elements::gstreamer_stream::VideoFrame;
 use crate::enums::{IOAction, PokedexConfig};
 use crate::screen::browse_pokedex::browse_pokedex;
-use crate::screen::filter::filter;
+use crate::screen::browse_pokedex::filter_predicate::RangeOriginator;
+use crate::screen::common::CommonAssets;
+use crate::screen::filter::{filter, slider};
 use crate::screen::register::register;
 
 fn main() -> iced::Result {
@@ -126,6 +130,8 @@ struct App {
     error: Option<PokedexError>,
     config: Option<Arc<PokedexConfig>>,
     bottom_handle: iced::widget::image::Handle,
+    common: screen::common::CommonAssets,
+    last_tick: Instant,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -184,24 +190,34 @@ enum Message {
     Register(register::Message),
     PokedexBrowser(browse_pokedex::Message),
     Filter(filter::Message),
+    Slider(slider::Message),
     OpenHome,
     OpenRegister(Arc<VideoFrame>),
+    OpenSlider(RangeOriginator),
     OpenPokedexBrowser,
     OpenFilter,
     IOInput(IOAction),
+    Tick(Instant),
 }
 
 impl App {
     fn new() -> (Self, Task<Message>) {
+        let pokeball_handle =
+            Handle::from_bytes(include_bytes!("../assets/background.png").as_slice());
+        let filter_modal = svg::Handle::from_memory(
+            include_bytes!("../assets/browse_screen/filter_modal.svg").as_slice(),
+        );
         (
             Self {
                 screen: Screen::Loading,
                 windows: None,
                 error: None,
                 config: None,
-                bottom_handle: iced::widget::image::Handle::from_bytes(
+                bottom_handle: Handle::from_bytes(
                     include_bytes!("../assets/bottom_screen.png").as_slice(),
                 ),
+                common: CommonAssets::new(pokeball_handle, filter_modal),
+                last_tick: Instant::now(),
             },
             Task::done(Message::Init),
         )
@@ -209,6 +225,12 @@ impl App {
 
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
+            Message::Tick(now) => {
+                let dt = now - self.last_tick;
+                self.last_tick = now;
+                self.common.scanlines.tick(dt);
+                Task::none()
+            }
             Message::Init => self.load_files(),
             Message::WindowOpened(_) => {
                 if self.error.is_none() {
@@ -242,6 +264,13 @@ impl App {
                 let action = filter.update(message);
                 self.handle_filter_action(action)
             }
+            Message::Slider(message) => {
+                let Screen::Slider(slider) = &mut self.screen else {
+                    return Task::none();
+                };
+                let action = slider.update(message);
+                self.handle_slider_action(action)
+            }
             Message::IOInput(action) => match &mut self.screen {
                 Screen::Home(home) => {
                     Self::handle_home_action(home.update(home::Message::IOInput(action)))
@@ -255,10 +284,15 @@ impl App {
                     self.handle_filter_action(action)
                 }
                 Screen::Loading => Task::none(),
+                Screen::Slider(slider) => {
+                    let action = slider.update(slider::Message::IOInput(action));
+                    self.handle_slider_action(action)
+                }
             },
             Message::OpenRegister(result) => self.open_register(result),
             Message::OpenPokedexBrowser => self.open_browser(),
             Message::OpenFilter => self.open_filter(),
+            Message::OpenSlider(originator) => self.open_slider(originator),
         }
     }
 
@@ -298,6 +332,18 @@ impl App {
                 self.screen = Screen::PokedexBrowser(*browser);
                 task.map(Message::PokedexBrowser)
             }
+            filter::Action::OpenSlider(originator) => Task::done(Message::OpenSlider(originator)),
+        }
+    }
+
+    fn handle_slider_action(&mut self, action: slider::Action) -> Task<Message> {
+        match action {
+            slider::Action::None => Task::none(),
+            slider::Action::Run(task) => task.map(Message::Slider),
+            slider::Action::ReturnToFilter(filter) => {
+                self.screen = Screen::Filter(*filter);
+                Task::none()
+            }
         }
     }
 
@@ -306,11 +352,14 @@ impl App {
             Screen::Home(home) => home.subscription().map(Message::Home),
             Screen::Register(register) => register.subscription().map(Message::Register),
             Screen::PokedexBrowser(browser) => browser.subscription().map(Message::PokedexBrowser),
-            Screen::Filter(filter) => filter.subscription().map(Message::Filter),
             _ => Subscription::none(),
         };
 
-        Subscription::batch([screen_sub, listen().map(Message::IOInput)])
+        Subscription::batch([
+            screen_sub,
+            window::frames().map(Message::Tick),
+            listen().map(Message::IOInput),
+        ])
     }
 
     fn load_files(&mut self) -> Task<Message> {
@@ -396,6 +445,15 @@ impl App {
         task.map(Message::Filter)
     }
 
+    fn open_slider(&mut self, originator: RangeOriginator) -> Task<Message> {
+        let Screen::Filter(filter) = std::mem::replace(&mut self.screen, Screen::Loading) else {
+            return Task::none();
+        };
+        let (slider, task) = slider::RangeSliderScreen::new(Box::new(filter), originator);
+        self.screen = Screen::Slider(slider);
+        task.map(Message::Slider)
+    }
+
     fn view(&self, window_id: window::Id) -> Element<'_, Message> {
         if let Some(window) = self
             .windows
@@ -418,7 +476,8 @@ impl App {
                 Screen::Home(home) => home.top_view().map(Message::Home),
                 Screen::Register(register) => register.top_view().map(Message::Register),
                 Screen::PokedexBrowser(browser) => browser.top_view().map(Message::PokedexBrowser),
-                Screen::Filter(filter) => filter.top_view().map(Message::Filter),
+                Screen::Filter(filter) => filter.top_view(&self.common).map(Message::Filter),
+                Screen::Slider(slider) => slider.top_view(&self.common).map(Message::Slider),
                 Screen::Loading => {
                     let new_window_button = button("Go home").on_press(Message::OpenHome);
 
@@ -472,7 +531,8 @@ impl App {
             match &self.screen {
                 Screen::Home(home) => home.bottom_view().map(Message::Home),
                 Screen::Register(register) => register.bottom_view().map(Message::Register),
-                Screen::Filter(filter) => filter.bottom_view().map(Message::Filter),
+                Screen::Filter(filter) => filter.bottom_view(&self.common).map(Message::Filter),
+                Screen::Slider(slider) => slider.bottom_view().map(Message::Slider),
                 Screen::PokedexBrowser(browser) => {
                     browser.bottom_view().map(Message::PokedexBrowser)
                 }

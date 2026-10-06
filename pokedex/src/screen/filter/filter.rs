@@ -1,26 +1,21 @@
-use std::{format, str::FromStr, time::Instant};
+use std::format;
 
 use iced::{
-    Alignment, Background, Border, Color, Element, Font, Length, Padding, Shadow, Subscription,
-    Task, Theme,
-    font::Weight,
-    widget::{
-        Canvas, Space, Stack, button, column, container, image::Handle, mouse_area, row, stack,
-        svg, text,
-    },
-    window,
+    Alignment, Background, Border, Color, Element, Length, Padding, Shadow, Task, Theme,
+    widget::{Canvas, Space, Stack, button, column, container, mouse_area, row, stack, svg, text},
 };
 
 use crate::{
-    elements::{
-        scanlines::Scanlines,
-        selectable::{SectionShape, SelectionDirection, SelectionGrid, SelectionPosition},
-    },
+    elements::selectable::{SectionShape, SelectionDirection, SelectionGrid, SelectionPosition},
     enums::{FilterMode, IOAction, PokemonType, Region, SortDirection, SortKey},
-    screen::browse_pokedex::{browse_pokedex::PokedexBrowser, filter_predicate::FilterCriteria},
+    screen::{
+        browse_pokedex::{
+            browse_pokedex::PokedexBrowser,
+            filter_predicate::{FilterCriteria, RangeOriginator},
+        },
+        common::{CommonAssets, holo_header_backdrop},
+    },
 };
-
-const CONDENSED: Font = iced::Font::with_name("Open Sans Condensed");
 
 impl SelectionGrid {
     fn new(sections: Vec<SectionShape>) -> Self {
@@ -204,11 +199,6 @@ pub struct Filter {
     return_to: Option<Box<PokedexBrowser>>,
     criteria: FilterCriteria,
 
-    scanlines: Scanlines,
-    last_tick: Instant,
-    pokeball_handle: Handle,
-    filter_modal: svg::Handle,
-
     selected_regions: Vec<Region>,
     selected_types: Vec<PokemonType>,
     sort_key: SortKey,
@@ -220,7 +210,6 @@ pub struct Filter {
 
 #[derive(Clone, Debug)]
 pub enum Message {
-    Tick(Instant),
     Apply,
 
     RegionToggled(Region),
@@ -242,6 +231,7 @@ pub enum Action {
     None,
     Run(Task<Message>),
     Return(Box<PokedexBrowser>, Task<crate::browse_pokedex::Message>),
+    OpenSlider(RangeOriginator),
 }
 
 mod colors {
@@ -290,16 +280,6 @@ impl Filter {
                 return_to: Some(return_to),
                 criteria,
 
-                scanlines: Scanlines::new(),
-                last_tick: Instant::now(),
-
-                pokeball_handle: Handle::from_bytes(
-                    include_bytes!("../../../assets/background.png").as_slice(),
-                ),
-                filter_modal: svg::Handle::from_memory(
-                    include_bytes!("../../../assets/browse_screen/filter_modal.svg").as_slice(),
-                ),
-
                 selected_regions,
                 selected_types: types,
                 sort_key,
@@ -328,18 +308,26 @@ impl Filter {
         self.criteria.filter_mode = self.filter_mode;
     }
 
-    pub fn subscription(&self) -> Subscription<Message> {
-        window::frames().map(Message::Tick)
+    pub fn range_bounds(&self, originator: RangeOriginator) -> (f32, f32) {
+        if originator == RangeOriginator::Height {
+            (self.criteria.height_lower, self.criteria.height_upper)
+        } else {
+            (self.criteria.weight_lower, self.criteria.weight_upper)
+        }
+    }
+
+    pub fn set_range_bounds(&mut self, originator: RangeOriginator, min: f32, max: f32) {
+        if originator == RangeOriginator::Height {
+            self.criteria.height_lower = min;
+            self.criteria.height_upper = max;
+        } else {
+            self.criteria.weight_lower = min;
+            self.criteria.weight_upper = max;
+        }
     }
 
     pub fn update(&mut self, msg: Message) -> Action {
         match msg {
-            Message::Tick(now) => {
-                let dt = now - self.last_tick;
-                self.last_tick = now;
-                self.scanlines.tick(dt);
-                Action::None
-            }
             Message::Apply => match self.return_to.take() {
                 Some(mut browser) => {
                     self.set_criteria();
@@ -377,7 +365,7 @@ impl Filter {
                 self.set_criteria();
                 Action::None
             }
-            Message::HeightRowClicked => Action::None,
+            Message::HeightRowClicked => Action::OpenSlider(RangeOriginator::Height),
             Message::WeightRowClicked => Action::None,
             Message::FilterModeToggled => {
                 self.filter_mode = self.filter_mode.toggled();
@@ -453,60 +441,22 @@ impl Filter {
         }
     }
 
-    pub fn top_view(&self) -> Element<'_, Message> {
-        let mut font = Font::with_name("Open Sans SemiBold");
-        font.weight = Weight::Semibold;
-        container(stack![
-            column![
-                // push it down a bit for visual rather than true centering
-                Space::new().height(Length::Fixed(50.0)),
-                iced::widget::image(self.pokeball_handle.clone())
-                    .opacity(0.2)
-                    .scale(0.95)
-            ]
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .align_x(Alignment::Center),
-            Canvas::new(&self.scanlines)
-                .width(Length::Fill)
-                .height(Length::Fill),
-            container(svg(self.filter_modal.clone()).opacity(1.0)).padding(Padding {
-                top: 15.0,
-                ..Default::default()
-            }),
-            column![
-                text("National Pokédex")
-                    .font(font)
-                    .size(22.0)
-                    .color(Color::from_str("#003469").unwrap()),
-                text("Filter Mode")
-                    .font(CONDENSED)
-                    .size(18.0)
-                    .color(Color::from_str("#1867B8").unwrap())
-            ]
-            .spacing(8.0)
-            .padding(Padding {
-                top: 24.0,
-                left: 22.0,
-                ..Default::default()
-            })
-        ])
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .style(|_| iced::widget::container::Style {
-            background: Some(iced::Background::Color(Color::from_rgb8(140, 213, 229))),
-            ..Default::default()
-        })
-        .into()
+    pub fn top_view<'a>(&'a self, common: &'a CommonAssets) -> Element<'a, Message> {
+        holo_header_backdrop(common, "National Pokédex", "Filter Mode")
     }
 
-    pub fn bottom_view(&self) -> Element<'_, Message> {
+    pub fn bottom_view<'a>(&'a self, common: &'a CommonAssets) -> Element<'a, Message> {
         let focus = self.selection.position();
+
+        let hmin = self.criteria.height_lower;
+        let hmax = self.criteria.height_upper;
+        let wmin = self.criteria.weight_lower;
+        let wmax = self.criteria.weight_upper;
 
         let controls_column = column![
             sort_order_row(self.sort_direction, self.sort_key, focus),
-            height_row(focus),
-            weight_row(focus),
+            height_row(focus, hmin, hmax),
+            weight_row(focus, wmin, wmax),
         ]
         .spacing(6)
         .width(Length::Fill);
@@ -518,7 +468,7 @@ impl Filter {
         stack![
             // scanlines
             container(
-                Canvas::new(&self.scanlines)
+                Canvas::new(&common.scanlines)
                     .width(Length::Fill)
                     .height(Length::Fill),
             )
@@ -781,12 +731,15 @@ fn control_button_style(_theme: &Theme, status: button::Status, focused: bool) -
     }
 }
 
-fn height_row<'a>(focus: Option<SelectionPosition>) -> Element<'a, Message> {
+fn height_row<'a>(focus: Option<SelectionPosition>, hmin: f32, hmax: f32) -> Element<'a, Message> {
     let check_focus = focus.filter(|f| f.section == section::HEIGHT);
+    let range = RangeOriginator::Height;
+    let min = &range.format(hmin);
+    let max = &range.format(hmax);
     let content = row![
         text("Height").size(16).color(colors::TEXT_DARK),
         Space::new().width(Length::Fill),
-        range_display("0'00\"", "99'99\"", None, check_focus),
+        range_display(min, max, None, check_focus),
     ]
     .align_y(Alignment::Center)
     .height(Length::Fixed(30.0))
@@ -797,12 +750,15 @@ fn height_row<'a>(focus: Option<SelectionPosition>) -> Element<'a, Message> {
         .into()
 }
 
-fn weight_row<'a>(focus: Option<SelectionPosition>) -> Element<'a, Message> {
+fn weight_row<'a>(focus: Option<SelectionPosition>, wmin: f32, wmax: f32) -> Element<'a, Message> {
     let check_focus = focus.filter(|f| f.section == section::WEIGHT);
+    let range = RangeOriginator::Weight;
+    let min = &range.format(wmin);
+    let max = &range.format(wmax);
     let content = row![
         text("Weight").size(16).color(colors::TEXT_DARK),
         Space::new().width(Length::Fill),
-        range_display("0.0", "9999.0", Some("lbs"), check_focus),
+        range_display(min, max, Some("lbs"), check_focus),
     ]
     .align_y(Alignment::Center)
     .height(Length::Fixed(30.0))

@@ -2,6 +2,47 @@ use log::debug;
 
 use crate::enums::{FilterMode, PokemonInfo, PokemonType, Region, SortDirection, SortKey};
 use std::collections::{HashMap, HashSet};
+use std::format;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RangeOriginator {
+    Height,
+    Weight,
+}
+
+impl RangeOriginator {
+    pub fn abs_bounds(self) -> (f32, f32) {
+        match self {
+            RangeOriginator::Height => (0.0, 99.99),
+            RangeOriginator::Weight => (0.0, 999.9),
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            RangeOriginator::Height => "Height",
+            RangeOriginator::Weight => "Weight",
+        }
+    }
+
+    // Values are stored as feet.inches-as-hundredths (e.g. 1.09 == 1'09"),
+    // which is also why 0.01 is the natural minimum gap.
+    pub fn format(self, value: f32) -> String {
+        match self {
+            RangeOriginator::Height => {
+                let feet = value.trunc() as i32;
+                let inches = (value.fract() * 100.0).round() as i32;
+
+                format!("{feet}'{inches:02}\"")
+            }
+            RangeOriginator::Weight => {
+                let lb = value.trunc() as i32;
+                let oz = (value.fract() * 100.0).round() as i32;
+                format!("{lb}lb {oz:02}oz")
+            }
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct FilterCriteria {
@@ -27,9 +68,9 @@ impl Default for FilterCriteria {
             sort_key: SortKey::Numerical,
             sort_order: SortDirection::Ascending,
             height_lower: 0.0,
-            height_upper: f32::MAX,
+            height_upper: RangeOriginator::Height.abs_bounds().1,
             weight_lower: 0.0,
-            weight_upper: f32::MAX,
+            weight_upper: RangeOriginator::Weight.abs_bounds().1,
         }
     }
 }
