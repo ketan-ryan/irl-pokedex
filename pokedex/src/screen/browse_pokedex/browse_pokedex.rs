@@ -14,11 +14,11 @@ use iced::{
 };
 use log::debug;
 
+use crate::screen::common::CommonAssets;
 use crate::{
     elements::{
         icon_button::{IconButtonColors, IconButtonInteraction, icon_button, split_icon_button},
         registered_icon::{IconState, RegisteredIconWidget},
-        scanlines::Scanlines,
     },
     enums::{IOAction, PokedexConfig, PokemonEntry, PokemonInfo, SortDirection},
     screen::browse_pokedex::{filter_predicate::FilterCriteria, image_cache::ImageCache, keyboard},
@@ -36,12 +36,9 @@ struct Selected {
 #[derive(Debug)]
 pub struct PokedexBrowser {
     config: Arc<PokedexConfig>,
-    scanlines: Scanlines,
-    last_tick: Instant,
     pokemon_data: HashMap<String, PokemonInfo>,
     owned_pokemon: std::collections::HashSet<String>,
     image_cache: ImageCache,
-    pokeball_handle: Handle,
     info_svg: svg::Handle,
 
     // scroll params
@@ -256,8 +253,6 @@ impl PokedexBrowser {
 
         let state = Self {
             config,
-            scanlines: Scanlines::new(),
-            last_tick: Instant::now(),
             pokemon_data,
             owned_pokemon: owned_pokemon.clone(),
             image_cache,
@@ -268,9 +263,6 @@ impl PokedexBrowser {
             top_scroll_id: Id::unique(),
             bot_scroll_id: Id::unique(),
 
-            pokeball_handle: Handle::from_bytes(
-                include_bytes!("../../../assets/background.png").as_slice(),
-            ),
             info_svg: svg::Handle::from_memory(
                 include_bytes!("../../../assets/browse_screen/hint.svg").as_slice(),
             ),
@@ -460,11 +452,6 @@ impl PokedexBrowser {
     pub fn update(&mut self, msg: Message) -> Action {
         match msg {
             Message::Tick(now) => {
-                let dt = now - self.last_tick;
-                self.last_tick = now;
-
-                self.scanlines.tick(dt);
-
                 // Check if we have a pending scroll load and 200ms has elapsed
                 if let Some((start_index, end_index)) = self.pending_scroll_load {
                     let settled = self
@@ -832,7 +819,7 @@ impl PokedexBrowser {
         Subscription::batch(subscriptions)
     }
 
-    pub fn top_view(&self) -> Element<'_, Message> {
+    pub fn top_view<'a>(&'a self, common: &'a CommonAssets) -> Element<'a, Message> {
         let semibold = iced::Font::with_name("Open Sans Semibold");
         let condensed = iced::Font::with_name("Open Sans Condensed");
 
@@ -894,7 +881,7 @@ impl PokedexBrowser {
         // scanlines
         elements.push(
             container(
-                canvas::Canvas::new(&self.scanlines)
+                canvas::Canvas::new(&common.scanlines)
                     .width(Length::Fill)
                     .height(Length::Fill),
             )
@@ -912,7 +899,9 @@ impl PokedexBrowser {
             column![
                 // push it down a bit for visual rather than true centering
                 Space::new().height(Length::Fixed(50.0)),
-                image(self.pokeball_handle.clone()).opacity(0.2).scale(0.95)
+                image(common.pokeball_handle.clone())
+                    .opacity(0.2)
+                    .scale(0.95)
             ]
             .width(Length::Fill)
             .align_x(Alignment::Center)
@@ -1013,7 +1002,7 @@ impl PokedexBrowser {
         iced::widget::Stack::with_children(elements).into()
     }
 
-    pub fn bottom_view(&self) -> Element<'_, Message> {
+    pub fn bottom_view<'a>(&'a self, common: &'a CommonAssets) -> Element<'a, Message> {
         let items: Vec<Element<Message>> = self
             .image_cache
             .pokemon_order
@@ -1048,7 +1037,7 @@ impl PokedexBrowser {
         // scanlines
         elements.push(
             container(
-                canvas::Canvas::new(&self.scanlines)
+                canvas::Canvas::new(&common.scanlines)
                     .width(Length::Fill)
                     .height(Length::Fill),
             )

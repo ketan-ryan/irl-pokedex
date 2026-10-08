@@ -339,7 +339,6 @@ impl App {
     fn handle_slider_action(&mut self, action: slider::Action) -> Task<Message> {
         match action {
             slider::Action::None => Task::none(),
-            slider::Action::Run(task) => task.map(Message::Slider),
             slider::Action::ReturnToFilter(filter) => {
                 self.screen = Screen::Filter(*filter);
                 Task::none()
@@ -475,7 +474,9 @@ impl App {
             match &self.screen {
                 Screen::Home(home) => home.top_view().map(Message::Home),
                 Screen::Register(register) => register.top_view().map(Message::Register),
-                Screen::PokedexBrowser(browser) => browser.top_view().map(Message::PokedexBrowser),
+                Screen::PokedexBrowser(browser) => {
+                    browser.top_view(&self.common).map(Message::PokedexBrowser)
+                }
                 Screen::Filter(filter) => filter.top_view(&self.common).map(Message::Filter),
                 Screen::Slider(slider) => slider.top_view(&self.common).map(Message::Slider),
                 Screen::Loading => {
@@ -532,10 +533,10 @@ impl App {
                 Screen::Home(home) => home.bottom_view().map(Message::Home),
                 Screen::Register(register) => register.bottom_view().map(Message::Register),
                 Screen::Filter(filter) => filter.bottom_view(&self.common).map(Message::Filter),
-                Screen::Slider(slider) => slider.bottom_view().map(Message::Slider),
-                Screen::PokedexBrowser(browser) => {
-                    browser.bottom_view().map(Message::PokedexBrowser)
-                }
+                Screen::Slider(slider) => slider.bottom_view(&self.common).map(Message::Slider),
+                Screen::PokedexBrowser(browser) => browser
+                    .bottom_view(&self.common)
+                    .map(Message::PokedexBrowser),
                 Screen::Loading => space().into(),
             }
         } else {

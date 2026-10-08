@@ -2,6 +2,7 @@ use std::format;
 
 use iced::{
     Alignment, Background, Border, Color, Element, Length, Padding, Shadow, Task, Theme,
+    alignment::Vertical::Center,
     widget::{Canvas, Space, Stack, button, column, container, mouse_area, row, stack, svg, text},
 };
 
@@ -13,7 +14,10 @@ use crate::{
             browse_pokedex::PokedexBrowser,
             filter_predicate::{FilterCriteria, RangeOriginator},
         },
-        common::{CommonAssets, holo_header_backdrop},
+        common::{
+            CONDENSED, CommonAssets, colors, default_shadow, holo_header_backdrop, primary_button,
+            secondary_button,
+        },
     },
 };
 
@@ -234,38 +238,6 @@ pub enum Action {
     OpenSlider(RangeOriginator),
 }
 
-mod colors {
-    use iced::{Color, color};
-
-    // #B5DAFF
-    pub const CARD_BG: Color = color!(0xB5DAFF);
-    // #2181E4
-    pub const CARD_BORDER: Color = color!(0x2181E4);
-
-    // #D0ECFF
-    pub const BUBBLE_BG: Color = color!(0xD0ECFF);
-    // #9CCBEE
-    pub const BUBBLE_HOVER_BG: Color = Color::from_rgb(0.612, 0.796, 0.933);
-    // #1b3f73
-    pub const BUBBLE_SELECTED_BG: Color = Color::from_rgb(0.106, 0.247, 0.451);
-
-    // #003469
-    pub const TEXT_DARK: Color = color!(0x003469);
-
-    // #ddecf8
-    pub const CONTROL_HOVER_BG: Color = Color::from_rgb(0.867, 0.925, 0.973);
-
-    // #4fa3e0
-    pub const PRIMARY_BG: Color = Color::from_rgb(0.310, 0.639, 0.878);
-    // #3d8fcb
-    pub const PRIMARY_HOVER_BG: Color = Color::from_rgb(0.239, 0.561, 0.796);
-
-    /// Cursor / keyboard-focus ring, distinct from selection state.
-    pub const PRIMARY_FOCUS: Color = Color::WHITE;
-    // #30fff7
-    pub const SECONDARY_FOCUS: Color = Color::from_rgb(0.188, 1.0, 0.969);
-}
-
 impl Filter {
     pub fn new(return_to: Box<PokedexBrowser>) -> (Self, Task<Message>) {
         let criteria = return_to.criteria();
@@ -366,7 +338,7 @@ impl Filter {
                 Action::None
             }
             Message::HeightRowClicked => Action::OpenSlider(RangeOriginator::Height),
-            Message::WeightRowClicked => Action::None,
+            Message::WeightRowClicked => Action::OpenSlider(RangeOriginator::Weight),
             Message::FilterModeToggled => {
                 self.filter_mode = self.filter_mode.toggled();
                 Action::None
@@ -455,7 +427,13 @@ impl Filter {
 
         let controls_column = column![
             sort_order_row(self.sort_direction, self.sort_key, focus),
-            height_row(focus, hmin, hmax),
+            height_row(
+                focus,
+                "Height".to_string(),
+                hmin,
+                hmax,
+                Message::HeightRowClicked
+            ),
             weight_row(focus, wmin, wmax),
         ]
         .spacing(6)
@@ -518,7 +496,10 @@ fn section_title<'a>(label: &'static str) -> Element<'a, Message> {
         .into()
 }
 
-fn section_card<'a>(content: Element<'a, Message>, focused: bool) -> Element<'a, Message> {
+fn section_card<'a, Message: Clone + 'a>(
+    content: Element<'a, Message>,
+    focused: bool,
+) -> Element<'a, Message> {
     container(content)
         .padding(12)
         .width(Length::Fill)
@@ -731,13 +712,19 @@ fn control_button_style(_theme: &Theme, status: button::Status, focused: bool) -
     }
 }
 
-fn height_row<'a>(focus: Option<SelectionPosition>, hmin: f32, hmax: f32) -> Element<'a, Message> {
+pub fn height_row<'a, Message: Clone + 'a>(
+    focus: Option<SelectionPosition>,
+    title: String,
+    hmin: f32,
+    hmax: f32,
+    message: Message,
+) -> Element<'a, Message> {
     let check_focus = focus.filter(|f| f.section == section::HEIGHT);
     let range = RangeOriginator::Height;
     let min = &range.format(hmin);
     let max = &range.format(hmax);
     let content = row![
-        text("Height").size(16).color(colors::TEXT_DARK),
+        text(title).size(16).color(colors::TEXT_DARK),
         Space::new().width(Length::Fill),
         range_display(min, max, None, check_focus),
     ]
@@ -746,7 +733,7 @@ fn height_row<'a>(focus: Option<SelectionPosition>, hmin: f32, hmax: f32) -> Ele
     .width(Length::Fill);
 
     mouse_area(section_card(content.into(), false))
-        .on_press(Message::HeightRowClicked)
+        .on_press(message)
         .into()
 }
 
@@ -758,7 +745,7 @@ fn weight_row<'a>(focus: Option<SelectionPosition>, wmin: f32, wmax: f32) -> Ele
     let content = row![
         text("Weight").size(16).color(colors::TEXT_DARK),
         Space::new().width(Length::Fill),
-        range_display(min, max, Some("lbs"), check_focus),
+        range_display(min, max, Some("kgs"), check_focus),
     ]
     .align_y(Alignment::Center)
     .height(Length::Fixed(30.0))
@@ -769,7 +756,7 @@ fn weight_row<'a>(focus: Option<SelectionPosition>, wmin: f32, wmax: f32) -> Ele
         .into()
 }
 
-fn range_display<'a>(
+fn range_display<'a, Message: Clone + 'a>(
     min_value: &str,
     max_value: &str,
     unit: Option<&str>,
@@ -781,17 +768,27 @@ fn range_display<'a>(
         } else {
             (colors::CARD_BORDER, 2.0)
         };
-        container(text(value).size(15).color(colors::TEXT_DARK))
-            .padding([6, 12])
-            .style(move |_theme: &Theme| container::Style {
-                background: Some(Background::Color(Color::WHITE)),
-                border: Border {
-                    color: border_color,
-                    width: border_width,
-                    radius: 10.0.into(),
-                },
-                ..Default::default()
-            })
+        container(
+            text(value)
+                .align_y(Center)
+                .font(iced::Font {
+                    weight: iced::font::Weight::Light,
+                    family: CONDENSED.family,
+                    ..Default::default()
+                })
+                .size(18)
+                .color(colors::TEXT_DARK),
+        )
+        .padding([6, 12])
+        .style(move |_theme: &Theme| container::Style {
+            background: Some(Background::Color(Color::WHITE)),
+            border: Border {
+                color: border_color,
+                width: border_width,
+                radius: 10.0.into(),
+            },
+            ..Default::default()
+        })
     };
 
     let min_box = if focus.is_some_and(|focus| focus.col == 0) {
@@ -956,106 +953,4 @@ fn action_row<'a>(
     .width(Length::Fill)
     .spacing(15)
     .into()
-}
-
-fn secondary_button<'a>(
-    label: String,
-    message: Message,
-    selected: Option<bool>,
-    focused: bool,
-) -> Element<'a, Message> {
-    let text_color = if selected.is_some_and(|sel| sel) {
-        Color::WHITE
-    } else {
-        colors::TEXT_DARK
-    };
-    button(
-        text(label)
-            .align_y(Alignment::Center)
-            .size(18)
-            .color(text_color),
-    )
-    .height(Length::Fixed(50.0))
-    .padding([12, 22])
-    .style(move |_theme: &Theme, status: button::Status| {
-        let background = match status {
-            button::Status::Hovered => {
-                if selected.is_some_and(|sel| sel) {
-                    colors::PRIMARY_HOVER_BG
-                } else {
-                    colors::CONTROL_HOVER_BG
-                }
-            }
-            _ => {
-                if selected.is_some_and(|sel| sel) {
-                    colors::PRIMARY_BG
-                } else {
-                    Color::WHITE
-                }
-            }
-        };
-
-        let (border_color, border_width) = if focused {
-            (colors::SECONDARY_FOCUS, 3.0)
-        } else {
-            (colors::CARD_BORDER, 2.0)
-        };
-
-        button::Style {
-            background: Some(Background::Color(background)),
-            text_color: Color::WHITE,
-            border: Border {
-                color: border_color,
-                width: border_width,
-                radius: 20.0.into(),
-            },
-            shadow: default_shadow(),
-            ..Default::default()
-        }
-    })
-    .on_press(message)
-    .into()
-}
-
-fn primary_button<'a>(label: String, message: Message, focused: bool) -> Element<'a, Message> {
-    let (border_color, border_width) = if focused {
-        (colors::PRIMARY_FOCUS, 3.0)
-    } else {
-        (Color::TRANSPARENT, 0.0)
-    };
-    button(
-        text(label)
-            .align_y(Alignment::Center)
-            .size(18)
-            .color(Color::WHITE),
-    )
-    .height(Length::Fixed(50.0))
-    .padding([12, 30])
-    .style(move |_theme: &Theme, status: button::Status| {
-        let background = match status {
-            button::Status::Hovered => colors::PRIMARY_HOVER_BG,
-            _ => colors::PRIMARY_BG,
-        };
-        button::Style {
-            background: Some(Background::Color(background)),
-            text_color: Color::WHITE,
-            border: Border {
-                color: border_color,
-                width: border_width,
-                radius: 20.0.into(),
-            },
-            shadow: default_shadow(),
-            ..Default::default()
-        }
-    })
-    .on_press(message)
-    .into()
-}
-
-fn default_shadow() -> Shadow {
-    Shadow {
-        blur_radius: 4.0,
-        color: Color::BLACK,
-        offset: iced::Vector { x: 1.0, y: 3.0 },
-    }
 }

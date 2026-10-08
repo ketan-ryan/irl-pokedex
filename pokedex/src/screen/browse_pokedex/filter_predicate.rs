@@ -25,21 +25,10 @@ impl RangeOriginator {
         }
     }
 
-    // Values are stored as feet.inches-as-hundredths (e.g. 1.09 == 1'09"),
-    // which is also why 0.01 is the natural minimum gap.
     pub fn format(self, value: f32) -> String {
         match self {
-            RangeOriginator::Height => {
-                let feet = value.trunc() as i32;
-                let inches = (value.fract() * 100.0).round() as i32;
-
-                format!("{feet}'{inches:02}\"")
-            }
-            RangeOriginator::Weight => {
-                let lb = value.trunc() as i32;
-                let oz = (value.fract() * 100.0).round() as i32;
-                format!("{lb}lb {oz:02}oz")
-            }
+            RangeOriginator::Height => format!("{value:.2}"),
+            RangeOriginator::Weight => format!("{value:.1}"),
         }
     }
 }
@@ -157,7 +146,7 @@ impl FilterCriteria {
 
         if self.is_height_active() {
             let h = info.height.metric;
-            let fits = h >= self.height_lower && h <= self.height_upper;
+            let fits = h >= self.height_lower && h < self.height_upper;
             if self.filter_mode == FilterMode::Any {
                 active_results.push(fits);
             } else if fits {
