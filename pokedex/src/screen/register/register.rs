@@ -13,13 +13,19 @@ use std::f32::consts::PI;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use crate::elements::gstreamer_stream::VideoFrame;
-use crate::elements::modal::{modal, shrink_text_to_fit};
-use crate::elements::pokedex_spinner::{PokedexSpinnerState, SpinnerCanvas};
-use crate::elements::pokemon_details::PokemonDetailsState;
-use crate::elements::register_pokemon::{RegisterCanvas, RegisterPokemonState};
-use crate::io::{self, PokedexConfig};
-use crate::ml;
+use crate::{
+    elements::{
+        gstreamer_stream::VideoFrame,
+        modal::{modal, shrink_text_to_fit},
+    },
+    enums::PokedexConfig,
+    io, ml,
+    screen::register::{
+        pokedex_spinner::{PokedexSpinnerState, SpinnerCanvas},
+        pokemon_details::PokemonDetailsState,
+        register_pokemon::{RegisterCanvas, RegisterPokemonState},
+    },
+};
 
 #[derive(Debug, PartialEq)]
 enum RegisteredState {
@@ -73,10 +79,10 @@ impl TopScreenRegister {
         Self {
             state: RegisteredState::WhiteBars,
             white_glow: iced::widget::image::Handle::from_bytes(
-                include_bytes!("../../assets/register_screen/white_glow.png").as_slice(),
+                include_bytes!("../../../assets/register_screen/white_glow.png").as_slice(),
             ),
             blue_glow: iced::widget::image::Handle::from_bytes(
-                include_bytes!("../../assets/register_screen/blue_glow.png").as_slice(),
+                include_bytes!("../../../assets/register_screen/blue_glow.png").as_slice(),
             ),
             white_anim: Animation::new(0.0).duration(Duration::from_millis(200)),
             blue_anim: Animation::new(0.0)
@@ -174,6 +180,7 @@ pub struct Register {
 pub enum Message {
     Start(Arc<VideoFrame>),
     HomeToggled,
+    OpenPokedex,
     Tick(Duration),
     Classify(Arc<VideoFrame>),
     Blurred(iced::widget::image::Handle),
@@ -189,6 +196,7 @@ pub enum Message {
 pub enum Action {
     None,
     GoHome,
+    OpenPokedex,
     Run(Task<Message>),
 }
 
@@ -221,20 +229,21 @@ impl Register {
                     .duration(Duration::from_millis(500))
                     .easing(iced::animation::Easing::EaseInOut),
                 bg_handle: iced::widget::image::Handle::from_bytes(
-                    include_bytes!("../../assets/background.png").as_slice(),
+                    include_bytes!("../../../assets/background.png").as_slice(),
                 ),
                 ring_handle: iced::widget::image::Handle::from_bytes(
-                    include_bytes!("../../assets/register_screen/ring.png").as_slice(),
+                    include_bytes!("../../../assets/register_screen/ring.png").as_slice(),
                 ),
                 pokeball_icon: iced::widget::image::Handle::from_bytes(
-                    include_bytes!("../../assets/register_screen/pokeball_icon.png").as_slice(),
+                    include_bytes!("../../../assets/register_screen/pokeball_icon.png").as_slice(),
                 ),
                 pokeball_gray: iced::widget::image::Handle::from_bytes(
-                    include_bytes!("../../assets/register_screen/pokeball_icon_gray.png")
+                    include_bytes!("../../../assets/register_screen/pokeball_icon_gray.png")
                         .as_slice(),
                 ),
                 unown_handle: iced_gif::Frames::from_bytes(
-                    include_bytes!("../../assets/register_screen/unown-interrogation.gif").to_vec(),
+                    include_bytes!("../../../assets/register_screen/unown-interrogation.gif")
+                        .to_vec(),
                 )
                 .unwrap(),
                 spinner_state: PokedexSpinnerState::new(),
@@ -260,6 +269,7 @@ impl Register {
     pub fn update(&mut self, msg: Message) -> Action {
         match msg {
             Message::HomeToggled => Action::GoHome,
+            Message::OpenPokedex => Action::OpenPokedex,
             Message::Start(frame) => {
                 self.state = State::Classifying;
                 self.captured_frame = Some(iced::widget::image::Handle::from_rgba(
@@ -319,9 +329,12 @@ impl Register {
 
                 if self.state.details_screen() {
                     let mut details = self.pokemon_details.clone();
-                    return Action::Run(Task::perform(async move { details.tick() }, |handle| {
-                        Message::NoiseReady(handle.clone())
-                    }));
+                    return Action::Run(Task::perform(
+                        async move { details.tick() },
+                        |handle: Option<iced::widget::image::Handle>| {
+                            Message::NoiseReady(handle.clone())
+                        },
+                    ));
                 }
 
                 Action::None
@@ -418,16 +431,15 @@ impl Register {
                             .clone(),
                     );
 
-                    self.type_images = type_images
-                        .iter()
-                        .map(|path| {
-                            iced::widget::image::Handle::from_bytes(
-                                std::fs::read(path).unwrap_or_else(|_| {
-                                    panic!("Failed to read type image at path: {}", path)
-                                }),
-                            )
-                        })
-                        .collect();
+                    self.type_images =
+                        type_images
+                            .iter()
+                            .map(|path| {
+                                iced::widget::image::Handle::from_bytes(std::fs::read(path).expect(
+                                    &format!("Failed to read type image at path: {}", path),
+                                ))
+                            })
+                            .collect();
 
                     return Action::Run(Task::perform(
                         async move { Self::classify(poke, loc, false).map_err(|e| e.to_string()) },
@@ -560,7 +572,7 @@ impl Register {
     ) -> Result<ClassificationResults, anyhow::Error> {
         // grab png
         let img: Result<Vec<u8>, anyhow::Error> = if is_error {
-            Ok(include_bytes!("../../assets/missingno.png").to_vec())
+            Ok(include_bytes!("../../../assets/missingno.png").to_vec())
         } else {
             io::load_png(sprite_folder, &pokemon)
         };
@@ -800,7 +812,7 @@ impl Register {
             //TODO: Investigate stutter
             let dex_but = button("Go to Pokédex")
                 .padding(10)
-                .on_press(Message::HomeToggled);
+                .on_press(Message::OpenPokedex);
 
             let ret_but = button("Retry Photo")
                 .padding(10)
@@ -953,8 +965,8 @@ impl Register {
                 .height(Length::Fixed(58.0));
 
                 // height and weight
-                let height = info.height.clone();
-                let weight = info.weight.clone();
+                let height = info.height.raw.clone();
+                let weight = info.weight.raw.clone();
                 let bottom_section = column![
                     // height row
                     container(
@@ -1156,7 +1168,7 @@ impl Register {
                         button("✕").on_press(Message::HomeToggled),
                         Space::new().width(iced::Fill),
                         button("←").on_press(Message::HomeToggled),
-                        button("→").on_press(Message::HomeToggled),
+                        button("→").on_press(Message::OpenPokedex),
                     ]
                     .padding(Padding::from([8, 16]))
                     .align_y(Alignment::Center)

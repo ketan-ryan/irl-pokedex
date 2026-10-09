@@ -1,10 +1,11 @@
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock as StdRwLock};
 
+use crate::browse_pokedex::Message;
+use crate::enums::PokemonEntry;
 use crate::io;
-use crate::screen::browse_pokedex::Message;
 use iced::widget::image::Handle;
-use log::trace;
+use log::{trace, warn};
 use std::collections::VecDeque;
 
 const MAX_CONCURRENT_LOADS: usize = 2;
@@ -20,7 +21,7 @@ pub struct ImageCache {
     // Sync cache for rendering (can be accessed without await)
     pub sync_cache: Arc<StdRwLock<HashMap<String, ImageCacheEntry>>>,
     // Ordered list of all pokemon names
-    pub pokemon_order: Vec<String>,
+    pub pokemon_order: Vec<PokemonEntry>,
     // Current visible range
     pub visible_start: usize,
     pub visible_end: usize,
@@ -29,7 +30,7 @@ pub struct ImageCache {
     // Track which images are currently being loaded and which load cycle owns them
     pub loading: Arc<StdRwLock<HashMap<String, u64>>>,
     load_generation: Arc<StdRwLock<u64>>,
-    pending_queue: Arc<StdRwLock<VecDeque<String>>>,
+    pending_queue: Arc<StdRwLock<VecDeque<PokemonEntry>>>,
 }
 
 impl ImageCache {
@@ -40,7 +41,7 @@ impl ImageCache {
     /// - buffer_size: The number of surrounding entries to preload around the visible range.
     ///
     /// Returns: A new image cache instance.
-    pub fn new(pokemon_names: Vec<String>, buffer_size: usize) -> Self {
+    pub fn new(pokemon_names: Vec<PokemonEntry>, buffer_size: usize) -> Self {
         Self {
             sync_cache: Arc::new(StdRwLock::new(HashMap::new())),
             pokemon_order: pokemon_names,
@@ -130,12 +131,20 @@ impl ImageCache {
             cache.retain(|name, _| {
                 pokemon_order
                     .iter()
-                    .position(|n| n == name)
+                    .position(|n| &n.key == name)
                     .is_some_and(|index| index >= load_start && index < load_end)
             });
         }
 
         trace!("Cleaned up old images");
+
+        if load_start > load_end {
+            warn!(
+                "Start index {} greater than end index {}",
+                load_start, load_end
+            );
+            return iced::Task::none();
+        }
 
         // start at the currently selected image and load images spiraling outward
         let selected = selected_option.unwrap_or(load_start + (load_end - load_start) / 2);
@@ -155,23 +164,24 @@ impl ImageCache {
             .flatten();
 
         // Preserve spiral order, but keep visible-range names ahead of buffer-only names.
-        let mut visible_names = Vec::new();
-        let mut buffer_names = Vec::new();
+        let mut visible_entries = Vec::new();
+        let mut buffer_entries = Vec::new();
 
         for i in indices {
             let name = self.pokemon_order[i].clone();
-            let already_cached = self.sync_cache.read().unwrap().contains_key(&name);
+            let already_cached = self.sync_cache.read().unwrap().contains_key(&name.key);
             if already_cached {
                 continue;
             }
             if i >= start && i < end {
-                visible_names.push(name);
+                visible_entries.push(name);
             } else {
-                buffer_names.push(name);
+                buffer_entries.push(name);
             }
         }
 
-        let queue: VecDeque<String> = visible_names.into_iter().chain(buffer_names).collect();
+        let queue: VecDeque<PokemonEntry> =
+            visible_entries.into_iter().chain(buffer_entries).collect();
         *self.pending_queue.write().unwrap() = queue;
 
         let tasks: Vec<_> = (0..MAX_CONCURRENT_LOADS)
@@ -198,16 +208,16 @@ impl ImageCache {
         }
 
         loop {
-            let name = self.pending_queue.write().unwrap().pop_front()?;
+            let entry = self.pending_queue.write().unwrap().pop_front()?;
 
             let already_have = {
                 let cache = self.sync_cache.read().unwrap();
                 let loading = self.loading.read().unwrap();
-                cache.contains_key(&name) || loading.contains_key(&name)
+                cache.contains_key(&entry.key) || loading.contains_key(&entry.key)
             };
 
             if !already_have {
-                return Some(self.load_image_async(sprite_folder, name, generation));
+                return Some(self.load_image_async(sprite_folder, entry.key, generation));
             }
             // else loop and try the next queued name
         }
