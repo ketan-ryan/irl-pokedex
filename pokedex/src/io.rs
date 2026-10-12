@@ -19,7 +19,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use crate::elements::gstreamer_stream::VideoFrame;
 use crate::{PokedexError, ml};
 
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Display, EnumString)]
+#[derive(Clone, Copy, Debug, Deserialize, Display, EnumString, Eq, Hash, PartialEq, Serialize)]
 #[strum(serialize_all = "lowercase")]
 pub enum PokemonType {
     Normal,

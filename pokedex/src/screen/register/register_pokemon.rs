@@ -4,7 +4,7 @@ use iced::widget::image;
 use iced::{Animation, Element, Point, Radians, Rectangle, Renderer, Theme};
 use std::time::{Duration, Instant};
 
-use crate::screen::register::Message;
+use crate::screen::register::register::Message;
 
 #[derive(Debug)]
 pub struct RegisterPokemonState {

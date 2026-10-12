@@ -8,7 +8,7 @@ use gstreamer::glib::num_processors;
 use include_assets::{NamedArchive, include_dir};
 use log::error;
 use screen::Screen;
-use screen::home;
+use screen::home::home;
 
 use iced::widget::{button, column, space};
 use iced::window::{self};
@@ -19,8 +19,8 @@ use std::sync::Arc;
 
 use crate::elements::gstreamer_stream::VideoFrame;
 use crate::io::PokedexConfig;
-use crate::screen::browse_pokedex;
-use crate::screen::register;
+use crate::screen::browse_pokedex::browse_pokedex;
+use crate::screen::register::register;
 
 fn main() -> iced::Result {
     rayon::ThreadPoolBuilder::new()
@@ -220,17 +220,17 @@ impl App {
     fn load_files(&mut self) -> Task<Message> {
         let (top_id, open) = window::open(window::Settings {
             size: (640, 480).into(),
-            position: window::Position::Specific(iced::Point::new(1000.0, 200.0)),
-            resizable: false,
-            decorations: false,
+            position: window::Position::Specific(iced::Point::new(300.0, 200.0)),
+            // resizable: false,
+            // decorations: false,
             ..window::Settings::default()
         });
 
         let (bottom_id, open_second) = window::open(window::Settings {
             size: (640, 480).into(),
-            position: window::Position::Specific(iced::Point::new(1000.0, 800.0)),
-            resizable: false,
-            decorations: false,
+            position: window::Position::Specific(iced::Point::new(1000.0, 200.0)),
+            // resizable: false,
+            // decorations: false,
             ..window::Settings::default()
         });
 
@@ -257,13 +257,13 @@ impl App {
 
     fn open_home(&mut self) -> Task<Message> {
         // If we get here, config should be loaded successfully
-        let (home, task) = screen::Home::new(self.bottom_handle.clone());
+        let (home, task) = home::Home::new(self.bottom_handle.clone());
         self.screen = Screen::Home(home);
         task.map(Message::Home)
     }
 
     fn open_register(&mut self, result: Arc<VideoFrame>) -> Task<Message> {
-        let (reg, task) = screen::Register::new(
+        let (reg, task) = register::Register::new(
             Arc::clone(self.config.as_ref().unwrap()),
             result,
             self.bottom_handle.clone(),
@@ -273,7 +273,7 @@ impl App {
     }
 
     fn open_browser(&mut self) -> Task<Message> {
-        let (browser, task) = screen::PokedexBrowser::new(
+        let (browser, task) = browse_pokedex::PokedexBrowser::new(
             Arc::clone(self.config.as_ref().unwrap()),
             self.config.as_ref().unwrap().pokedex_json.clone(),
             self.config
