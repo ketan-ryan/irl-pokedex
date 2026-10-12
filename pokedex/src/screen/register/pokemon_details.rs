@@ -5,7 +5,7 @@ use std::time::Instant;
 use noise::{self, Exponent, NoiseFn, Perlin};
 use rand::prelude::*;
 
-use crate::io::PokemonInfo;
+use crate::enums::PokemonInfo;
 
 // Animation speed for updating noise
 const SPEED: f64 = 0.01;

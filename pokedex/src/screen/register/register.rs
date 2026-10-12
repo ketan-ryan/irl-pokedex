@@ -18,8 +18,8 @@ use crate::{
         gstreamer_stream::VideoFrame,
         modal::{modal, shrink_text_to_fit},
     },
-    io::{self, PokedexConfig},
-    ml,
+    enums::PokedexConfig,
+    io, ml,
     screen::register::{
         pokedex_spinner::{PokedexSpinnerState, SpinnerCanvas},
         pokemon_details::PokemonDetailsState,
@@ -180,6 +180,7 @@ pub struct Register {
 pub enum Message {
     Start(Arc<VideoFrame>),
     HomeToggled,
+    OpenPokedex,
     Tick(Duration),
     Classify(Arc<VideoFrame>),
     Blurred(iced::widget::image::Handle),
@@ -195,6 +196,7 @@ pub enum Message {
 pub enum Action {
     None,
     GoHome,
+    OpenPokedex,
     Run(Task<Message>),
 }
 
@@ -267,6 +269,7 @@ impl Register {
     pub fn update(&mut self, msg: Message) -> Action {
         match msg {
             Message::HomeToggled => Action::GoHome,
+            Message::OpenPokedex => Action::OpenPokedex,
             Message::Start(frame) => {
                 self.state = State::Classifying;
                 self.captured_frame = Some(iced::widget::image::Handle::from_rgba(
@@ -428,16 +431,15 @@ impl Register {
                             .clone(),
                     );
 
-                    self.type_images = type_images
-                        .iter()
-                        .map(|path| {
-                            iced::widget::image::Handle::from_bytes(
-                                std::fs::read(path).unwrap_or_else(|_| {
-                                    panic!("Failed to read type image at path: {}", path)
-                                }),
-                            )
-                        })
-                        .collect();
+                    self.type_images =
+                        type_images
+                            .iter()
+                            .map(|path| {
+                                iced::widget::image::Handle::from_bytes(std::fs::read(path).expect(
+                                    &format!("Failed to read type image at path: {}", path),
+                                ))
+                            })
+                            .collect();
 
                     return Action::Run(Task::perform(
                         async move { Self::classify(poke, loc, false).map_err(|e| e.to_string()) },
@@ -810,7 +812,7 @@ impl Register {
             //TODO: Investigate stutter
             let dex_but = button("Go to Pokédex")
                 .padding(10)
-                .on_press(Message::HomeToggled);
+                .on_press(Message::OpenPokedex);
 
             let ret_but = button("Retry Photo")
                 .padding(10)
@@ -963,8 +965,8 @@ impl Register {
                 .height(Length::Fixed(58.0));
 
                 // height and weight
-                let height = info.height.clone();
-                let weight = info.weight.clone();
+                let height = info.height.raw.clone();
+                let weight = info.weight.raw.clone();
                 let bottom_section = column![
                     // height row
                     container(
@@ -1166,7 +1168,7 @@ impl Register {
                         button("✕").on_press(Message::HomeToggled),
                         Space::new().width(iced::Fill),
                         button("←").on_press(Message::HomeToggled),
-                        button("→").on_press(Message::HomeToggled),
+                        button("→").on_press(Message::OpenPokedex),
                     ]
                     .padding(Padding::from([8, 16]))
                     .align_y(Alignment::Center)

@@ -1,14 +1,13 @@
 use log::{debug, error, warn};
 
-use iced::event::{self, Status};
-use iced::keyboard::{Event::KeyPressed, Key, key::Named};
 use iced::widget::{container, mouse_area, stack, text};
-use iced::{Color, Element, Event, Subscription, Task, time};
+use iced::{Color, Element, Subscription, Task, time};
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use crate::elements::gstreamer_stream::{VideoError, VideoFrame, gstreamer_stream};
+use crate::enums::IOAction;
 use crate::io;
 use crate::screen::home::loading_screen::{QuadCanvas, QuadState};
 
@@ -56,11 +55,6 @@ pub enum Action {
     RedrawWindows,
     Run(Task<Message>),
     BrowsePokedex,
-}
-
-#[derive(Debug, Clone)]
-pub enum IOAction {
-    TakePicture,
 }
 
 impl Home {
@@ -144,7 +138,7 @@ impl Home {
             }
             Message::IOInput(action) => {
                 match action {
-                    IOAction::TakePicture => {
+                    IOAction::Select => {
                         if !self.state.should_get_frames() {
                             return Action::None;
                         }
@@ -167,6 +161,7 @@ impl Home {
                             ]));
                         };
                     }
+                    _ => (),
                 }
 
                 Action::None
@@ -196,19 +191,9 @@ impl Home {
 
         Subscription::batch([
             // tick screen for updates ~60fps
+            // TODO: change to using refresh rate
             time::every(Duration::from_millis(16)).map(|_| Message::Tick),
             camera_subscription,
-            // TODO: Will need custom subscription / event to handle rpi IO
-            event::listen_with(|event, status, _| match (event, status) {
-                (
-                    Event::Keyboard(KeyPressed {
-                        key: Key::Named(Named::Enter),
-                        ..
-                    }),
-                    Status::Ignored,
-                ) => Some(Message::IOInput(IOAction::TakePicture)),
-                _ => None,
-            }),
         ])
     }
 

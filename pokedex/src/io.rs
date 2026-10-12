@@ -1,9 +1,6 @@
 use anyhow::{Result, anyhow};
 use config::Config;
 use log::{debug, trace, warn};
-use ort::session::Session;
-use serde::{Deserialize, Deserializer, Serialize};
-use strum_macros::{Display, EnumString};
 use tokio;
 use tokio::io::AsyncReadExt;
 
@@ -13,115 +10,15 @@ use std::env;
 use std::fs;
 use std::io;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::elements::gstreamer_stream::VideoFrame;
+use crate::enums::{PokedexConfig, PokemonInfo, PokemonType};
 use crate::{PokedexError, ml};
-
-#[derive(Clone, Copy, Debug, Deserialize, Display, EnumString, Eq, Hash, PartialEq, Serialize)]
-#[strum(serialize_all = "lowercase")]
-pub enum PokemonType {
-    Normal,
-    Fire,
-    Water,
-    Grass,
-    Electric,
-    Ice,
-    Fighting,
-    Poison,
-    Ground,
-    Flying,
-    Psychic,
-    Bug,
-    Rock,
-    Ghost,
-    Dragon,
-    Dark,
-    Steel,
-    Fairy,
-    Unknown,
-}
-
-impl Default for PokemonType {
-    fn default() -> Self {
-        PokemonType::Unknown
-    }
-}
-
-/// Deserialize a slash-delimited Pokémon type string into a vector of enum values.
-/// Ex: "steel/fairy" becomes [steel, fairy]
-/// Args:
-/// - deserializer: The serde deserializer for the incoming type string.
-///
-/// Returns: A list of parsed Pokémon types.
-fn deserialize_types<'de, D>(deserializer: D) -> Result<Vec<PokemonType>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    // 1. Get the raw string from JSON (e.g., "steel/fairy")
-    let s: String = Deserialize::deserialize(deserializer)?;
-
-    // 2. Split, parse, and collect
-    s.split('/')
-        .map(|part| {
-            // This now uses strum's generated FromStr
-            part.trim()
-                .to_lowercase()
-                .parse::<PokemonType>()
-                .map_err(|_| serde::de::Error::custom(format!("Unknown type: {}", part)))
-        })
-        .collect::<Result<Vec<PokemonType>, D::Error>>()
-}
-
-#[derive(Clone, Deserialize, Debug)]
-pub struct PokemonInfo {
-    pub number: String,
-    #[serde(rename = "type", deserialize_with = "deserialize_types")]
-    pub types: Vec<PokemonType>,
-    pub species: String,
-    pub height: String,
-    pub weight: String,
-    pub abilities: Vec<String>,
-    pub dex_entries: HashMap<String, String>,
-    #[serde(default)]
-    pub region: Option<String>,
-    pub base: Option<bool>,
-    pub display_name: Option<String>,
-}
-
-impl Default for PokemonInfo {
-    fn default() -> Self {
-        PokemonInfo {
-            number: "0000".to_string(),
-            types: vec![PokemonType::Unknown],
-            species: "???".to_string(),
-            height: "???".to_string(),
-            weight: "???".to_string(),
-            abilities: Vec::new(),
-            dex_entries: HashMap::new(),
-            region: Some("Undiscovered".to_string()),
-            base: None,
-            display_name: None,
-        }
-    }
-}
 
 const LOCAL_DEX_NAME: &str = "local_pokedex.json";
 const SAVED_IMGS_DIR: &str = "saved_images";
 const STAGING_DIR: &str = "staging";
-
-#[derive(Debug)]
-pub struct PokedexConfig {
-    pub pokedex_json: HashMap<String, PokemonInfo>,
-    pub sprites_location: String,
-    pub session: Arc<Mutex<Session>>,
-    pub classes: Vec<String>,
-    pub confidence: f32,
-    pub name_maps: HashMap<String, String>,
-    pub local_dex: RefCell<Vec<String>>,
-    pub saved_imgs_dir: String,
-}
 
 /// Build the asset paths for the given Pokémon types.
 ///
@@ -479,7 +376,7 @@ pub async fn update_dex(pokemon_list: Vec<String>) -> Result<(), anyhow::Error> 
     let path = get_local_path()?.join(out_path);
     let updated_json = match serde_json::to_string_pretty(&pokemon_list) {
         Ok(json) => {
-            trace!("Parsed pokedex json to {}", json);
+            // trace!("Parsed pokedex json to {}", json);
             json
         }
         Err(e) => return Err(PokedexError::UpdateDexFailure(e.to_string()).into()),
