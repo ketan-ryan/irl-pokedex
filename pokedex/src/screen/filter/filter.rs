@@ -7,17 +7,17 @@ use iced::{
 };
 
 use crate::{
-    elements::selectable::{SectionShape, SelectionDirection, SelectionGrid, SelectionPosition},
-    enums::{FilterMode, IOAction, PokemonType, Region, SortDirection, SortKey},
-    screen::{
-        browse_pokedex::{
-            browse_pokedex::PokedexBrowser,
-            filter_predicate::{FilterCriteria, RangeOriginator},
-        },
+    elements::{
         common::{
             CONDENSED, CommonAssets, colors, default_shadow, holo_header_backdrop, primary_button,
             secondary_button,
         },
+        selectable::{SectionShape, SelectionDirection, SelectionGrid, SelectionPosition},
+    },
+    enums::{FilterMode, IOAction, PokemonType, Region, SortDirection, SortKey},
+    screen::browse_pokedex::{
+        browse_pokedex::PokedexBrowser,
+        filter_predicate::{FilterCriteria, RangeOriginator},
     },
 };
 

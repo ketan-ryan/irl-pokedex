@@ -14,9 +14,10 @@ use iced::{
 };
 use log::debug;
 
-use crate::screen::common::CommonAssets;
+use crate::elements::icon_button::IconButtonSize;
 use crate::{
     elements::{
+        common::CommonAssets,
         icon_button::{IconButtonColors, IconButtonInteraction, icon_button, split_icon_button},
         registered_icon::{IconState, RegisteredIconWidget},
     },
@@ -102,6 +103,7 @@ pub enum Action {
     GoHome,
     Run(Task<Message>),
     OpenFilter,
+    OpenInfo(PokemonEntry, Vec<PokemonEntry>),
 }
 
 const TOP_SCREEN_ITEMS: usize = 8;
@@ -273,7 +275,7 @@ impl PokedexBrowser {
                 include_bytes!("../../../assets/browse_screen/filter.svg").as_slice(),
             ),
             close_icon: svg::Handle::from_memory(
-                include_bytes!("../../../assets/browse_screen/x.svg").as_slice(),
+                include_bytes!("../../../assets/x.svg").as_slice(),
             ),
             selected: Selected {
                 selected_pokemon,
@@ -600,6 +602,18 @@ impl PokedexBrowser {
             Message::IOInput(action) => {
                 if !self.show_keyboard {
                     let current_index = self.selected.selected_idx.unwrap_or(0);
+
+                    if action == IOAction::Select && self.selected.selected_pokemon.is_some() {
+                        debug!(
+                            "Current pokemon is {:?} and list is {:?}",
+                            self.selected.selected_pokemon, self.image_cache.pokemon_order
+                        );
+
+                        return Action::OpenInfo(
+                            self.selected.selected_pokemon.as_ref().unwrap().clone(),
+                            self.image_cache.pokemon_order.clone(),
+                        );
+                    }
 
                     let new_index = match action {
                         IOAction::ScrollUp => current_index.saturating_sub(1),
@@ -1214,7 +1228,7 @@ impl PokedexBrowser {
 
         let mut screen = iced::widget::Stack::with_children(elements);
 
-        let search = container(split_icon_button(
+        let search = split_icon_button(
             self.search_icon.clone(),
             Some("Search"),
             &self.search_interaction,
@@ -1225,11 +1239,11 @@ impl PokedexBrowser {
             &self.search_close_interaction,
             IconButtonColors::default(),
             Message::SearchCloseInteraction,
-        ))
-        .padding(5);
+        );
 
         let filter = icon_button(
             self.filter_icon.clone(),
+            IconButtonSize::default(),
             Some("Filter"),
             &self.filter_interaction,
             IconButtonColors::default(),
@@ -1238,6 +1252,15 @@ impl PokedexBrowser {
 
         let close = icon_button(
             self.close_icon.clone(),
+            IconButtonSize {
+                padding: iced::Padding {
+                    top: 3.0,
+                    bottom: 3.0,
+                    left: 7.0,
+                    right: 7.0,
+                },
+                ..Default::default()
+            },
             None,
             &self.close_interaction,
             IconButtonColors::default(),
@@ -1254,9 +1277,17 @@ impl PokedexBrowser {
                     close,
                     Space::new().width(Length::FillPortion(25))
                 ]
-                .align_y(Alignment::End)
-                .height(Length::FillPortion(2))
+                .spacing(5.0)
+                .align_y(Alignment::Center)
+                .height(Length::Fill)
             ])
+            .align_y(Alignment::End)
+            .padding(iced::Padding {
+                left: 6.0,
+                right: 6.0,
+                top: 5.0,
+                bottom: 0.0,
+            })
             .style(|_| container::Style {
                 background: None,
                 ..Default::default()

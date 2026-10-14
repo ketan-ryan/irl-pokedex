@@ -5,11 +5,11 @@ use iced::widget::{Canvas, Space, canvas, column, container, row, stack};
 use iced::{Alignment, Color, Element, Length, Point, Rectangle, Renderer, Theme, color};
 use iced::{Size, Task, mouse};
 
-use crate::enums::IOAction;
-use crate::screen::browse_pokedex::filter_predicate::RangeOriginator;
-use crate::screen::common::{
+use crate::elements::common::{
     self, CommonAssets, holo_header_backdrop, primary_button, secondary_button,
 };
+use crate::enums::IOAction;
+use crate::screen::browse_pokedex::filter_predicate::RangeOriginator;
 use crate::screen::filter::filter::{Filter, height_row};
 
 use std::format;

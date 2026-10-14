@@ -1,7 +1,7 @@
 pub mod browse_pokedex;
-pub mod common;
 pub mod filter;
 pub mod home;
+pub mod info;
 pub mod register;
 
 #[derive(Debug)]
@@ -12,4 +12,5 @@ pub enum Screen {
     PokedexBrowser(browse_pokedex::browse_pokedex::PokedexBrowser),
     Filter(filter::filter::Filter),
     Slider(filter::slider::RangeSliderScreen),
+    Info(info::info::Info),
 }

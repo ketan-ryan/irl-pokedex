@@ -24,12 +24,13 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::Instant;
 
+use crate::elements::common::CommonAssets;
 use crate::elements::gstreamer_stream::VideoFrame;
-use crate::enums::{IOAction, PokedexConfig};
+use crate::enums::{IOAction, PokedexConfig, PokemonEntry};
 use crate::screen::browse_pokedex::browse_pokedex;
 use crate::screen::browse_pokedex::filter_predicate::RangeOriginator;
-use crate::screen::common::CommonAssets;
 use crate::screen::filter::{filter, slider};
+use crate::screen::info::info;
 use crate::screen::register::register;
 
 fn main() -> iced::Result {
@@ -130,7 +131,7 @@ struct App {
     error: Option<PokedexError>,
     config: Option<Arc<PokedexConfig>>,
     bottom_handle: iced::widget::image::Handle,
-    common: screen::common::CommonAssets,
+    common: elements::common::CommonAssets,
     last_tick: Instant,
 }
 
@@ -191,11 +192,13 @@ enum Message {
     PokedexBrowser(browse_pokedex::Message),
     Filter(filter::Message),
     Slider(slider::Message),
+    Info(info::Message),
     OpenHome,
     OpenRegister(Arc<VideoFrame>),
     OpenSlider(RangeOriginator),
     OpenPokedexBrowser,
     OpenFilter,
+    OpenInfo(PokemonEntry, Vec<PokemonEntry>),
     IOInput(IOAction),
     Tick(Instant),
 }
@@ -271,6 +274,13 @@ impl App {
                 let action = slider.update(message);
                 self.handle_slider_action(action)
             }
+            Message::Info(message) => {
+                let Screen::Info(info) = &mut self.screen else {
+                    return Task::none();
+                };
+                let action = info.update(message);
+                self.handle_info_action(action)
+            }
             Message::IOInput(action) => match &mut self.screen {
                 Screen::Home(home) => {
                     Self::handle_home_action(home.update(home::Message::IOInput(action)))
@@ -288,11 +298,16 @@ impl App {
                     let action = slider.update(slider::Message::IOInput(action));
                     self.handle_slider_action(action)
                 }
+                Screen::Info(info) => {
+                    let action = info.update(info::Message::IOInput(action));
+                    self.handle_info_action(action)
+                }
             },
             Message::OpenRegister(result) => self.open_register(result),
             Message::OpenPokedexBrowser => self.open_browser(),
             Message::OpenFilter => self.open_filter(),
             Message::OpenSlider(originator) => self.open_slider(originator),
+            Message::OpenInfo(selected, list) => self.open_info(selected, list),
         }
     }
 
@@ -321,6 +336,9 @@ impl App {
             browse_pokedex::Action::GoHome => Task::done(Message::OpenHome),
             browse_pokedex::Action::Run(task) => task.map(Message::PokedexBrowser),
             browse_pokedex::Action::OpenFilter => Task::done(Message::OpenFilter),
+            browse_pokedex::Action::OpenInfo(selected, pokemon_list) => {
+                Task::done(Message::OpenInfo(selected, pokemon_list))
+            }
         }
     }
 
@@ -343,6 +361,17 @@ impl App {
                 self.screen = Screen::Filter(*filter);
                 Task::none()
             }
+        }
+    }
+
+    fn handle_info_action(&mut self, action: info::Action) -> Task<Message> {
+        match action {
+            info::Action::None => Task::none(),
+            info::Action::Return(browser, task) => {
+                self.screen = Screen::PokedexBrowser(*browser);
+                task.map(Message::PokedexBrowser)
+            }
+            info::Action::Run(task) => task.map(Message::Info),
         }
     }
 
@@ -453,6 +482,21 @@ impl App {
         task.map(Message::Slider)
     }
 
+    fn open_info(&mut self, selected: PokemonEntry, list: Vec<PokemonEntry>) -> Task<Message> {
+        let Screen::PokedexBrowser(browser) = std::mem::replace(&mut self.screen, Screen::Loading)
+        else {
+            return Task::none();
+        };
+        let (info, task) = info::Info::new(
+            Box::new(browser),
+            selected,
+            list,
+            self.config.as_ref().unwrap().pokedex_json.clone(),
+        );
+        self.screen = Screen::Info(info);
+        task.map(Message::Info)
+    }
+
     fn view(&self, window_id: window::Id) -> Element<'_, Message> {
         if let Some(window) = self
             .windows
@@ -490,6 +534,7 @@ impl App {
 
                     content.into()
                 }
+                Screen::Info(info) => info.top_view(&self.common).map(Message::Info),
             }
         } else {
             iced::widget::container(
@@ -534,6 +579,7 @@ impl App {
                 Screen::Register(register) => register.bottom_view().map(Message::Register),
                 Screen::Filter(filter) => filter.bottom_view(&self.common).map(Message::Filter),
                 Screen::Slider(slider) => slider.bottom_view(&self.common).map(Message::Slider),
+                Screen::Info(info) => info.bottom_view(&self.common).map(Message::Info),
                 Screen::PokedexBrowser(browser) => browser
                     .bottom_view(&self.common)
                     .map(Message::PokedexBrowser),

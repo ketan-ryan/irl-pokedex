@@ -102,6 +102,56 @@ impl IconButtonColors {
 
 // ─── Widget ──────────────────────────────────────────────────────────────────
 
+#[derive(Debug, Clone, Copy)]
+pub struct IconButtonSize {
+    pub icon: f32,
+    pub text: f32,
+    pub spacing: f32,
+    pub padding: iced::Padding,
+    pub height: f32, // now: height of the visible pill
+    pub margin: f32, // button's outer padding
+    pub rotation: Option<iced::Rotation>,
+}
+
+impl Default for IconButtonSize {
+    /// Matches the original hardcoded values, so existing buttons don't change.
+    fn default() -> Self {
+        Self {
+            icon: 20.0,
+            text: 15.0,
+            spacing: 6.0,
+            padding: iced::Padding {
+                top: 4.0,
+                bottom: 4.0,
+                left: 10.0,
+                right: 10.0,
+            },
+            height: 28.0,
+            margin: 3.0,
+            rotation: None,
+        }
+    }
+}
+
+impl IconButtonSize {
+    pub fn large() -> Self {
+        Self {
+            icon: 30.0,
+            text: 22.0,
+            spacing: 10.0,
+            padding: iced::Padding {
+                top: 0.0,
+                bottom: 0.0,
+                left: 7.0,
+                right: 7.0,
+            },
+            height: 50.0,
+            margin: 0.0,
+            rotation: None,
+        }
+    }
+}
+
 /// Build a rounded icon-and-label button with state-driven styling.
 ///
 /// Usage:
@@ -125,6 +175,7 @@ impl IconButtonColors {
 /// Returns: An iced element that renders the button widget.
 pub fn icon_button<'a, Message>(
     icon: svg::Handle,
+    size: IconButtonSize,
     label: Option<&'a str>,
     state: &IconButtonInteraction,
     colors: IconButtonColors,
@@ -137,33 +188,34 @@ where
 
     // SVG — tinted to fg color
     let icon_widget = svg(icon)
-        .width(Length::Fixed(20.0))
-        .height(Length::Fixed(20.0))
+        .width(Length::Fixed(size.icon))
+        .height(Length::Fixed(size.icon))
+        .rotation(size.rotation.unwrap_or_default())
         .style(move |_, _| svg::Style {
             color: Some(svg_col),
         });
 
     // Row: icon + optional label
-    let mut content_row: row::Row<'_, Message> =
-        row![icon_widget].spacing(6).align_y(Alignment::Center);
+    let mut content_row: row::Row<'_, Message> = row![icon_widget]
+        .spacing(size.spacing)
+        .align_y(Alignment::Center);
 
     if let Some(label_str) = label {
         content_row = content_row.push(
             text(label_str)
                 .color(fg)
-                .size(15)
+                .size(size.text)
                 .align_x(Alignment::Center),
         );
     }
 
     // Inner container owns the rounded shape + background
-    let inner = container(content_row)
-        .padding(iced::Padding {
-            top: 4.0,
-            bottom: 4.0,
-            left: 10.0,
-            right: 10.0,
-        })
+    let side = Length::Fixed(size.height);
+    let mut inner = container(content_row)
+        .width(Length::Shrink)
+        .height(Length::Fixed(size.height))
+        .align_y(Alignment::Center)
+        .padding(size.padding)
         .style(move |_| container::Style {
             background: Some(iced::Background::Color(bg)),
             text_color: Some(fg),
@@ -176,9 +228,17 @@ where
             ..Default::default()
         });
 
+    // icon-only: make it a square so the icon is centered
+    if label.is_none() {
+        inner = inner.width(side).align_x(Alignment::Center);
+    } else {
+        inner = inner.width(Length::Shrink);
+    }
+
     let btn = button(inner)
-        .height(Length::Fixed(40.0))
-        .padding(5)
+        .width(Length::Shrink)
+        .height(Length::Shrink)
+        .padding(size.margin)
         .style(|_, _| button::Style {
             background: None,
             ..Default::default()

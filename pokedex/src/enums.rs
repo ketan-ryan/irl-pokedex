@@ -8,7 +8,7 @@ use ort::session::Session;
 use serde::{Deserialize, Deserializer, Serialize};
 use strum_macros::{Display, EnumString};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum IOAction {
     ScrollUp,
     ScrollDown,
