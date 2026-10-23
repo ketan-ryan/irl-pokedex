@@ -1,7 +1,7 @@
 use iced::Length::{self, Fill};
 use iced::animation::Animation;
 use iced::widget::{Space, button, column, container, row, stack, text};
-use iced::{Alignment, Color, Element, Radians, Subscription, Task, time};
+use iced::{Alignment, Color, Element, Radians, Subscription, Task, Vector, time};
 use iced::{Background, ContentFit, Padding};
 use iced_gif::Gif;
 
@@ -13,6 +13,7 @@ use std::f32::consts::PI;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use crate::elements::message_box::Metrics;
 use crate::{
     elements::{
         gstreamer_stream::VideoFrame,
@@ -421,7 +422,7 @@ impl Register {
 
                     // pokemon name, for the sake of grabbing images
                     let poke = pokemon.unwrap().to_string().to_lowercase();
-                    let type_images = io::get_type_images(
+                    self.type_images = io::resolve_type_images(
                         self.config
                             .pokedex_json
                             .get(pokemon_name)
@@ -430,16 +431,6 @@ impl Register {
                             .types
                             .clone(),
                     );
-
-                    self.type_images =
-                        type_images
-                            .iter()
-                            .map(|path| {
-                                iced::widget::image::Handle::from_bytes(std::fs::read(path).expect(
-                                    &format!("Failed to read type image at path: {}", path),
-                                ))
-                            })
-                            .collect();
 
                     return Action::Run(Task::perform(
                         async move { Self::classify(poke, loc, false).map_err(|e| e.to_string()) },
@@ -847,6 +838,7 @@ impl Register {
                         vec![dex_but, ret_but],
                         modal_width,
                         220.0,
+                        Metrics::REFERENCE,
                         None,
                     ))
                     .center(Length::Fill)
@@ -1102,12 +1094,11 @@ impl Register {
                             vec![],
                             250.0,
                             175.0,
-                            Some(iced::Padding {
-                                top: 4.0,
-                                bottom: 0.0,
-                                left: 14.5,
-                                right: 14.5,
-                            })
+                            Metrics {
+                                margin: Vector::new(0.0, 0.0),
+                                ..Metrics::REFERENCE
+                            },
+                            None
                         )
                     ]
                     .spacing(8)
@@ -1218,6 +1209,7 @@ impl Register {
                     vec![],
                     420.0,
                     110.0,
+                    Metrics::REFERENCE,
                     None,
                 ))
                 .width(Length::Fill)

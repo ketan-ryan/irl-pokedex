@@ -2,9 +2,8 @@
 use iced::widget::{Space, button, button::Button, column, container, row, text};
 use iced::{Border, Color, Element, Length, Theme, Vector};
 
-use crate::elements::message_box::Panel;
+use crate::elements::message_box::{Metrics, Panel, REFERENCE_WIDTH};
 
-pub const SCALE_WIDTH: f32 = 600.0;
 const PIXEL_FONT: iced::Font = iced::Font::with_name("Open Sans Condensed Light");
 const MIN_FONT_SIZE: f32 = 10.0;
 const MAX_FONT_SIZE: f32 = 150.0;
@@ -67,6 +66,7 @@ pub fn modal<'a, Message: Clone + 'static>(
     buttons: Vec<Button<'a, Message>>,
     width: f32,
     height: f32,
+    metrics: Metrics,
     padding: Option<iced::Padding>,
 ) -> Element<'a, Message> {
     let mut elements: Vec<Element<Message>> = vec![];
@@ -79,11 +79,10 @@ pub fn modal<'a, Message: Clone + 'static>(
     }
     let button_row = row(elements).width(iced::Fill);
 
-    let scale_factor = width / SCALE_WIDTH;
+    let scale_factor = width / REFERENCE_WIDTH;
 
     // only add title if it is Some
     let mut content_col = column![];
-    let mut top_padding = 4.0;
     if let Some(t) = title {
         content_col = content_col.push(
             text(t)
@@ -91,30 +90,35 @@ pub fn modal<'a, Message: Clone + 'static>(
                 .size(24.0 * scale_factor)
                 .color(Color::BLACK),
         );
-    } else {
-        top_padding = 14.0;
     }
-    let body_padding = padding.unwrap_or(iced::Padding {
-        top: top_padding * scale_factor,
-        bottom: 6.0 * scale_factor,
-        left: 60.0 * (scale_factor / 1.25),
-        right: 60.0 * (scale_factor / 1.25),
-    });
 
-    let content = content_col
-        .push(container(body).center(Length::Fill))
-        .push(Space::new().height(4))
-        .push(button_row)
+    let body_padding = padding.unwrap_or(iced::Padding::ZERO);
+
+    let mut content = content_col
+        .push(
+            container(body)
+                .center(Length::Fill)
+                .align_y(iced::Alignment::Center),
+        )
         .spacing(4)
         .padding(body_padding)
         .height(iced::Fill);
 
-    container(Panel::new(content).width(width).height(height))
-        .width(Length::Fixed(width))
-        .height(Length::Fixed(height))
-        .align_x(iced::Center)
-        .align_y(iced::Center)
-        .into()
+    if buttons.len() > 0 {
+        content = content.push(Space::new().height(4)).push(button_row);
+    }
+
+    container(
+        Panel::new(content)
+            .width(width)
+            .height(height)
+            .metrics(metrics),
+    )
+    .width(Length::Fixed(width))
+    .height(Length::Fixed(height))
+    .align_x(iced::Center)
+    .align_y(iced::Center)
+    .into()
 }
 
 fn custom_button_style(theme: &Theme, status: button::Status) -> button::Style {

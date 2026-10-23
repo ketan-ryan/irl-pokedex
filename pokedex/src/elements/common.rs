@@ -57,8 +57,9 @@ impl CommonAssets {
     }
 }
 
-pub fn holo_header_backdrop<'a, Message: 'a>(
+pub fn holo_header_backdrop_with<'a, Message: 'a>(
     assets: &'a CommonAssets,
+    modal: &svg::Handle,
     header_text: impl Into<String>,
     sub_text: impl Into<String>,
 ) -> Element<'a, Message> {
@@ -78,7 +79,7 @@ pub fn holo_header_backdrop<'a, Message: 'a>(
         Canvas::new(&assets.scanlines)
             .width(Length::Fill)
             .height(Length::Fill),
-        container(svg(assets.filter_modal.clone()).opacity(1.0)).padding(Padding {
+        container(svg(modal.clone()).opacity(1.0)).padding(Padding {
             top: 15.0,
             ..Default::default()
         }),
@@ -110,6 +111,14 @@ pub fn holo_header_backdrop<'a, Message: 'a>(
         ..Default::default()
     })
     .into()
+}
+
+pub fn holo_header_backdrop<'a, Message: 'a>(
+    assets: &'a CommonAssets,
+    header_text: impl Into<String>,
+    sub_text: impl Into<String>,
+) -> Element<'a, Message> {
+    holo_header_backdrop_with(assets, &assets.filter_modal, header_text, sub_text)
 }
 
 pub fn secondary_button<'a, Message: Clone + 'a>(

@@ -483,3 +483,16 @@ pub async fn get_dex_images(
 
     Ok(entries)
 }
+
+pub fn resolve_type_images(types: Vec<PokemonType>) -> Vec<iced::widget::image::Handle> {
+    let type_images = get_type_images(types);
+
+    type_images
+        .iter()
+        .map(|path| {
+            iced::widget::image::Handle::from_bytes(
+                std::fs::read(path).expect(&format!("Failed to read type image at path: {}", path)),
+            )
+        })
+        .collect()
+}

@@ -27,9 +27,9 @@ use crate::{
 };
 
 #[derive(Clone, Debug)]
-struct Selected {
-    selected_pokemon: Option<PokemonEntry>,
-    selected_idx: Option<usize>,
+pub struct Selected {
+    pub selected_pokemon: Option<PokemonEntry>,
+    pub selected_idx: Option<usize>,
     previously_selected: Option<PokemonEntry>,
     selected_slot: usize,
 }
@@ -39,7 +39,7 @@ pub struct PokedexBrowser {
     config: Arc<PokedexConfig>,
     pokemon_data: HashMap<String, PokemonInfo>,
     owned_pokemon: std::collections::HashSet<String>,
-    image_cache: ImageCache,
+    pub image_cache: ImageCache,
     info_svg: svg::Handle,
 
     // scroll params
@@ -47,7 +47,7 @@ pub struct PokedexBrowser {
     items_per_page: usize,
     top_scroll_id: widget::Id,
     bot_scroll_id: widget::Id,
-    selected: Selected,
+    pub selected: Selected,
     selected_com_offset: Option<f32>,
     scroll_animation: Option<Animation<f32>>,
 
@@ -193,7 +193,7 @@ impl PokedexBrowser {
                 (Some(base), Some(_)) if owned_pokemon.contains(base) => base.clone(),
                 (_, Some(seen)) => seen.clone(),
                 (Some(base), None) => base.clone(),
-                (None, None) => group.first().cloned().unwrap(),
+                (None, None) => continue,
             };
 
             if !pokemon_names.contains(&chosen) {
@@ -449,6 +449,48 @@ impl PokedexBrowser {
         } else {
             self.selected.selected_slot = index.saturating_sub(first_visible);
         }
+    }
+
+    /// Restores selection and scroll position after returning from another screen.
+    pub fn jump_to_entry(&mut self, entry: PokemonEntry) -> Task<Message> {
+        let Some(idx) = self
+            .image_cache
+            .pokemon_order
+            .iter()
+            .position(|e| e == &entry)
+        else {
+            return Task::none();
+        };
+
+        let (first_visible, last_visible) = self.visible_range(self.scroll_offset);
+        let first = if idx < first_visible {
+            idx
+        } else if idx > last_visible {
+            idx.saturating_sub(self.items_per_page.saturating_sub(1))
+        } else {
+            first_visible
+        };
+
+        self.selected.previously_selected = None;
+        self.selected_com_offset = self.image_cache.get_offset(&entry.key);
+        self.selected.selected_pokemon = Some(entry);
+        self.selected.selected_idx = Some(idx);
+        self.selected.selected_slot = idx - first;
+
+        self.scroll_animation = None;
+        self.scroll_offset = first as f32 * ROW_HEIGHT;
+        self.current_scroll_offset = self.scroll_offset;
+
+        self.last_scroll_time = Some(Instant::now());
+        self.pending_scroll_load = Some(self.load_range_for_index(idx));
+
+        operation::scroll_to(
+            self.bot_scroll_id.clone(),
+            scrollable::AbsoluteOffset {
+                x: 0.0,
+                y: self.scroll_offset,
+            },
+        )
     }
 
     pub fn update(&mut self, msg: Message) -> Action {

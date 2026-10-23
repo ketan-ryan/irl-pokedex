@@ -492,6 +492,14 @@ impl App {
             selected,
             list,
             self.config.as_ref().unwrap().pokedex_json.clone(),
+            self.config
+                .as_ref()
+                .unwrap()
+                .local_dex
+                .borrow()
+                .iter()
+                .cloned()
+                .collect(),
         );
         self.screen = Screen::Info(info);
         task.map(Message::Info)
