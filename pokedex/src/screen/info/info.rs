@@ -69,6 +69,41 @@ pub enum Action {
 }
 
 impl Info {
+    fn update_info(&mut self) {
+        let current_info = self.pokemon_data.get(&self.current_pokemon.key).unwrap();
+        let random_index = rand::random_range(0..current_info.dex_entries.len());
+        let dex_entry = current_info
+            .dex_entries
+            .iter()
+            .nth(random_index)
+            .map(|(_, v)| v.clone());
+
+        let failure_text = format!(
+            "Failed to find information for Pokémon {:?}!",
+            &self.current_pokemon.key
+        );
+
+        self.dex_entry_text = dex_entry.unwrap_or(failure_text);
+
+        let avail = Metrics::content_size(iced::Size::new(620.0, 95.0), Metrics::REFERENCE);
+        self.dex_entry_size = shrink_text_to_fit(
+            &self.dex_entry_text,
+            22.0,
+            avail.width,
+            10.0,
+            3,
+            avail.height,
+        );
+
+        debug!("{} {}", self.dex_entry_size, self.dex_entry_text);
+        self.name_size =
+            shrink_text_to_fit(&self.current_pokemon.display, 16.0, 154.0, 10.0, 1, 28.0);
+        let abilities = current_info.abilities.join(", ");
+        self.abilities_size = shrink_text_to_fit(&abilities, 16.0, 200.0, 10.0, 1, 28.0);
+
+        self.type_images = io::resolve_type_images(current_info.types.clone());
+    }
+
     pub fn new(
         return_to: Box<PokedexBrowser>,
         current_pokemon: PokemonEntry,
@@ -137,6 +172,24 @@ impl Info {
         )
     }
 
+    fn step(&mut self, delta: isize) -> Action {
+        let len = self.list.len() as isize;
+        let Some(index) = self.list.iter().position(|e| *e == self.current_pokemon) else {
+            return Action::None;
+        };
+        let new_index = (index as isize + delta).rem_euclid(len) as usize;
+        self.current_pokemon = self.list[new_index].clone();
+        self.update_info();
+
+        match self.return_to.as_mut() {
+            Some(browser) => {
+                let task = browser.load_around_entry(&self.current_pokemon);
+                Action::Run(task.map(Message::Browser))
+            }
+            None => Action::None,
+        }
+    }
+
     pub fn update(&mut self, msg: Message) -> Action {
         match msg {
             Message::IOInput(input) => match input {
@@ -145,19 +198,17 @@ impl Info {
             Message::UpInteraction(i) => {
                 if i == IconButtonInteraction::Released {
                     self.up_interaction = IconButtonInteraction::Hovered;
-                    return Action::None;
-                } else {
-                    self.up_interaction = i;
+                    return self.step(1);
                 }
+                self.up_interaction = i;
                 Action::None
             }
             Message::DownInteraction(i) => {
                 if i == IconButtonInteraction::Released {
                     self.down_interaction = IconButtonInteraction::Hovered;
-                    return Action::None;
-                } else {
-                    self.down_interaction = i;
+                    return self.step(-1);
                 }
+                self.down_interaction = i;
                 Action::None
             }
             Message::CloseInteraction(i) => {
@@ -248,7 +299,7 @@ impl Info {
                 .width(Length::Fill)
                 .scale(0.85)
                 .into(),
-            None => Space::new().width(Length::Fill).into(),
+            None => Space::new().into(),
         };
 
         // ============info box=================
@@ -495,7 +546,11 @@ impl Info {
 
         contents = contents.push(
             row![
-                container(thumb),
+                container(thumb)
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .align_x(Alignment::Center)
+                    .align_y(Alignment::Center),
                 container(modal(
                     None,
                     modal_body.into(),
@@ -513,6 +568,7 @@ impl Info {
                     ..iced::Padding::ZERO
                 })
             ]
+            .height(Length::Fixed(400.0))
             .spacing(70.0)
             .padding(iced::Padding {
                 bottom: 120.0,

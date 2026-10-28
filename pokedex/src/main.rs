@@ -27,7 +27,7 @@ use std::time::Instant;
 use crate::elements::common::CommonAssets;
 use crate::elements::gstreamer_stream::VideoFrame;
 use crate::enums::{IOAction, PokedexConfig, PokemonEntry};
-use crate::screen::browse_pokedex::browse_pokedex::{self, PokedexBrowser, gen_pokemon_entries};
+use crate::screen::browse_pokedex::browse_pokedex::{self, PokedexBrowser};
 use crate::screen::browse_pokedex::filter_predicate::RangeOriginator;
 use crate::screen::filter::{filter, slider};
 use crate::screen::info::info;
@@ -540,13 +540,54 @@ impl App {
 
         // simple case - just have all pokemon base forms
         let mut pokemon_names: Vec<String> = Vec::new();
+        for (name, info) in &pokemon_data {
+            let base_form = info.base.is_none_or(|b| b);
+            if base_form {
+                pokemon_names.push(name.to_string());
+            }
+        }
 
-        let all_pokemon_entries: Vec<PokemonEntry> = gen_pokemon_entries(
-            &mut pokemon_names,
-            &pokemon_data,
-            self.config.clone(),
-            owned_pokemon.clone(),
-        );
+        pokemon_names = pokemon_names
+            .iter()
+            .map(|name| {
+                // Some pokemon have different names in the class map and pokedex json,
+                // depending on how they were generated
+                self.config
+                    .as_ref()
+                    .unwrap()
+                    .name_maps
+                    .get(name)
+                    .map(|s| s.as_str())
+                    .unwrap_or(name)
+                    .to_lowercase()
+            })
+            .collect();
+
+        // Sort by pokemon number for better ordering
+        pokemon_names.sort_by_key(|name| {
+            pokemon_data
+                .get(name)
+                .and_then(|info| info.number.parse::<u32>().ok())
+                .unwrap_or(9999)
+        });
+
+        let all_pokemon_entries: Vec<PokemonEntry> = pokemon_names
+            .clone()
+            .into_iter()
+            .map(|name| {
+                let display = pokemon_data
+                    .get(&name)
+                    .and_then(|d| {
+                        if owned_pokemon.contains(&name) {
+                            Some(name.clone())
+                        } else {
+                            d.display_name.clone()
+                        }
+                    })
+                    .unwrap_or_else(|| name.clone());
+                PokemonEntry { key: name, display }
+            })
+            .collect();
 
         let (info, task) = info::Info::new(
             Box::new(browser),

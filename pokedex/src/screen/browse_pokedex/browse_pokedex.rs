@@ -146,62 +146,6 @@ fn calculate_scroll_target_for_selection(
     }
 }
 
-pub fn gen_pokemon_entries(
-    pokemon_names: &mut Vec<String>,
-    pokemon_data: &HashMap<String, PokemonInfo>,
-    config: Option<Arc<PokedexConfig>>,
-    owned_pokemon: HashSet<String>,
-) -> Vec<PokemonEntry> {
-    for (name, info) in pokemon_data {
-        let base_form = info.base.is_none_or(|b| b);
-        if base_form {
-            pokemon_names.push(name.to_string());
-        }
-    }
-
-    *pokemon_names = pokemon_names
-        .iter()
-        .map(|name| {
-            // Some pokemon have different names in the class map and pokedex json,
-            // depending on how they were generated
-            config
-                .as_ref()
-                .unwrap()
-                .name_maps
-                .get(name)
-                .map(|s| s.as_str())
-                .unwrap_or(name)
-                .to_lowercase()
-        })
-        .collect();
-
-    // Sort by pokemon number for better ordering
-    pokemon_names.sort_by_key(|name| {
-        pokemon_data
-            .get(name)
-            .and_then(|info| info.number.parse::<u32>().ok())
-            .unwrap_or(9999)
-    });
-
-    pokemon_names
-        .clone()
-        .into_iter()
-        .map(|name| {
-            let display = pokemon_data
-                .get(&name)
-                .and_then(|d| {
-                    if owned_pokemon.contains(&name) {
-                        Some(name.clone())
-                    } else {
-                        d.display_name.clone()
-                    }
-                })
-                .unwrap_or_else(|| name.clone());
-            PokemonEntry { key: name, display }
-        })
-        .collect()
-}
-
 impl PokedexBrowser {
     pub fn new(
         config: Arc<PokedexConfig>,
@@ -471,7 +415,7 @@ impl PokedexBrowser {
     /// # Arguments
     /// * `index` - The Pokémon index to select.
     /// * `preserve_slot` - Whether to keep the current relative slot position when scrolling.
-    fn update_selection_for_index(&mut self, index: usize, preserve_slot: bool) {
+    pub fn update_selection_for_index(&mut self, index: usize, preserve_slot: bool) {
         let current_slot = self.selected.selected_slot;
         let (first_visible, last_visible) = self.visible_range(self.scroll_offset);
 
@@ -505,6 +449,25 @@ impl PokedexBrowser {
         } else {
             self.selected.selected_slot = index.saturating_sub(first_visible);
         }
+    }
+
+    /// Requests images around an entry without touching selection or scroll state.
+    pub fn load_around_entry(&mut self, entry: &PokemonEntry) -> Task<Message> {
+        let Some(idx) = self
+            .image_cache
+            .pokemon_order
+            .iter()
+            .position(|e| e.key == entry.key)
+        else {
+            return Task::none();
+        };
+        let (start, end) = self.load_range_for_index(idx);
+        self.image_cache.update_visible_range(
+            self.config.sprites_location.clone(),
+            start,
+            end,
+            Some(idx), // spiral-outward order puts the current sprite first
+        )
     }
 
     /// Restores selection and scroll position after returning from another screen.
