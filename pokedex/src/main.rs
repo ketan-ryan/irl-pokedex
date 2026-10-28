@@ -27,7 +27,7 @@ use std::time::Instant;
 use crate::elements::common::CommonAssets;
 use crate::elements::gstreamer_stream::VideoFrame;
 use crate::enums::{IOAction, PokedexConfig, PokemonEntry};
-use crate::screen::browse_pokedex::browse_pokedex;
+use crate::screen::browse_pokedex::browse_pokedex::{self, PokedexBrowser, gen_pokemon_entries};
 use crate::screen::browse_pokedex::filter_predicate::RangeOriginator;
 use crate::screen::filter::{filter, slider};
 use crate::screen::info::info;
@@ -199,6 +199,7 @@ enum Message {
     OpenPokedexBrowser,
     OpenFilter,
     OpenInfo(PokemonEntry, Vec<PokemonEntry>),
+    OpenInfoFromRegister(String),
     IOInput(IOAction),
     Tick(Instant),
 }
@@ -308,6 +309,7 @@ impl App {
             Message::OpenFilter => self.open_filter(),
             Message::OpenSlider(originator) => self.open_slider(originator),
             Message::OpenInfo(selected, list) => self.open_info(selected, list),
+            Message::OpenInfoFromRegister(name) => self.open_info_from_register(name),
         }
     }
 
@@ -327,6 +329,7 @@ impl App {
             register::Action::GoHome => Task::done(Message::OpenHome),
             register::Action::Run(task) => task.map(Message::Register),
             register::Action::OpenPokedex => Task::done(Message::OpenPokedexBrowser),
+            register::Action::OpenInfo(name) => Task::done(Message::OpenInfoFromRegister(name)),
         }
     }
 
@@ -445,8 +448,8 @@ impl App {
         task.map(Message::Register)
     }
 
-    fn open_browser(&mut self) -> Task<Message> {
-        let (browser, task) = browse_pokedex::PokedexBrowser::new(
+    fn build_browser(&mut self) -> (PokedexBrowser, Task<browse_pokedex::Message>) {
+        browse_pokedex::PokedexBrowser::new(
             Arc::clone(self.config.as_ref().unwrap()),
             self.config.as_ref().unwrap().pokedex_json.clone(),
             self.config
@@ -457,7 +460,11 @@ impl App {
                 .iter()
                 .cloned()
                 .collect(),
-        );
+        )
+    }
+
+    fn open_browser(&mut self) -> Task<Message> {
+        let (browser, task) = self.build_browser();
         self.screen = Screen::PokedexBrowser(browser);
         task.map(Message::PokedexBrowser)
     }
@@ -503,6 +510,58 @@ impl App {
         );
         self.screen = Screen::Info(info);
         task.map(Message::Info)
+    }
+
+    fn open_info_from_register(&mut self, name: String) -> Task<Message> {
+        let (mut browser, _load) = self.build_browser();
+        let pokemon_data = self.config.as_ref().unwrap().pokedex_json.clone();
+        let owned_pokemon: std::collections::HashSet<String> = self
+            .config
+            .as_ref()
+            .unwrap()
+            .local_dex
+            .borrow()
+            .iter()
+            .cloned()
+            .collect();
+        let display = pokemon_data
+            .get(&name)
+            .and_then(|d| {
+                if owned_pokemon.contains(&name) {
+                    Some(name.clone())
+                } else {
+                    d.display_name.clone()
+                }
+            })
+            .unwrap_or_else(|| name.clone());
+        let entry = PokemonEntry { key: name, display };
+
+        let jump = browser.jump_to_entry(entry.clone());
+
+        // simple case - just have all pokemon base forms
+        let mut pokemon_names: Vec<String> = Vec::new();
+
+        let all_pokemon_entries: Vec<PokemonEntry> = gen_pokemon_entries(
+            &mut pokemon_names,
+            &pokemon_data,
+            self.config.clone(),
+            owned_pokemon.clone(),
+        );
+
+        let (info, task) = info::Info::new(
+            Box::new(browser),
+            entry,
+            all_pokemon_entries,
+            self.config.as_ref().unwrap().pokedex_json.clone(),
+            owned_pokemon,
+        );
+        self.screen = Screen::Info(info);
+
+        // forward image loading browser tasks to info
+        Task::batch([
+            jump.map(|m| Message::Info(info::Message::Browser(m))),
+            task.map(Message::Info),
+        ])
     }
 
     fn view(&self, window_id: window::Id) -> Element<'_, Message> {

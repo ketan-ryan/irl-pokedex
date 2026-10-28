@@ -146,6 +146,62 @@ fn calculate_scroll_target_for_selection(
     }
 }
 
+pub fn gen_pokemon_entries(
+    pokemon_names: &mut Vec<String>,
+    pokemon_data: &HashMap<String, PokemonInfo>,
+    config: Option<Arc<PokedexConfig>>,
+    owned_pokemon: HashSet<String>,
+) -> Vec<PokemonEntry> {
+    for (name, info) in pokemon_data {
+        let base_form = info.base.is_none_or(|b| b);
+        if base_form {
+            pokemon_names.push(name.to_string());
+        }
+    }
+
+    *pokemon_names = pokemon_names
+        .iter()
+        .map(|name| {
+            // Some pokemon have different names in the class map and pokedex json,
+            // depending on how they were generated
+            config
+                .as_ref()
+                .unwrap()
+                .name_maps
+                .get(name)
+                .map(|s| s.as_str())
+                .unwrap_or(name)
+                .to_lowercase()
+        })
+        .collect();
+
+    // Sort by pokemon number for better ordering
+    pokemon_names.sort_by_key(|name| {
+        pokemon_data
+            .get(name)
+            .and_then(|info| info.number.parse::<u32>().ok())
+            .unwrap_or(9999)
+    });
+
+    pokemon_names
+        .clone()
+        .into_iter()
+        .map(|name| {
+            let display = pokemon_data
+                .get(&name)
+                .and_then(|d| {
+                    if owned_pokemon.contains(&name) {
+                        Some(name.clone())
+                    } else {
+                        d.display_name.clone()
+                    }
+                })
+                .unwrap_or_else(|| name.clone());
+            PokemonEntry { key: name, display }
+        })
+        .collect()
+}
+
 impl PokedexBrowser {
     pub fn new(
         config: Arc<PokedexConfig>,
@@ -457,10 +513,12 @@ impl PokedexBrowser {
             .image_cache
             .pokemon_order
             .iter()
-            .position(|e| e == &entry)
+            .position(|e| e.key == entry.key)
         else {
+            debug!("jump_to_entry: {:?} not in pokemon_order", entry);
             return Task::none();
         };
+        let entry = self.image_cache.pokemon_order[idx].clone();
 
         let (first_visible, last_visible) = self.visible_range(self.scroll_offset);
         let first = if idx < first_visible {
@@ -480,17 +538,33 @@ impl PokedexBrowser {
         self.scroll_animation = None;
         self.scroll_offset = first as f32 * ROW_HEIGHT;
         self.current_scroll_offset = self.scroll_offset;
+        let (start, end) = self.load_range_for_index(idx);
+        let load = self.image_cache.update_visible_range(
+            self.config.sprites_location.clone(),
+            start,
+            end,
+            Some(idx),
+        );
 
-        self.last_scroll_time = Some(Instant::now());
-        self.pending_scroll_load = Some(self.load_range_for_index(idx));
+        Task::batch([
+            operation::scroll_to(
+                self.bot_scroll_id.clone(),
+                scrollable::AbsoluteOffset {
+                    x: 0.0,
+                    y: self.scroll_offset,
+                },
+            ),
+            load,
+        ])
+    }
 
-        operation::scroll_to(
-            self.bot_scroll_id.clone(),
-            scrollable::AbsoluteOffset {
-                x: 0.0,
-                y: self.scroll_offset,
-            },
-        )
+    /// Handles messages forwarded from a screen that is holding this browser.
+    /// Only background work (image loads) is relevant here; navigation actions are ignored.
+    pub fn update_background(&mut self, msg: Message) -> Task<Message> {
+        match self.update(msg) {
+            Action::Run(task) => task,
+            _ => Task::none(),
+        }
     }
 
     pub fn update(&mut self, msg: Message) -> Action {
@@ -526,6 +600,7 @@ impl PokedexBrowser {
                 if self.show_keyboard {
                     return Action::None;
                 }
+
                 // Bottom scrollable's absolute position represents how far we've scrolled
                 let bot_scroll_pos = viewport.absolute_offset().y;
                 let rh = ROW_HEIGHT + 0.0;

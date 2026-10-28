@@ -198,6 +198,7 @@ pub enum Action {
     None,
     GoHome,
     OpenPokedex,
+    OpenInfo(String),
     Run(Task<Message>),
 }
 
@@ -270,7 +271,10 @@ impl Register {
     pub fn update(&mut self, msg: Message) -> Action {
         match msg {
             Message::HomeToggled => Action::GoHome,
-            Message::OpenPokedex => Action::OpenPokedex,
+            Message::OpenPokedex => match &self.found_pokemon {
+                Some(pokemon) => Action::OpenInfo(pokemon.to_string()),
+                None => Action::OpenPokedex,
+            },
             Message::Start(frame) => {
                 self.state = State::Classifying;
                 self.captured_frame = Some(iced::widget::image::Handle::from_rgba(

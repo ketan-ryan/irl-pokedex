@@ -19,13 +19,15 @@ use crate::{
     },
     enums::{IOAction, PokemonEntry, PokemonInfo},
     io,
-    screen::{browse_pokedex::browse_pokedex::PokedexBrowser, register::register::to_proper_case},
+    screen::{
+        browse_pokedex::{self, browse_pokedex::PokedexBrowser},
+        register::register::to_proper_case,
+    },
 };
 
 #[derive(Debug)]
 pub struct Info {
     return_to: Option<Box<PokedexBrowser>>,
-    index: usize,
     current_pokemon: PokemonEntry,
     list: Vec<PokemonEntry>,
     pokemon_data: HashMap<String, PokemonInfo>,
@@ -57,6 +59,7 @@ pub enum Message {
     Relations,
     Form,
     Cry,
+    Browser(browse_pokedex::browse_pokedex::Message),
 }
 
 pub enum Action {
@@ -74,8 +77,6 @@ impl Info {
         owned: HashSet<String>,
     ) -> (Self, Task<Message>) {
         debug!("Info opened with pokemon {:?}", current_pokemon,);
-
-        let index = return_to.selected.selected_idx.unwrap();
 
         let current_info = pokemon_data.get(&current_pokemon.key).unwrap();
         let random_index = rand::random_range(0..current_info.dex_entries.len());
@@ -106,7 +107,6 @@ impl Info {
         (
             Self {
                 return_to: Some(return_to),
-                index,
                 current_pokemon,
                 list,
                 pokemon_data,
@@ -165,8 +165,7 @@ impl Info {
                     self.close_interaction = IconButtonInteraction::Hovered;
                     match self.return_to.take() {
                         Some(mut browser) => {
-                            let entry = browser.image_cache.pokemon_order.get(self.index).cloned();
-                            let task = entry.map_or_else(Task::none, |e| browser.jump_to_entry(e));
+                            let task = browser.jump_to_entry(self.current_pokemon.clone());
                             Action::Return(browser, task)
                         }
                         None => Action::None,
@@ -180,6 +179,13 @@ impl Info {
             Message::Relations => Action::None,
             Message::Form => Action::None,
             Message::Cry => Action::None,
+            Message::Browser(m) => match self.return_to.as_mut() {
+                Some(browser) => {
+                    let task = browser.update_background(m);
+                    Action::Run(task.map(Message::Browser))
+                }
+                None => Action::None,
+            },
         }
     }
 
@@ -235,10 +241,7 @@ impl Info {
         let image = self
             .return_to
             .as_ref()
-            .unwrap()
-            .image_cache
-            .get(&self.current_pokemon.key)
-            .clone();
+            .and_then(|b| b.image_cache.get(&self.current_pokemon.key));
 
         let thumb: Element<_> = match image {
             Some(h) => iced::widget::Image::new(h)
