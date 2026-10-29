@@ -2,15 +2,15 @@ use std::collections::{HashMap, HashSet};
 
 use iced::{
     Alignment, Background, Color, Element, Length, Padding, Task, Theme, Vector,
-    widget::{Canvas, Space, canvas, column, container, row, stack, svg, text},
+    widget::{Canvas, Space, canvas, column, container, image::Handle, row, stack, svg, text},
 };
-use log::debug;
+use log::{debug, error};
 
 use crate::{
     elements::{
         common::{
-            CONDENSED, CommonAssets, colors::CARD_BG, default_shadow, holo_header_backdrop_with,
-            primary_button, secondary_button,
+            self, CONDENSED, CommonAssets, colors::CARD_BG, default_shadow,
+            holo_header_backdrop_with, primary_button, secondary_button,
         },
         icon_button::{IconButtonColors, IconButtonInteraction, IconButtonSize, icon_button},
         message_box::Metrics,
@@ -32,9 +32,14 @@ pub struct Info {
     list: Vec<PokemonEntry>,
     pokemon_data: HashMap<String, PokemonInfo>,
     owned_pokemon: HashSet<String>,
+    imgs_dir: String,
+    // used to prevent out-of-order results
+    generation: u64,
+    gallery_images: HashMap<String, Vec<Handle>>,
 
     arrow_icon: svg::Handle,
     close_icon: svg::Handle,
+    missing_icon: svg::Handle,
 
     up_interaction: IconButtonInteraction,
     down_interaction: IconButtonInteraction,
@@ -60,6 +65,12 @@ pub enum Message {
     Form,
     Cry,
     Browser(browse_pokedex::browse_pokedex::Message),
+    LoadImages,
+    ImagesLoaded {
+        generation: u64,
+        key: String,
+        result: Result<Vec<Handle>, String>,
+    },
 }
 
 pub enum Action {
@@ -110,6 +121,7 @@ impl Info {
         list: Vec<PokemonEntry>,
         pokemon_data: HashMap<String, PokemonInfo>,
         owned: HashSet<String>,
+        imgs_dir: String,
     ) -> (Self, Task<Message>) {
         debug!("Info opened with pokemon {:?}", current_pokemon,);
 
@@ -146,6 +158,9 @@ impl Info {
                 list,
                 pokemon_data,
                 owned_pokemon: owned,
+                imgs_dir,
+                generation: 0,
+                gallery_images: HashMap::new(),
 
                 arrow_icon: svg::Handle::from_memory(
                     include_bytes!("../../../assets/info_screen/arrow.svg").as_slice(),
@@ -155,6 +170,9 @@ impl Info {
                 ),
                 info_modal: svg::Handle::from_memory(
                     include_bytes!("../../../assets/info_screen/info_modal.svg").as_slice(),
+                ),
+                missing_icon: svg::Handle::from_memory(
+                    include_bytes!("../../../assets/info_screen/no_image.svg").as_slice(),
                 ),
 
                 up_interaction: IconButtonInteraction::default(),
@@ -168,7 +186,7 @@ impl Info {
 
                 type_images,
             },
-            Task::none(),
+            Task::done(Message::LoadImages),
         )
     }
 
@@ -181,18 +199,61 @@ impl Info {
         self.current_pokemon = self.list[new_index].clone();
         self.update_info();
 
+        let mut tasks: Vec<Task<Message>> = Vec::new();
+        tasks.push(Task::done(Message::LoadImages));
+
         match self.return_to.as_mut() {
             Some(browser) => {
                 let task = browser.load_around_entry(&self.current_pokemon);
-                Action::Run(task.map(Message::Browser))
+                tasks.push(task.map(Message::Browser));
             }
-            None => Action::None,
+            None => (),
         }
+        self.up_interaction = IconButtonInteraction::None;
+        self.down_interaction = IconButtonInteraction::None;
+        Action::Run(Task::batch(tasks))
     }
 
     pub fn update(&mut self, msg: Message) -> Action {
         match msg {
+            Message::LoadImages => {
+                self.generation += 1;
+                let generation = self.generation;
+                let path = self.imgs_dir.clone();
+                let key = self.current_pokemon.key.clone();
+
+                Action::Run(Task::perform(
+                    io::get_dex_images(path.into(), key.clone()),
+                    move |res| Message::ImagesLoaded {
+                        generation,
+                        key: key.clone(),
+                        result: res.map_err(|e| e.to_string()),
+                    },
+                ))
+            }
+            Message::ImagesLoaded {
+                generation,
+                key,
+                result,
+            } => {
+                if generation != self.generation {
+                    return Action::None; // stale
+                }
+                match result {
+                    Ok(handles) => {
+                        self.gallery_images.insert(key, handles);
+                    }
+                    Err(e) => error!("Failed to load images for {key}: {e}"),
+                }
+                Action::None
+            }
             Message::IOInput(input) => match input {
+                IOAction::ScrollUp => Action::Run(Task::done(Message::UpInteraction(
+                    IconButtonInteraction::Released,
+                ))),
+                IOAction::ScrollDown => Action::Run(Task::done(Message::DownInteraction(
+                    IconButtonInteraction::Released,
+                ))),
                 _ => Action::None,
             },
             Message::UpInteraction(i) => {
@@ -586,6 +647,68 @@ impl Info {
     }
 
     pub fn bottom_view<'a>(&'a self, common: &'a CommonAssets) -> Element<'a, Message> {
+        let font = common::CONDENSED;
+        // ======================= gallery ========================
+        let count = self
+            .gallery_images
+            .get(&self.current_pokemon.key)
+            .map_or(0, Vec::len);
+        let count_str: String = format!("[{}]", count);
+        let missing_image = svg(self.missing_icon.clone());
+        let thumb: Element<_> = match self.gallery_images.get(&self.current_pokemon.key) {
+            Some(handles) => {
+                if handles.is_empty() {
+                    missing_image.into()
+                } else {
+                    let img_width = 400.0;
+                    container(
+                        iced::widget::Image::new(handles[0].clone())
+                            .width(Length::Fixed(img_width))
+                            .height(Length::Fixed(img_width * (3.0 / 4.0)))
+                            .border_radius(20.0)
+                            .content_fit(iced::ContentFit::Fill),
+                    )
+                    .into()
+                }
+            }
+            None => missing_image.into(),
+        };
+        let gallery = container(
+            column![
+                row![
+                    text!("Gallery")
+                        .color(iced::Color::WHITE)
+                        .size(24.0)
+                        .font(iced::Font {
+                            weight: iced::font::Weight::Bold,
+                            ..iced::Font::default()
+                        }),
+                    text!("{}", count_str)
+                        .color(iced::Color::WHITE)
+                        .size(24.0)
+                        .font(font)
+                        .width(Length::Fill)
+                        .align_x(Alignment::End)
+                ]
+                .width(Length::Fill)
+                .padding(iced::Padding::new(20.0).top(10.0).bottom(5.0)),
+                container(thumb).center(Length::Fill)
+            ]
+            .width(Length::Fill),
+        )
+        .width(Length::Fixed(430.0))
+        .height(Length::Fixed(360.0))
+        .style(|_: &Theme| container::Style {
+            background: Some(iced::Background::Color(Color::from_rgb8(33, 129, 228))),
+            border: iced::Border {
+                color: iced::Color::TRANSPARENT,
+                width: 0.0,
+                radius: 20.0.into(),
+            },
+            ..Default::default()
+        });
+
+        // ====================== button row ======================
         let size = IconButtonSize::large();
         let colors = IconButtonColors {
             default_shadow: default_shadow(),
@@ -645,14 +768,52 @@ impl Info {
                 background: Some(iced::Background::Color(Color::from_rgb8(140, 213, 229))),
                 ..Default::default()
             }),
-            column![Space::new().height(Length::FillPortion(2)), row,]
+            column![
+                container(inner_shadow(
+                    gallery,
+                    20.0,
+                    8,
+                    Color::from_rgba(0.0, 0.0, 0.0, 0.06)
+                ))
+                .align_x(Alignment::Center)
+                .align_y(Alignment::Center)
                 .width(Length::Fill)
-                .height(Length::Fill)
+                .height(Length::Fill),
+                row,
+            ]
+            .width(Length::Fill)
+            .height(Length::Fill)
         ]
         .width(Length::Fill)
         .height(Length::Fill)
         .into()
     }
+}
+
+fn inner_shadow<'a, M: 'a>(
+    content: impl Into<Element<'a, M>>,
+    radius: f32,
+    depth: u32,
+    color: Color, // per-layer alpha, e.g. rgba(0, 0, 0, 0.05)
+) -> Element<'a, M> {
+    let mut layers = vec![content.into()];
+
+    layers.extend((1..=depth).map(|w| {
+        container(Space::new())
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .style(move |_| container::Style {
+                border: iced::Border {
+                    color,
+                    width: w as f32,
+                    radius: radius.into(),
+                },
+                ..Default::default()
+            })
+            .into()
+    }));
+
+    stack(layers).into()
 }
 
 fn action_row<'a>(elements: Vec<Element<'a, Message>>) -> Element<'a, Message> {

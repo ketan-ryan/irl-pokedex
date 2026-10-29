@@ -684,11 +684,6 @@ impl PokedexBrowser {
                     let current_index = self.selected.selected_idx.unwrap_or(0);
 
                     if action == IOAction::Select && self.selected.selected_pokemon.is_some() {
-                        debug!(
-                            "Current pokemon is {:?} and list is {:?}",
-                            self.selected.selected_pokemon, self.image_cache.pokemon_order
-                        );
-
                         return Action::OpenInfo(
                             self.selected.selected_pokemon.as_ref().unwrap().clone(),
                             self.image_cache.pokemon_order.clone(),

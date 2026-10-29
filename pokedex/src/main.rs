@@ -507,6 +507,7 @@ impl App {
                 .iter()
                 .cloned()
                 .collect(),
+            self.config.as_ref().unwrap().saved_imgs_dir.clone(),
         );
         self.screen = Screen::Info(info);
         task.map(Message::Info)
@@ -595,6 +596,7 @@ impl App {
             all_pokemon_entries,
             self.config.as_ref().unwrap().pokedex_json.clone(),
             owned_pokemon,
+            self.config.as_ref().unwrap().saved_imgs_dir.clone(),
         );
         self.screen = Screen::Info(info);
 

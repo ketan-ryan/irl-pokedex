@@ -2,7 +2,6 @@ use anyhow::{Result, anyhow};
 use config::Config;
 use log::{debug, trace, warn};
 use tokio;
-use tokio::io::AsyncReadExt;
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -15,6 +14,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use crate::elements::gstreamer_stream::VideoFrame;
 use crate::enums::{PokedexConfig, PokemonInfo, PokemonType};
 use crate::{PokedexError, ml};
+
+use iced::widget::image::Handle;
 
 const LOCAL_DEX_NAME: &str = "local_pokedex.json";
 const SAVED_IMGS_DIR: &str = "saved_images";
@@ -458,30 +459,34 @@ pub async fn add_dex_img(dex_path: String, pokemon_name: String) -> Result<(), a
 ///
 /// Returns: A vector of PNG image bytes for the requested Pokémon.
 pub async fn get_dex_images(
-    dex_path: &PathBuf,
+    dex_path: PathBuf,
     pokemon_name: String,
-) -> Result<Vec<Vec<u8>>, anyhow::Error> {
-    let imgs_dir = dex_path.join(pokemon_name);
-    let mut read_dir = tokio::fs::read_dir(imgs_dir).await?;
-    let mut entries = Vec::new();
+) -> anyhow::Result<Vec<Handle>> {
+    let mut read_dir = tokio::fs::read_dir(dex_path.join(pokemon_name)).await?;
+    let mut paths = Vec::new();
 
     while let Some(entry) = read_dir.next_entry().await? {
         let path = entry.path();
-        let mut current_entry = Vec::new();
-
-        trace!("Found file {:?}", &path);
-
-        if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("png") {
-            let mut file = tokio::fs::File::open(&path).await?;
-            file.read_to_end(&mut current_entry).await?;
+        if path.extension().is_some_and(|e| e == "png") {
+            paths.push(path);
         } else {
             debug!("Skipping file {:?}", &path);
         }
-
-        entries.push(current_entry);
     }
+    paths.sort(); // read_dir order is unspecified
 
-    Ok(entries)
+    let mut handles = Vec::with_capacity(paths.len());
+    for path in paths {
+        let bytes = tokio::fs::read(&path).await?;
+        let handle = tokio::task::spawn_blocking(move || {
+            let img = image::load_from_memory(&bytes)?.to_rgba8();
+            let (w, h) = img.dimensions();
+            anyhow::Ok(Handle::from_rgba(w, h, img.into_raw()))
+        })
+        .await??;
+        handles.push(handle);
+    }
+    Ok(handles)
 }
 
 pub fn resolve_type_images(types: Vec<PokemonType>) -> Vec<iced::widget::image::Handle> {
