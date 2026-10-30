@@ -2,15 +2,15 @@ use std::collections::{HashMap, HashSet};
 
 use iced::{
     Alignment, Background, Color, Element, Length, Padding, Task, Theme, Vector,
-    widget::{Canvas, Space, canvas, column, container, image::Handle, row, stack, svg, text},
+    widget::{Canvas, Space, canvas, column, container, mouse_area, row, stack, svg, text},
 };
 use log::{debug, error};
 
 use crate::{
     elements::{
         common::{
-            self, CONDENSED, CommonAssets, colors::CARD_BG, default_shadow,
-            holo_header_backdrop_with, primary_button, secondary_button,
+            self, CONDENSED, CommonAssets, action_row, colors::CARD_BG, default_shadow,
+            holo_header_backdrop_with, inner_shadow, primary_button, secondary_button,
         },
         icon_button::{IconButtonColors, IconButtonInteraction, IconButtonSize, icon_button},
         message_box::Metrics,
@@ -18,7 +18,7 @@ use crate::{
         registered_icon::{IconState, RegisteredIconWidget},
     },
     enums::{IOAction, PokemonEntry, PokemonInfo},
-    io,
+    io::{self, GalleryImage},
     screen::{
         browse_pokedex::{self, browse_pokedex::PokedexBrowser},
         register::register::to_proper_case,
@@ -35,7 +35,7 @@ pub struct Info {
     imgs_dir: String,
     // used to prevent out-of-order results
     generation: u64,
-    gallery_images: HashMap<String, Vec<Handle>>,
+    gallery_images: HashMap<String, Vec<GalleryImage>>,
 
     arrow_icon: svg::Handle,
     close_icon: svg::Handle,
@@ -57,19 +57,24 @@ pub struct Info {
 #[derive(Clone, Debug)]
 pub enum Message {
     IOInput(IOAction),
+
     UpInteraction(IconButtonInteraction),
     DownInteraction(IconButtonInteraction),
     CloseInteraction(IconButtonInteraction),
+
     Info,
     Relations,
     Form,
     Cry,
+
     Browser(browse_pokedex::browse_pokedex::Message),
+    OpenGallery,
+
     LoadImages,
     ImagesLoaded {
         generation: u64,
         key: String,
-        result: Result<Vec<Handle>, String>,
+        result: Result<Vec<GalleryImage>, String>,
     },
 }
 
@@ -77,6 +82,7 @@ pub enum Action {
     None,
     Run(Task<Message>),
     Return(Box<PokedexBrowser>, Task<crate::browse_pokedex::Message>),
+    OpenGallery,
 }
 
 impl Info {
@@ -190,6 +196,10 @@ impl Info {
         )
     }
 
+    pub fn get_gallery_images(&self) -> Vec<GalleryImage> {
+        self.gallery_images[&self.current_pokemon.key].clone()
+    }
+
     fn step(&mut self, delta: isize) -> Action {
         let len = self.list.len() as isize;
         let Some(index) = self.list.iter().position(|e| *e == self.current_pokemon) else {
@@ -296,6 +306,10 @@ impl Info {
                     let task = browser.update_background(m);
                     Action::Run(task.map(Message::Browser))
                 }
+                None => Action::None,
+            },
+            Message::OpenGallery => match self.gallery_images.get(&self.current_pokemon.key) {
+                Some(_) => Action::OpenGallery,
                 None => Action::None,
             },
         }
@@ -662,7 +676,7 @@ impl Info {
                 } else {
                     let img_width = 400.0;
                     container(
-                        iced::widget::Image::new(handles[0].clone())
+                        iced::widget::Image::new(handles[0].handle.clone())
                             .width(Length::Fixed(img_width))
                             .height(Length::Fixed(img_width * (3.0 / 4.0)))
                             .border_radius(20.0)
@@ -673,40 +687,43 @@ impl Info {
             }
             None => missing_image.into(),
         };
-        let gallery = container(
-            column![
-                row![
-                    text!("Gallery")
-                        .color(iced::Color::WHITE)
-                        .size(24.0)
-                        .font(iced::Font {
-                            weight: iced::font::Weight::Bold,
-                            ..iced::Font::default()
-                        }),
-                    text!("{}", count_str)
-                        .color(iced::Color::WHITE)
-                        .size(24.0)
-                        .font(font)
-                        .width(Length::Fill)
-                        .align_x(Alignment::End)
+        let gallery = mouse_area(
+            container(
+                column![
+                    row![
+                        text!("Gallery")
+                            .color(iced::Color::WHITE)
+                            .size(24.0)
+                            .font(iced::Font {
+                                weight: iced::font::Weight::Bold,
+                                ..iced::Font::default()
+                            }),
+                        text!("{}", count_str)
+                            .color(iced::Color::WHITE)
+                            .size(24.0)
+                            .font(font)
+                            .width(Length::Fill)
+                            .align_x(Alignment::End)
+                    ]
+                    .width(Length::Fill)
+                    .padding(iced::Padding::new(20.0).top(10.0).bottom(5.0)),
+                    container(thumb).center(Length::Fill)
                 ]
-                .width(Length::Fill)
-                .padding(iced::Padding::new(20.0).top(10.0).bottom(5.0)),
-                container(thumb).center(Length::Fill)
-            ]
-            .width(Length::Fill),
+                .width(Length::Fill),
+            )
+            .width(Length::Fixed(430.0))
+            .height(Length::Fixed(360.0))
+            .style(|_: &Theme| container::Style {
+                background: Some(iced::Background::Color(Color::from_rgb8(33, 129, 228))),
+                border: iced::Border {
+                    color: iced::Color::TRANSPARENT,
+                    width: 0.0,
+                    radius: 20.0.into(),
+                },
+                ..Default::default()
+            }),
         )
-        .width(Length::Fixed(430.0))
-        .height(Length::Fixed(360.0))
-        .style(|_: &Theme| container::Style {
-            background: Some(iced::Background::Color(Color::from_rgb8(33, 129, 228))),
-            border: iced::Border {
-                color: iced::Color::TRANSPARENT,
-                width: 0.0,
-                radius: 20.0.into(),
-            },
-            ..Default::default()
-        });
+        .on_press(Message::OpenGallery);
 
         // ====================== button row ======================
         let size = IconButtonSize::large();
@@ -788,40 +805,4 @@ impl Info {
         .height(Length::Fill)
         .into()
     }
-}
-
-fn inner_shadow<'a, M: 'a>(
-    content: impl Into<Element<'a, M>>,
-    radius: f32,
-    depth: u32,
-    color: Color, // per-layer alpha, e.g. rgba(0, 0, 0, 0.05)
-) -> Element<'a, M> {
-    let mut layers = vec![content.into()];
-
-    layers.extend((1..=depth).map(|w| {
-        container(Space::new())
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .style(move |_| container::Style {
-                border: iced::Border {
-                    color,
-                    width: w as f32,
-                    radius: radius.into(),
-                },
-                ..Default::default()
-            })
-            .into()
-    }));
-
-    stack(layers).into()
-}
-
-fn action_row<'a>(elements: Vec<Element<'a, Message>>) -> Element<'a, Message> {
-    row::Row::with_children(elements)
-        .width(Length::Fill)
-        .height(Length::Fixed(80.0))
-        .spacing(15)
-        .padding(7)
-        .align_y(Alignment::Center)
-        .into()
 }

@@ -1,9 +1,8 @@
 // screen/common.rs
 
 use iced::font::Weight;
-use iced::widget::{Canvas, Space, button, column, container, image, stack, svg, text};
+use iced::widget::{Canvas, Space, button, column, container, image, row, space, stack, svg, text};
 use iced::{Alignment, Background, Border, Color, Element, Font, Length, Padding, Shadow, Theme};
-use std::str::FromStr;
 
 use crate::elements::scanlines::Scanlines;
 
@@ -26,6 +25,8 @@ pub mod colors {
 
     // #003469
     pub const TEXT_DARK: Color = color!(0x003469);
+    // #1867B8
+    pub const TEXT_LIGHT: Color = color!(0x1867B8);
 
     // #ddecf8
     pub const CONTROL_HOVER_BG: Color = Color::from_rgb(0.867, 0.925, 0.973);
@@ -34,6 +35,8 @@ pub mod colors {
     pub const PRIMARY_BG: Color = Color::from_rgb(0.310, 0.639, 0.878);
     // #3d8fcb
     pub const PRIMARY_HOVER_BG: Color = Color::from_rgb(0.239, 0.561, 0.796);
+    // #8cd5e5
+    pub const BACKGROUND: Color = Color::from_rgb8(140, 213, 229);
 
     /// Cursor / keyboard-focus ring, distinct from selection state.
     pub const PRIMARY_FOCUS: Color = Color::WHITE;
@@ -87,7 +90,7 @@ pub fn holo_header_backdrop_with<'a, Message: 'a>(
             text(header_text.into())
                 .font(font)
                 .size(22.0)
-                .color(Color::from_str("#003469").unwrap()),
+                .color(colors::TEXT_DARK),
             text(sub_text.into())
                 .font(iced::Font {
                     weight: iced::font::Weight::Thin,
@@ -95,7 +98,7 @@ pub fn holo_header_backdrop_with<'a, Message: 'a>(
                     ..Default::default()
                 })
                 .size(18.0)
-                .color(Color::from_str("#1867B8").unwrap())
+                .color(colors::TEXT_LIGHT)
         ]
         .spacing(8.0)
         .padding(Padding {
@@ -107,7 +110,7 @@ pub fn holo_header_backdrop_with<'a, Message: 'a>(
     .width(Length::Fill)
     .height(Length::Fill)
     .style(|_| iced::widget::container::Style {
-        background: Some(iced::Background::Color(Color::from_rgb8(140, 213, 229))),
+        background: Some(iced::Background::Color(colors::BACKGROUND)),
         ..Default::default()
     })
     .into()
@@ -218,4 +221,52 @@ pub fn default_shadow() -> Shadow {
         color: Color::BLACK,
         offset: iced::Vector { x: 1.0, y: 3.0 },
     }
+}
+
+pub fn action_row<'a, Message: Clone + 'a>(
+    elements: Vec<Element<'a, Message>>,
+) -> Element<'a, Message> {
+    let mut children = Vec::with_capacity(elements.len().saturating_mul(2));
+    let mut iter = elements.into_iter();
+
+    if let Some(first) = iter.next() {
+        children.push(first);
+        for el in iter {
+            children.push(space::horizontal().into());
+            children.push(el);
+        }
+    }
+
+    row::Row::with_children(children)
+        .width(Length::Fill)
+        .height(Length::Fixed(80.0))
+        .padding(7)
+        .align_y(Alignment::Center)
+        .into()
+}
+
+pub fn inner_shadow<'a, Message: Clone + 'a>(
+    content: impl Into<Element<'a, Message>>,
+    radius: f32,
+    depth: u32,
+    color: Color, // per-layer alpha, e.g. rgba(0, 0, 0, 0.05)
+) -> Element<'a, Message> {
+    let mut layers = vec![content.into()];
+
+    layers.extend((1..=depth).map(|w| {
+        container(Space::new())
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .style(move |_| container::Style {
+                border: iced::Border {
+                    color,
+                    width: w as f32,
+                    radius: radius.into(),
+                },
+                ..Default::default()
+            })
+            .into()
+    }));
+
+    stack(layers).into()
 }

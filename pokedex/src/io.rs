@@ -451,6 +451,13 @@ pub async fn add_dex_img(dex_path: String, pokemon_name: String) -> Result<(), a
     Ok(())
 }
 
+#[derive(Clone, Debug)]
+pub struct GalleryImage {
+    pub handle: Handle,
+    pub width: u32,
+    pub height: u32,
+}
+
 /// Read all PNG images stored for a Pokémon from the dex directory.
 ///
 /// Args:
@@ -461,7 +468,7 @@ pub async fn add_dex_img(dex_path: String, pokemon_name: String) -> Result<(), a
 pub async fn get_dex_images(
     dex_path: PathBuf,
     pokemon_name: String,
-) -> anyhow::Result<Vec<Handle>> {
+) -> anyhow::Result<Vec<GalleryImage>> {
     let mut read_dir = tokio::fs::read_dir(dex_path.join(pokemon_name)).await?;
     let mut paths = Vec::new();
 
@@ -481,7 +488,11 @@ pub async fn get_dex_images(
         let handle = tokio::task::spawn_blocking(move || {
             let img = image::load_from_memory(&bytes)?.to_rgba8();
             let (w, h) = img.dimensions();
-            anyhow::Ok(Handle::from_rgba(w, h, img.into_raw()))
+            anyhow::Ok(GalleryImage {
+                handle: Handle::from_rgba(w, h, img.into_raw()),
+                width: w,
+                height: h,
+            })
         })
         .await??;
         handles.push(handle);
