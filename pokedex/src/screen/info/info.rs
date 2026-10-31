@@ -741,6 +741,7 @@ impl Info {
             &self.up_interaction,
             colors,
             Message::UpInteraction,
+            false,
         );
         let down = icon_button(
             self.arrow_icon.clone(),
@@ -749,6 +750,7 @@ impl Info {
             &self.down_interaction,
             colors,
             Message::DownInteraction,
+            false,
         );
         let close = icon_button(
             self.close_icon.clone(),
@@ -757,6 +759,7 @@ impl Info {
             &self.close_interaction,
             colors,
             Message::CloseInteraction,
+            false,
         );
         let info_button = primary_button("Info".to_string(), Message::Info, false);
         let relations_button =

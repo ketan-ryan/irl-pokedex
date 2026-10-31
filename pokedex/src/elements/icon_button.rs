@@ -3,6 +3,8 @@ use iced::{
     widget::{Space, button, container, mouse_area, row, svg, text},
 };
 
+use crate::elements::common;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum IconButtonInteraction {
     None,
@@ -146,7 +148,7 @@ impl IconButtonSize {
                 right: 7.0,
             },
             height: 50.0,
-            margin: 0.0,
+            margin: 3.0,
             rotation: None,
         }
     }
@@ -180,6 +182,7 @@ pub fn icon_button<'a, Message>(
     state: &IconButtonInteraction,
     colors: IconButtonColors,
     on_interact: impl Fn(IconButtonInteraction) -> Message + 'a,
+    focused: bool,
 ) -> Element<'a, Message>
 where
     Message: Clone + 'a,
@@ -235,12 +238,19 @@ where
         inner = inner.width(Length::Shrink);
     }
 
+    let focus_width = if focused { 4.0 } else { 0.0 };
+
     let btn = button(inner)
         .width(Length::Shrink)
         .height(Length::Shrink)
         .padding(size.margin)
-        .style(|_, _| button::Style {
+        .style(move |_, _| button::Style {
             background: None,
+            border: Border {
+                color: common::colors::SECONDARY_FOCUS,
+                width: focus_width,
+                radius: colors.border_radius.into(),
+            },
             ..Default::default()
         });
 

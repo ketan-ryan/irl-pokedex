@@ -1,13 +1,3 @@
-use iced::{
-    Alignment, Border, Color, ContentFit, Element, Font, Length, Task, Theme,
-    font::Weight,
-    widget::{
-        Canvas, Image, column, container, mouse_area, responsive, row, scrollable,
-        scrollable::{Direction, Scrollbar},
-        space, stack, svg, text,
-    },
-};
-
 use crate::{
     elements::{
         common::{
@@ -15,11 +5,74 @@ use crate::{
             secondary_button,
         },
         icon_button::{IconButtonColors, IconButtonInteraction, IconButtonSize, icon_button},
+        selectable::{
+            SectionShape, SelectionDirection, SelectionGrid, SelectionPosition, is_focused_at,
+        },
     },
     enums::IOAction,
     io::GalleryImage,
     screen::info::info::Info,
 };
+use iced::{
+    Alignment, Border, Color, ContentFit, Element, Font, Length, Task, Theme,
+    font::Weight,
+    widget::{
+        Canvas, Image,
+        canvas::path::lyon_path::geom::euclid::num::Ceil,
+        column, container, mouse_area, responsive, row, scrollable,
+        scrollable::{Direction, Scrollbar},
+        space, stack, svg, text,
+    },
+};
+use log::debug;
+
+mod section {
+    pub const GALLERY: usize = 0;
+    pub const BUTTONS: usize = 1;
+}
+
+fn escape(
+    sections: &[SectionShape],
+    section: usize,
+    row: usize,
+    col: usize,
+    direction: SelectionDirection,
+) -> Option<SelectionPosition> {
+    use SelectionDirection::*;
+
+    let at = |section: usize, row: usize, col: usize| Some(SelectionPosition { section, row, col });
+    let rows_of = |s: usize| sections[s].rows;
+    let cols_of = |s: usize| sections[s].cols;
+
+    match (section, direction) {
+        // From gallery: Down leads to center button. Everything else nothing
+        (s, Up) | (s, Left) | (s, Right) if s == section::GALLERY => None,
+        (s, Down) if s == section::GALLERY => at(section::BUTTONS, 0, 0),
+
+        // From button row: All up leads to gallery, left-right as normal, down is nothing
+        (s, Up) if s == section::BUTTONS => at(section::GALLERY, 0, 0),
+        (s, Left) if s == section::BUTTONS && col == 0 => None,
+        (s, Right) if s == section::BUTTONS && col == 6 => None,
+        _ => None,
+    }
+}
+
+fn build_selection_grid(gallery_rows: usize, gallery_cols: usize) -> SelectionGrid {
+    SelectionGrid::new(
+        vec![
+            SectionShape {
+                rows: gallery_rows,
+                cols: gallery_cols,
+            },
+            SectionShape { rows: 1, cols: 4 }, // buttons
+        ],
+        section::GALLERY,
+        escape,
+    )
+}
+
+const GALLERY_COLUMNS: usize = 2;
+const GALLERY_SPACING: f32 = 8.0;
 
 #[derive(Debug)]
 pub struct Gallery {
@@ -29,6 +82,8 @@ pub struct Gallery {
     close_interaction: IconButtonInteraction,
 
     selected_image: GalleryImage,
+
+    selection: SelectionGrid,
 }
 
 #[derive(Clone, Debug)]
@@ -52,7 +107,13 @@ pub enum Action {
 
 impl Gallery {
     pub fn new(return_to: Box<Info>) -> (Self, Task<Message>) {
-        let selected_image = return_to.get_gallery_images()[0].clone();
+        let images = return_to.get_gallery_images();
+        let selected_image = images[0].clone();
+        let cols = images.len().clamp(1, GALLERY_COLUMNS);
+        let rows = (images.len() / cols).ceil();
+
+        debug!("Gallery of size {}x{}", rows, cols);
+
         (
             Self {
                 return_to: Some(return_to),
@@ -63,15 +124,55 @@ impl Gallery {
                 close_interaction: IconButtonInteraction::default(),
 
                 selected_image,
+
+                selection: build_selection_grid(rows, cols),
             },
             Task::none(),
         )
     }
 
+    fn focused_message(&self) -> Option<Message> {
+        let SelectionPosition { section, row, col } = self.selection.position?;
+
+        match section {
+            section::GALLERY => Some(Message::ImageSelected(
+                self.return_to.as_ref().unwrap().get_gallery_images()[row * GALLERY_COLUMNS + col]
+                    .clone(),
+            )),
+            section::BUTTONS => match col {
+                0 => Some(Message::Thumbnail),
+                1 => Some(Message::Delete),
+                2 => Some(Message::Storage),
+                3 => Some(Message::CloseInteraction(IconButtonInteraction::Released)),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
     pub fn update(&mut self, msg: Message) -> Action {
         match msg {
             Message::IOInput(input) => match input {
-                _ => Action::None,
+                IOAction::Left => {
+                    self.selection.navigate(SelectionDirection::Left);
+                    Action::None
+                }
+                IOAction::Right => {
+                    self.selection.navigate(SelectionDirection::Right);
+                    Action::None
+                }
+                IOAction::ScrollUp => {
+                    self.selection.navigate(SelectionDirection::Up);
+                    Action::None
+                }
+                IOAction::ScrollDown => {
+                    self.selection.navigate(SelectionDirection::Down);
+                    Action::None
+                }
+                IOAction::Select => match self.focused_message() {
+                    Some(message) => self.update(message),
+                    None => Action::None,
+                },
             },
             Message::Thumbnail => Action::None,
             Message::Delete => Action::None,
@@ -157,8 +258,12 @@ impl Gallery {
     }
 
     pub fn bottom_view<'a>(&'a self, common: &'a CommonAssets) -> Element<'a, Message> {
+        let focus = self.selection.position();
+        let selected_img = self.selected_image.clone();
+
         let gallery_images = self.return_to.as_ref().unwrap().get_gallery_images();
         let count_str: String = format!("[{}]", gallery_images.len());
+
         let gallery = container(
             column![
                 row![
@@ -179,7 +284,7 @@ impl Gallery {
                 .width(Length::Fill)
                 .padding(iced::Padding::new(20.0).top(10.0).bottom(5.0)),
                 container(inner_shadow(
-                    container(self::gallery_grid(gallery_images))
+                    container(self::gallery_grid(gallery_images, focus, selected_img))
                         .clip(true)
                         .width(Length::Fill)
                         .height(Length::Fill)
@@ -189,7 +294,7 @@ impl Gallery {
                                 25, 105, 188
                             ))),
                             border: iced::Border {
-                                color: iced::Color::TRANSPARENT,
+                                color: Color::TRANSPARENT,
                                 width: 0.0,
                                 radius: 20.0.into(),
                             },
@@ -205,7 +310,7 @@ impl Gallery {
         )
         .width(Length::Fixed(600.0))
         .height(Length::Fixed(360.0))
-        .style(|_: &Theme| container::Style {
+        .style(move |_: &Theme| container::Style {
             background: Some(iced::Background::Color(Color::from_rgb8(33, 129, 228))),
             border: iced::Border {
                 color: iced::Color::TRANSPARENT,
@@ -216,17 +321,27 @@ impl Gallery {
         });
 
         // ====================== button row ======================
+        let thumbnail_focus = is_focused_at(focus, section::BUTTONS, 0, 0);
+        let delete_focus = is_focused_at(focus, section::BUTTONS, 0, 1);
+        let storage_focus = is_focused_at(focus, section::BUTTONS, 0, 2);
+        let close_focus = is_focused_at(focus, section::BUTTONS, 0, 3);
+
         let thumbnail_button = secondary_button(
             "Use as thumbnail".to_string(),
             Message::Thumbnail,
             None,
-            false,
+            thumbnail_focus,
         );
 
-        let delete_button = secondary_button("Delete".to_string(), Message::Delete, None, false);
+        let delete_button =
+            secondary_button("Delete".to_string(), Message::Delete, None, delete_focus);
 
-        let storage_button =
-            secondary_button("Manage storage".to_string(), Message::Storage, None, false);
+        let storage_button = secondary_button(
+            "Manage storage".to_string(),
+            Message::Storage,
+            None,
+            storage_focus,
+        );
 
         let close = icon_button(
             self.close_icon.clone(),
@@ -238,6 +353,7 @@ impl Gallery {
                 ..Default::default()
             },
             Message::CloseInteraction,
+            close_focus,
         );
 
         let elements = vec![thumbnail_button, delete_button, storage_button, close];
@@ -273,49 +389,76 @@ impl Gallery {
     }
 }
 
-const GALLERY_COLUMNS: usize = 2;
-const GALLERY_SPACING: f32 = 8.0;
-
-fn gallery_grid<'a>(images: Vec<GalleryImage>) -> Element<'a, Message> {
+fn gallery_grid<'a>(
+    images: Vec<GalleryImage>,
+    focus: Option<SelectionPosition>,
+    selected_img: GalleryImage,
+) -> Element<'a, Message> {
+    let gallery_focused = focus.is_some_and(|section| section.section == section::GALLERY);
     responsive(move |size| {
         let scrolls = images.len() > GALLERY_COLUMNS;
         let cols = images.len().clamp(1, GALLERY_COLUMNS);
         let cell_w = (size.width - GALLERY_SPACING * (cols - 1) as f32) / cols as f32;
 
-        let cell = |img: &GalleryImage| -> Element<'a, Message> {
-            let mut scale = cell_w / img.width as f32;
+        const BORDER_W: f32 = 4.0;
+
+        let cell = |img: &GalleryImage, r: usize, c: usize| -> Element<'a, Message> {
+            // reserve room for the ring so the total still fits the cell
+            let avail_w = cell_w - 2.0 * BORDER_W;
+            let mut scale = avail_w / img.width as f32;
             if !scrolls {
-                // few images: also constrain by height so they fit without scrolling
-                scale = scale.min(size.height / img.height as f32);
+                scale = scale.min((size.height - 2.0 * BORDER_W) / img.height as f32);
             }
             let (w, h) = (img.width as f32 * scale, img.height as f32 * scale);
-
+            let img_selected = selected_img.handle.id() == img.handle.id();
+            let border_color =
+                if gallery_focused && focus.unwrap().row == r && focus.unwrap().col == c {
+                    common::colors::SECONDARY_FOCUS
+                } else if img_selected {
+                    common::colors::PRIMARY_FOCUS
+                } else {
+                    Color::TRANSPARENT
+                };
             container(
-                mouse_area(
-                    Image::new(img.handle.clone())
-                        .width(w)
-                        .height(h)
-                        .border_radius(20.0)
-                        .content_fit(ContentFit::Fill),
+                container(
+                    mouse_area(
+                        Image::new(img.handle.clone())
+                            .width(w)
+                            .height(h)
+                            .border_radius(20.0)
+                            .content_fit(ContentFit::Fill),
+                    )
+                    .on_press(Message::ImageSelected(img.clone())),
                 )
-                .on_press(Message::ImageSelected(img.clone())),
+                .padding(BORDER_W) // keeps the image inside the ring
+                .style(move |_| container::Style {
+                    border: Border {
+                        color: border_color,
+                        width: BORDER_W,
+                        radius: (20.0 + BORDER_W).into(), // concentric with the image's 20px radius
+                    },
+                    ..Default::default()
+                }),
             )
             .width(cell_w)
             .center_x(Length::Fill)
             .into()
         };
 
-        let rows = images.chunks(GALLERY_COLUMNS).map(|chunk| {
-            let cells = (0..cols).map(|i| match chunk.get(i) {
-                Some(img) => cell(img),
-                None => space::horizontal().width(cell_w).into(), // keeps a short last row aligned
-            });
+        let rows = images
+            .chunks(GALLERY_COLUMNS)
+            .enumerate()
+            .map(|(r, chunk)| {
+                let cells = (0..cols).map(|i| match chunk.get(i) {
+                    Some(img) => cell(img, r, i),
+                    None => space::horizontal().width(cell_w).into(), // keeps a short last row aligned
+                });
 
-            row(cells)
-                .spacing(GALLERY_SPACING)
-                .align_y(iced::Alignment::Center)
-                .into()
-        });
+                row(cells)
+                    .spacing(GALLERY_SPACING)
+                    .align_y(iced::Alignment::Center)
+                    .into()
+            });
 
         let grid = column(rows).spacing(GALLERY_SPACING).width(Length::Fill);
 

@@ -12,7 +12,9 @@ use crate::{
             CONDENSED, CommonAssets, colors, default_shadow, holo_header_backdrop, primary_button,
             secondary_button,
         },
-        selectable::{SectionShape, SelectionDirection, SelectionGrid, SelectionPosition},
+        selectable::{
+            SectionShape, SelectionDirection, SelectionGrid, SelectionPosition, is_focused_at,
+        },
     },
     enums::{FilterMode, IOAction, PokemonType, Region, SortDirection, SortKey},
     screen::browse_pokedex::{
@@ -20,64 +22,6 @@ use crate::{
         filter_predicate::{FilterCriteria, RangeOriginator},
     },
 };
-
-impl SelectionGrid {
-    fn new(sections: Vec<SectionShape>) -> Self {
-        Self {
-            sections,
-            position: None,
-        }
-    }
-
-    fn position(&self) -> Option<SelectionPosition> {
-        self.position
-    }
-
-    fn navigate(&mut self, direction: SelectionDirection) {
-        let Some(current) = self.position else {
-            // Nothing focused: any direction lands on the top-left region.
-            self.position = Some(SelectionPosition {
-                section: section::REGION,
-                row: 0,
-                col: 0,
-            });
-            return;
-        };
-
-        let shape = self.sections[current.section];
-        let SelectionPosition { section, row, col } = current;
-        let mut next_position = current;
-
-        let moved_within_section = match direction {
-            SelectionDirection::Right if col + 1 < shape.cols => {
-                next_position.col += 1;
-                true
-            }
-            SelectionDirection::Left if col > 0 => {
-                next_position.col -= 1;
-                true
-            }
-            SelectionDirection::Down if row + 1 < shape.rows => {
-                next_position.row += 1;
-                true
-            }
-            SelectionDirection::Up if row > 0 => {
-                next_position.row -= 1;
-                true
-            }
-            _ => false,
-        };
-
-        self.position = if moved_within_section {
-            Some(next_position)
-        } else {
-            // escape() returning None means "no neighbor that way" -- i.e.
-            // off the edge of the page, so focus clears entirely rather
-            // than clamping in place.
-            escape(&self.sections, section, row, col, direction)
-        };
-    }
-}
 
 /// Layout-specific cross-section jumps. Returns where focus lands when a
 /// move would leave the current section's bounds, or `None` if there's no
@@ -182,20 +126,24 @@ const REGION_GRID_COLS: usize = 3;
 const TYPE_GRID_COLS: usize = 6;
 
 fn build_selection_grid() -> SelectionGrid {
-    SelectionGrid::new(vec![
-        SectionShape {
-            rows: Region::ALL.len().div_ceil(REGION_GRID_COLS),
-            cols: REGION_GRID_COLS,
-        },
-        SectionShape { rows: 1, cols: 2 }, // Sort Order: direction, key
-        SectionShape { rows: 1, cols: 2 }, // Height
-        SectionShape { rows: 1, cols: 2 }, // Weight
-        SectionShape {
-            rows: PokemonType::ALL.len().div_ceil(TYPE_GRID_COLS),
-            cols: TYPE_GRID_COLS,
-        },
-        SectionShape { rows: 1, cols: 4 }, // Actions: Select all, Filter Mode, Clear, OK
-    ])
+    SelectionGrid::new(
+        vec![
+            SectionShape {
+                rows: Region::ALL.len().div_ceil(REGION_GRID_COLS),
+                cols: REGION_GRID_COLS,
+            },
+            SectionShape { rows: 1, cols: 2 }, // Sort Order: direction, key
+            SectionShape { rows: 1, cols: 2 }, // Height
+            SectionShape { rows: 1, cols: 2 }, // Weight
+            SectionShape {
+                rows: PokemonType::ALL.len().div_ceil(TYPE_GRID_COLS),
+                cols: TYPE_GRID_COLS,
+            },
+            SectionShape { rows: 1, cols: 4 }, // Actions: Select all, Filter Mode, Clear, OK
+        ],
+        section::REGION,
+        escape,
+    )
 }
 
 #[derive(Debug)]
@@ -474,10 +422,6 @@ impl Filter {
 // ---------------------------------------------------------------------
 // Shared building blocks
 // ---------------------------------------------------------------------
-fn is_focused_at(focus: Option<SelectionPosition>, section: usize, row: usize, col: usize) -> bool {
-    focus.is_some_and(|f| f.section == section && f.row == row && f.col == col)
-}
-
 fn underline<'a>() -> Element<'a, Message> {
     container(Space::new().height(Length::Fixed(2.0)))
         .width(Length::Fill)

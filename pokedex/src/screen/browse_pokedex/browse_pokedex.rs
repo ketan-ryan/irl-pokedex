@@ -1323,6 +1323,7 @@ impl PokedexBrowser {
             &self.filter_interaction,
             IconButtonColors::default(),
             Message::FilterInteraction,
+            false,
         );
 
         let close = icon_button(
@@ -1340,6 +1341,7 @@ impl PokedexBrowser {
             &self.close_interaction,
             IconButtonColors::default(),
             Message::CloseInteraction,
+            false,
         );
 
         screen = screen.push(
