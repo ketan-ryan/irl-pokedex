@@ -32,17 +32,15 @@ mod section {
 }
 
 fn escape(
-    sections: &[SectionShape],
+    _sections: &[SectionShape],
     section: usize,
-    row: usize,
+    _row: usize,
     col: usize,
     direction: SelectionDirection,
 ) -> Option<SelectionPosition> {
     use SelectionDirection::*;
 
     let at = |section: usize, row: usize, col: usize| Some(SelectionPosition { section, row, col });
-    let rows_of = |s: usize| sections[s].rows;
-    let cols_of = |s: usize| sections[s].cols;
 
     match (section, direction) {
         // From gallery: Down leads to center button. Everything else nothing
@@ -52,7 +50,7 @@ fn escape(
         // From button row: All up leads to gallery, left-right as normal, down is nothing
         (s, Up) if s == section::BUTTONS => at(section::GALLERY, 0, 0),
         (s, Left) if s == section::BUTTONS && col == 0 => None,
-        (s, Right) if s == section::BUTTONS && col == 6 => None,
+        (s, Right) if s == section::BUTTONS && col == 3 => None,
         _ => None,
     }
 }

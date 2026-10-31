@@ -16,6 +16,9 @@ use crate::{
         message_box::Metrics,
         modal::{modal, shrink_text_to_fit},
         registered_icon::{IconState, RegisteredIconWidget},
+        selectable::{
+            SectionShape, SelectionDirection, SelectionGrid, SelectionPosition, is_focused_at,
+        },
     },
     enums::{IOAction, PokemonEntry, PokemonInfo},
     io::{self, GalleryImage},
@@ -24,6 +27,46 @@ use crate::{
         register::register::to_proper_case,
     },
 };
+
+mod section {
+    pub const GALLERY: usize = 0;
+    pub const BUTTONS: usize = 1;
+}
+
+fn escape(
+    _sections: &[SectionShape],
+    section: usize,
+    _row: usize,
+    col: usize,
+    direction: SelectionDirection,
+) -> Option<SelectionPosition> {
+    use SelectionDirection::*;
+
+    let at = |section: usize, row: usize, col: usize| Some(SelectionPosition { section, row, col });
+
+    match (section, direction) {
+        // From gallery: Down leads to center button. Everything else nothing
+        (s, Up) | (s, Left) | (s, Right) if s == section::GALLERY => None,
+        (s, Down) if s == section::GALLERY => at(section::BUTTONS, 0, 0),
+
+        // From button row: All up leads to gallery, left-right as normal, down is nothing
+        (s, Up) if s == section::BUTTONS => at(section::GALLERY, 0, 0),
+        (s, Left) if s == section::BUTTONS && col == 0 => None,
+        (s, Right) if s == section::BUTTONS && col == 6 => None,
+        _ => None,
+    }
+}
+
+fn build_selection_grid() -> SelectionGrid {
+    SelectionGrid::new(
+        vec![
+            SectionShape { rows: 1, cols: 1 },
+            SectionShape { rows: 1, cols: 7 },
+        ],
+        section::GALLERY,
+        escape,
+    )
+}
 
 #[derive(Debug)]
 pub struct Info {
@@ -52,6 +95,8 @@ pub struct Info {
 
     type_images: Vec<iced::widget::image::Handle>,
     info_modal: svg::Handle,
+
+    selection: SelectionGrid,
 }
 
 #[derive(Clone, Debug)]
@@ -191,6 +236,8 @@ impl Info {
                 abilities_size,
 
                 type_images,
+
+                selection: build_selection_grid(),
             },
             Task::done(Message::LoadImages),
         )
@@ -222,6 +269,39 @@ impl Info {
         self.up_interaction = IconButtonInteraction::None;
         self.down_interaction = IconButtonInteraction::None;
         Action::Run(Task::batch(tasks))
+    }
+
+    fn focused_message(&self) -> Option<Message> {
+        let SelectionPosition {
+            section,
+            row: _,
+            col,
+        } = self.selection.position?;
+
+        match section {
+            section::GALLERY => {
+                if self
+                    .gallery_images
+                    .get(&self.current_pokemon.key)
+                    .is_some_and(|imgs| imgs.len() > 0)
+                {
+                    Some(Message::OpenGallery)
+                } else {
+                    None
+                }
+            }
+            section::BUTTONS => match col {
+                0 => Some(Message::UpInteraction(IconButtonInteraction::Released)),
+                1 => Some(Message::DownInteraction(IconButtonInteraction::Released)),
+                2 => Some(Message::Info),
+                3 => Some(Message::Relations),
+                4 => Some(Message::Form),
+                5 => Some(Message::Cry),
+                6 => Some(Message::CloseInteraction(IconButtonInteraction::Released)),
+                _ => None,
+            },
+            _ => None,
+        }
     }
 
     pub fn update(&mut self, msg: Message) -> Action {
@@ -258,13 +338,38 @@ impl Info {
                 Action::None
             }
             Message::IOInput(input) => match input {
-                IOAction::ScrollUp => Action::Run(Task::done(Message::UpInteraction(
-                    IconButtonInteraction::Released,
-                ))),
-                IOAction::ScrollDown => Action::Run(Task::done(Message::DownInteraction(
-                    IconButtonInteraction::Released,
-                ))),
-                _ => Action::None,
+                IOAction::Left => {
+                    self.selection.navigate(SelectionDirection::Left);
+                    Action::None
+                }
+                IOAction::Right => {
+                    self.selection.navigate(SelectionDirection::Right);
+                    Action::None
+                }
+                IOAction::ScrollUp => {
+                    if self.selection.position.is_none() {
+                        Action::Run(Task::done(Message::UpInteraction(
+                            IconButtonInteraction::Released,
+                        )))
+                    } else {
+                        self.selection.navigate(SelectionDirection::Up);
+                        Action::None
+                    }
+                }
+                IOAction::ScrollDown => {
+                    if self.selection.position.is_none() {
+                        Action::Run(Task::done(Message::DownInteraction(
+                            IconButtonInteraction::Released,
+                        )))
+                    } else {
+                        self.selection.navigate(SelectionDirection::Down);
+                        Action::None
+                    }
+                }
+                IOAction::Select => match self.focused_message() {
+                    Some(message) => self.update(message),
+                    None => Action::None,
+                },
             },
             Message::UpInteraction(i) => {
                 if i == IconButtonInteraction::Released {
@@ -662,6 +767,9 @@ impl Info {
 
     pub fn bottom_view<'a>(&'a self, common: &'a CommonAssets) -> Element<'a, Message> {
         let font = common::CONDENSED;
+        let focus = self.selection.position();
+        const FOCUS_W: f32 = 4.0;
+
         // ======================= gallery ========================
         let count = self
             .gallery_images
@@ -686,6 +794,11 @@ impl Info {
                 }
             }
             None => missing_image.into(),
+        };
+        let border_color = if focus.is_some_and(|selection| selection.section == section::GALLERY) {
+            common::colors::PRIMARY_FOCUS
+        } else {
+            Color::TRANSPARENT
         };
         let gallery = mouse_area(
             container(
@@ -725,7 +838,31 @@ impl Info {
         )
         .on_press(Message::OpenGallery);
 
+        let focus_ring = container(inner_shadow(
+            gallery,
+            20.0,
+            8,
+            Color::from_rgba(0.0, 0.0, 0.0, 0.06),
+        ))
+        .padding(FOCUS_W) // keeps the ring outside the card instead of under it
+        .style(move |_: &Theme| container::Style {
+            border: iced::Border {
+                color: border_color,
+                width: FOCUS_W,
+                radius: (20.0 + FOCUS_W).into(), // concentric with the card's 20px radius
+            },
+            ..Default::default()
+        });
+
         // ====================== button row ======================
+        let up_focused = is_focused_at(focus, section::BUTTONS, 0, 0);
+        let down_focused = is_focused_at(focus, section::BUTTONS, 0, 1);
+        let info_focused = is_focused_at(focus, section::BUTTONS, 0, 2);
+        let relations_focused = is_focused_at(focus, section::BUTTONS, 0, 3);
+        let forms_focused = is_focused_at(focus, section::BUTTONS, 0, 4);
+        let cry_focused = is_focused_at(focus, section::BUTTONS, 0, 5);
+        let close_focused = is_focused_at(focus, section::BUTTONS, 0, 6);
+
         let size = IconButtonSize::large();
         let colors = IconButtonColors {
             default_shadow: default_shadow(),
@@ -741,7 +878,7 @@ impl Info {
             &self.up_interaction,
             colors,
             Message::UpInteraction,
-            false,
+            up_focused,
         );
         let down = icon_button(
             self.arrow_icon.clone(),
@@ -750,7 +887,7 @@ impl Info {
             &self.down_interaction,
             colors,
             Message::DownInteraction,
-            false,
+            down_focused,
         );
         let close = icon_button(
             self.close_icon.clone(),
@@ -759,13 +896,18 @@ impl Info {
             &self.close_interaction,
             colors,
             Message::CloseInteraction,
-            false,
+            close_focused,
         );
-        let info_button = primary_button("Info".to_string(), Message::Info, false);
-        let relations_button =
-            secondary_button("Relations".to_string(), Message::Relations, None, false);
-        let forms_button = secondary_button("Forms".to_string(), Message::Form, None, false);
-        let cry_button = secondary_button("Cry".to_string(), Message::Cry, None, false);
+        let info_button = primary_button("Info".to_string(), Message::Info, info_focused);
+        let relations_button = secondary_button(
+            "Relations".to_string(),
+            Message::Relations,
+            None,
+            relations_focused,
+        );
+        let forms_button =
+            secondary_button("Forms".to_string(), Message::Form, None, forms_focused);
+        let cry_button = secondary_button("Cry".to_string(), Message::Cry, None, cry_focused);
         let elements = vec![
             up,
             down,
@@ -789,16 +931,11 @@ impl Info {
                 ..Default::default()
             }),
             column![
-                container(inner_shadow(
-                    gallery,
-                    20.0,
-                    8,
-                    Color::from_rgba(0.0, 0.0, 0.0, 0.06)
-                ))
-                .align_x(Alignment::Center)
-                .align_y(Alignment::Center)
-                .width(Length::Fill)
-                .height(Length::Fill),
+                container(focus_ring)
+                    .align_x(Alignment::Center)
+                    .align_y(Alignment::Center)
+                    .width(Length::Fill)
+                    .height(Length::Fill),
                 row,
             ]
             .width(Length::Fill)
