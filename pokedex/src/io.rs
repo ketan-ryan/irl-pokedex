@@ -5,6 +5,7 @@ use tokio;
 
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::env;
 use std::fs;
 use std::io;
@@ -314,7 +315,9 @@ pub fn save_frame(frame: &VideoFrame) -> Result<(), image::ImageError> {
 /// - path: An optional override path for the local dex file.
 ///
 /// Returns: A reference-cell wrapper around the loaded Pokémon list.
-pub fn read_or_create_dex(path: Option<&String>) -> Result<RefCell<Vec<String>>, anyhow::Error> {
+pub fn read_or_create_dex(
+    path: Option<&String>,
+) -> Result<RefCell<HashMap<String, HashSet<String>>>, anyhow::Error> {
     let out_path = if path.is_none() {
         debug!(
             "No local pokedex path in config, falling back to {}",
@@ -340,12 +343,12 @@ pub fn read_or_create_dex(path: Option<&String>) -> Result<RefCell<Vec<String>>,
                 e.to_string(),
                 &path
             );
-            std::fs::write(path, "[]")?;
-            "[]".to_string()
+            std::fs::write(path, "{}")?;
+            "{}".to_string()
         }
     };
 
-    let map: Vec<String> = serde_json::from_str(&local_dex).map_err(|e| {
+    let map: HashMap<String, HashSet<String>> = serde_json::from_str(&local_dex).map_err(|e| {
         warn!("Error parsing local pokedex: {}", e.to_string());
         PokedexError::MalformedPokedex(e.to_string())
     })?;
@@ -359,7 +362,9 @@ pub fn read_or_create_dex(path: Option<&String>) -> Result<RefCell<Vec<String>>,
 /// - pokemon_list: The updated list of Pokémon names to save.
 ///
 /// Returns: Nothing, or an error if the file cannot be written.
-pub async fn update_dex(pokemon_list: Vec<String>) -> Result<(), anyhow::Error> {
+pub async fn update_dex(
+    pokemon_list: HashMap<String, HashSet<String>>,
+) -> Result<(), anyhow::Error> {
     let config = load_settings()?;
     let local_dex_path = config.get("local_dex_path");
 
@@ -421,8 +426,11 @@ pub fn read_or_create_images_dir(path: Option<&String>) -> Result<String, anyhow
 /// - dex_path: The base dex directory where Pokémon folders are stored.
 /// - pokemon_name: The Pokémon folder that should receive the image.
 ///
-/// Returns: Nothing, or an error if the image cannot be copied.
-pub async fn add_dex_img(dex_path: String, pokemon_name: String) -> Result<(), anyhow::Error> {
+/// Returns: the new path, or an error if the image cannot be copied.
+pub async fn add_dex_img(
+    dex_path: String,
+    pokemon_name: String,
+) -> Result<(String, PathBuf), anyhow::Error> {
     let imgs_path = get_local_path()?.join(STAGING_DIR);
 
     let dex_buf: PathBuf = dex_path.into();
@@ -440,7 +448,7 @@ pub async fn add_dex_img(dex_path: String, pokemon_name: String) -> Result<(), a
         .into());
     }
 
-    let save_dir = dex_buf.join(pokemon_name);
+    let save_dir = dex_buf.join(pokemon_name.clone());
     tokio::fs::create_dir_all(&save_dir).await?;
     trace!("Saving image to {:?}", save_dir);
 
@@ -448,7 +456,14 @@ pub async fn add_dex_img(dex_path: String, pokemon_name: String) -> Result<(), a
     tokio::fs::copy(imgs_path.join(&img_path), &dest).await?;
 
     debug!("Moved image to {:?}", dest);
-    Ok(())
+    Ok((pokemon_name, dest))
+}
+
+pub async fn delete_dex_img(dex_path: String) -> Result<String, anyhow::Error> {
+    debug!("Deleting selected image {}", dex_path);
+    tokio::fs::remove_file(dex_path.clone()).await?;
+
+    Ok(dex_path)
 }
 
 #[derive(Clone, Debug)]
@@ -456,6 +471,7 @@ pub struct GalleryImage {
     pub handle: Handle,
     pub width: u32,
     pub height: u32,
+    pub path: String,
 }
 
 /// Read all PNG images stored for a Pokémon from the dex directory.
@@ -492,6 +508,7 @@ pub async fn get_dex_images(
                 handle: Handle::from_rgba(w, h, img.into_raw()),
                 width: w,
                 height: h,
+                path: path.to_string_lossy().into_owned(),
             })
         })
         .await??;
@@ -499,6 +516,8 @@ pub async fn get_dex_images(
     }
     Ok(handles)
 }
+
+// pub fn delete_image
 
 pub fn resolve_type_images(types: Vec<PokemonType>) -> Vec<iced::widget::image::Handle> {
     let type_images = get_type_images(types);

@@ -10,6 +10,7 @@ use image;
 use log::{debug, error, trace};
 
 use std::f32::consts::PI;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -191,7 +192,8 @@ pub enum Message {
     ReadEntry,
     NoiseReady(Option<iced::widget::image::Handle>),
     Quantized(Vec<[f64; 3]>),
-    UpdatedLocalDex(Result<(), String>),
+    UpdatedLocalDex(Result<(String, PathBuf), String>),
+    DexSaved(Result<(), String>),
 }
 
 pub enum Action {
@@ -493,30 +495,20 @@ impl Register {
                 let found = self.found_pokemon.as_ref().unwrap().clone();
                 let saved_imgs_dir: String = self.config.saved_imgs_dir.clone();
 
-                if !self.config.local_dex.borrow().contains(&found) && !self.first_register {
+                if !self.config.local_dex.borrow().contains_key(&found) && !self.first_register {
                     self.pokeball_register_anim.go_mut(1.0, Instant::now());
                     self.first_register = true;
-                    self.config.local_dex.borrow_mut().push(found.to_string());
-
-                    let list: Vec<String> = self.config.local_dex.borrow().clone();
-
-                    return Action::Run(Task::batch(vec![
-                        Task::future(io::add_dex_img(saved_imgs_dir, found))
-                            .map(|res| Message::UpdatedLocalDex(res.map_err(|e| e.to_string()))),
-                        Task::future(io::update_dex(list))
-                            .map(|res| Message::UpdatedLocalDex(res.map_err(|e| e.to_string()))),
-                    ]));
                 } else {
                     trace!(
                         "Skipping registration for {} as it is already registered",
                         &self.found_pokemon.as_ref().unwrap()
                     );
                     self.already_registered = true;
-                    return Action::Run(
-                        Task::future(io::add_dex_img(saved_imgs_dir, found))
-                            .map(|res| Message::UpdatedLocalDex(res.map_err(|e| e.to_string()))),
-                    );
                 }
+                Action::Run(
+                    Task::future(io::add_dex_img(saved_imgs_dir, found))
+                        .map(|res| Message::UpdatedLocalDex(res.map_err(|e| e.to_string()))),
+                )
             }
             Message::NoiseReady(handle) => {
                 self.pokemon_details.update_noise_handle(handle);
@@ -529,9 +521,29 @@ impl Register {
 
                 Action::None
             }
-            Message::UpdatedLocalDex(res) => {
-                if res.is_err() {
-                    error!("Error with async dex ops: {}", res.unwrap_err())
+            Message::UpdatedLocalDex(res) => match res {
+                Ok((name, path)) => {
+                    let list = {
+                        let mut dex = self.config.local_dex.borrow_mut();
+                        dex.entry(name)
+                            .or_default()
+                            .insert(path.to_string_lossy().into_owned());
+                        dex.clone()
+                    };
+
+                    Action::Run(
+                        Task::future(io::update_dex(list))
+                            .map(|res| Message::DexSaved(res.map_err(|e| e.to_string()))),
+                    )
+                }
+                Err(e) => {
+                    error!("Failed to save dex image: {e}");
+                    Action::None
+                }
+            },
+            Message::DexSaved(res) => {
+                if let Err(e) = res {
+                    error!("Failed to write local dex: {e}");
                 }
                 Action::None
             }

@@ -38,7 +38,7 @@ pub struct Selected {
 pub struct PokedexBrowser {
     config: Arc<PokedexConfig>,
     pokemon_data: HashMap<String, PokemonInfo>,
-    owned_pokemon: std::collections::HashSet<String>,
+    owned_pokemon: HashMap<String, HashSet<String>>,
     pub image_cache: ImageCache,
     info_svg: svg::Handle,
 
@@ -77,7 +77,7 @@ pub struct PokedexBrowser {
     // filtering
     all_pokemon_entries: Vec<PokemonEntry>,
     criteria: FilterCriteria,
-    owned_filtered: HashSet<String>,
+    owned_filtered: HashMap<String, HashSet<String>>,
 }
 
 #[derive(Debug, Clone)]
@@ -150,7 +150,7 @@ impl PokedexBrowser {
     pub fn new(
         config: Arc<PokedexConfig>,
         pokemon_data: HashMap<String, PokemonInfo>,
-        owned_pokemon: std::collections::HashSet<String>,
+        owned_pokemon: HashMap<String, HashSet<String>>,
     ) -> (Self, Task<Message>) {
         let mut visited: HashSet<String> = HashSet::new();
         let mut pokemon_names: Vec<String> = Vec::new();
@@ -185,12 +185,12 @@ impl PokedexBrowser {
                 .cloned();
             let seen_form = group
                 .iter()
-                .find(|n| owned_pokemon.contains(&n.to_lowercase()))
+                .find(|n| owned_pokemon.contains_key(&n.to_lowercase()))
                 .cloned();
             let seen_form: Option<String> = seen_form.map(|s| s.to_lowercase());
 
             let chosen = match (&base_form, &seen_form) {
-                (Some(base), Some(_)) if owned_pokemon.contains(base) => base.clone(),
+                (Some(base), Some(_)) if owned_pokemon.contains_key(base) => base.clone(),
                 (_, Some(seen)) => seen.clone(),
                 (Some(base), None) => base.clone(),
                 (None, None) => continue,
@@ -230,7 +230,7 @@ impl PokedexBrowser {
                 let display = pokemon_data
                     .get(&name)
                     .and_then(|d| {
-                        if owned_pokemon.contains(&name) {
+                        if owned_pokemon.contains_key(&name) {
                             Some(name.clone())
                         } else {
                             d.display_name.clone()
@@ -320,7 +320,7 @@ impl PokedexBrowser {
             .iter()
             .filter(|entry| {
                 self.pokemon_data.get(&entry.key).is_some_and(|data| {
-                    let check_base = !self.owned_pokemon.contains(&entry.key);
+                    let check_base = !self.owned_pokemon.contains_key(&entry.key);
                     let matches = self.criteria.matches(&entry.key, data, check_base);
                     matches
                 })
@@ -331,12 +331,12 @@ impl PokedexBrowser {
         self.owned_filtered = self
             .owned_pokemon
             .iter()
-            .filter(|name| {
+            .filter(|(name, _images)| {
                 self.pokemon_data
                     .get(*name)
                     .is_some_and(|data| self.criteria.matches(name, data, false))
             })
-            .cloned()
+            .map(|(name, images)| (name.clone(), images.clone()))
             .collect();
 
         filtered.sort_by_cached_key(|name| self.criteria.sort_key(&name.key, &self.pokemon_data));
@@ -945,7 +945,7 @@ impl PokedexBrowser {
 
                 let info = self.pokemon_data.get(&entry.key).unwrap();
 
-                let is_owned = self.owned_pokemon.contains(&entry.key);
+                let is_owned = self.owned_pokemon.contains_key(&entry.key);
                 self.render_pokemon_item(entry, info, is_owned, opacity, false, false, true)
             })
             .collect();
@@ -1105,7 +1105,7 @@ impl PokedexBrowser {
                     );
                 }
                 let info = self.pokemon_data.get(&entry.key).unwrap();
-                let is_owned = self.owned_pokemon.contains(&entry.key);
+                let is_owned = self.owned_pokemon.contains_key(&entry.key);
                 let selected = self.selected.selected_pokemon.as_ref() == Some(entry);
                 let was_selected = self.selected.previously_selected.as_ref() == Some(entry);
 

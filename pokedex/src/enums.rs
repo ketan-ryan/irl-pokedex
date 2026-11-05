@@ -1,6 +1,6 @@
 use std::{
     cell::RefCell,
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     sync::{Arc, Mutex},
 };
 
@@ -319,6 +319,6 @@ pub struct PokedexConfig {
     pub classes: Vec<String>,
     pub confidence: f32,
     pub name_maps: HashMap<String, String>,
-    pub local_dex: RefCell<Vec<String>>,
+    pub local_dex: RefCell<HashMap<String, HashSet<String>>>,
     pub saved_imgs_dir: String,
 }

@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use crate::{
     elements::{
         common::{
@@ -5,20 +7,18 @@ use crate::{
             secondary_button,
         },
         icon_button::{IconButtonColors, IconButtonInteraction, IconButtonSize, icon_button},
+        message_box::Metrics,
+        modal::modal,
         selectable::{
             SectionShape, SelectionDirection, SelectionGrid, SelectionPosition, is_focused_at,
         },
-    },
-    enums::IOAction,
-    io::GalleryImage,
-    screen::info::info::Info,
+    }, enums::IOAction, io::{self, GalleryImage}, screen::info::info::Info,
 };
 use iced::{
     Alignment, Border, Color, ContentFit, Element, Font, Length, Task, Theme,
     font::Weight,
     widget::{
-        Canvas, Image,
-        canvas::path::lyon_path::geom::euclid::num::Ceil,
+        Canvas, Image, Space, button,
         column, container, mouse_area, responsive, row, scrollable,
         scrollable::{Direction, Scrollbar},
         space, stack, svg, text,
@@ -55,6 +55,9 @@ fn escape(
     }
 }
 
+const GALLERY_COLUMNS: usize = 2;
+const GALLERY_SPACING: f32 = 8.0;
+
 fn build_selection_grid(gallery_rows: usize, gallery_cols: usize) -> SelectionGrid {
     SelectionGrid::new(
         vec![
@@ -69,8 +72,10 @@ fn build_selection_grid(gallery_rows: usize, gallery_cols: usize) -> SelectionGr
     )
 }
 
-const GALLERY_COLUMNS: usize = 2;
-const GALLERY_SPACING: f32 = 8.0;
+fn grid_shape(n: usize) -> (usize, usize) {
+    let cols = n.clamp(1, GALLERY_COLUMNS);
+    (n.div_ceil(cols), cols)
+}
 
 #[derive(Debug)]
 pub struct Gallery {
@@ -82,6 +87,9 @@ pub struct Gallery {
     selected_image: GalleryImage,
 
     selection: SelectionGrid,
+
+    delete_open: bool,
+    delete_failed_open: String,
 }
 
 #[derive(Clone, Debug)]
@@ -89,18 +97,21 @@ pub enum Message {
     IOInput(IOAction),
 
     Thumbnail,
+    DeleteClicked,
     Delete,
+    DeleteResult(Result<String , String>),
     Storage,
 
     CloseInteraction(IconButtonInteraction),
 
     ImageSelected(GalleryImage),
+    CloseModals
 }
 
 pub enum Action {
     None,
     Run(Task<Message>),
-    Return(Box<Info>),
+    Return(Box<Info>, Task<crate::info::Message>),
 }
 
 impl Gallery {
@@ -108,7 +119,7 @@ impl Gallery {
         let images = return_to.get_gallery_images();
         let selected_image = images[0].clone();
         let cols = images.len().clamp(1, GALLERY_COLUMNS);
-        let rows = (images.len() / cols).ceil();
+        let rows = images.len().div_ceil(cols);
 
         debug!("Gallery of size {}x{}", rows, cols);
 
@@ -124,6 +135,9 @@ impl Gallery {
                 selected_image,
 
                 selection: build_selection_grid(rows, cols),
+
+                delete_open: false,
+                delete_failed_open: "".into(),
             },
             Task::none(),
         )
@@ -133,13 +147,16 @@ impl Gallery {
         let SelectionPosition { section, row, col } = self.selection.position?;
 
         match section {
-            section::GALLERY => Some(Message::ImageSelected(
-                self.return_to.as_ref().unwrap().get_gallery_images()[row * GALLERY_COLUMNS + col]
-                    .clone(),
-            )),
+            section::GALLERY => self
+                .return_to
+                .as_ref()?
+                .get_gallery_images()
+                .get(row * GALLERY_COLUMNS + col)
+                .cloned()
+                .map(Message::ImageSelected),
             section::BUTTONS => match col {
                 0 => Some(Message::Thumbnail),
-                1 => Some(Message::Delete),
+                1 => Some(Message::DeleteClicked),
                 2 => Some(Message::Storage),
                 3 => Some(Message::CloseInteraction(IconButtonInteraction::Released)),
                 _ => None,
@@ -173,13 +190,53 @@ impl Gallery {
                 },
             },
             Message::Thumbnail => Action::None,
-            Message::Delete => Action::None,
+            Message::DeleteClicked => {
+                self.delete_open = !self.delete_open;
+                Action::None
+            }
+            Message::Delete => {
+                self.delete_open = false;
+                Action::Run(
+                    Task::future(io::delete_dex_img(self.selected_image.path.clone()))
+                    .map(|res| Message::DeleteResult(
+                        res.map_err(|e| e.to_string())
+                )))
+            }
+            Message::DeleteResult(res) => {
+                if let Err(e) = res {
+                    self.delete_failed_open = e;
+                    return Action::None;
+                }
+
+                let info = self.return_to.as_mut().unwrap();
+                let path = res.unwrap();
+                let old_idx = info
+                    .get_gallery_images()
+                    .iter()
+                    .position(|i| i.path == path.clone())
+                    .unwrap_or(0);
+                info.remove_gallery_image(Path::new(&path));
+
+                let images = info.get_gallery_images();
+                if images.is_empty() {
+                    // nothing left to show; Info already reflects the removal
+                    return Action::Return(self.return_to.take().unwrap(), Task::none());
+                }
+
+                self.selected_image = images[old_idx.min(images.len() - 1)].clone();
+
+                let (rows, cols) = grid_shape(images.len());
+                let pos = self.selection.position;
+                self.selection = build_selection_grid(rows, cols);
+                self.selection.position = pos; // delete is triggered from the button row, so this stays valid
+                Action::None
+            }
             Message::Storage => Action::None,
             Message::CloseInteraction(i) => {
                 if i == IconButtonInteraction::Released {
                     self.close_interaction = IconButtonInteraction::Hovered;
                     match self.return_to.take() {
-                        Some(info) => Action::Return(info),
+                        Some(info) => Action::Return(info, Task::none()),
                         None => Action::None,
                     }
                 } else {
@@ -189,6 +246,12 @@ impl Gallery {
             }
             Message::ImageSelected(handle) => {
                 self.selected_image = handle;
+                Action::None
+            }
+            Message::CloseModals => {
+                self.delete_open = false;
+                self.delete_failed_open.clear();
+
                 Action::None
             }
         }
@@ -332,7 +395,7 @@ impl Gallery {
         );
 
         let delete_button =
-            secondary_button("Delete".to_string(), Message::Delete, None, delete_focus);
+            secondary_button("Delete".to_string(), Message::DeleteClicked, None, delete_focus);
 
         let storage_button = secondary_button(
             "Manage storage".to_string(),
@@ -358,18 +421,21 @@ impl Gallery {
 
         let row = action_row(elements);
 
-        stack![
+        let mut bottom_screen: Vec<Element<Message>> = vec![
             container(
                 Canvas::new(&common.scanlines)
                     .width(Length::Fill)
-                    .height(Length::Fill)
+                    .height(Length::Fill),
             )
             .width(Length::Fill)
             .height(Length::Fill)
             .style(|_| iced::widget::container::Style {
                 background: Some(iced::Background::Color(Color::from_rgb8(140, 213, 229))),
                 ..Default::default()
-            }),
+            })
+            .into(),
+        ];
+        bottom_screen.push(
             column![
                 container(gallery,)
                     .align_x(Alignment::Center)
@@ -380,10 +446,76 @@ impl Gallery {
             ]
             .width(Length::Fill)
             .height(Length::Fill)
-        ]
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .into()
+            .into(),
+        );
+
+        if self.delete_open {
+            bottom_screen.push(
+                mouse_area(
+                container(Space::new())
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .style(|_| iced::widget::container::Style {
+                        background: Some(iced::Background::Color(Color::from_rgba8(0, 0, 0, 0.6))),
+                        ..Default::default()
+                    })).on_release(Message::CloseModals)
+                    .into(),
+            );
+
+            let cancel_button = button("Cancel").padding(10).on_press(Message::DeleteClicked);
+
+            let confirm_button = button("Confirm Deletion")
+                .padding(10)
+                .on_press(Message::Delete);
+
+            bottom_screen.push(
+                container(
+                    modal(
+                        Some("Delete selected image?".to_string()), 
+                        text("Would you like to delete the currently selected image shown on the top screen?".to_string()).into(), 
+                        vec![cancel_button, confirm_button], 
+                        400.0, 
+                        200.0, 
+                        Metrics::REFERENCE, 
+                        None)
+                    ).center(Length::Fill)
+                    .into()
+            );
+        } else if !self.delete_failed_open.is_empty() {
+            bottom_screen.push(
+                mouse_area(
+                container(Space::new())
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .style(|_| iced::widget::container::Style {
+                        background: Some(iced::Background::Color(Color::from_rgba8(0, 0, 0, 0.6))),
+                        ..Default::default()
+                    })).on_release(Message::CloseModals)
+                    .into(),
+            );
+
+            let confirm_button = button("Ok")
+                .padding(10)
+                .on_press(Message::CloseModals);
+
+            let display = format!("Failed to delete selected image {}", self.delete_failed_open);
+
+            bottom_screen.push(
+                container(
+                    modal(
+                        Some("Deletion Failed".to_string()), 
+                        text(display).into(), 
+                        vec![confirm_button], 
+                        400.0, 
+                        200.0, 
+                        Metrics::REFERENCE, 
+                        None)
+                    ).center(Length::Fill)
+                    .into()
+            );
+        }
+
+        iced::widget::Stack::with_children(bottom_screen).into()
     }
 }
 

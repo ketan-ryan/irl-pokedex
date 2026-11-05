@@ -69,7 +69,9 @@ pub fn modal<'a, Message: Clone + 'static>(
     metrics: Metrics,
     padding: Option<iced::Padding>,
 ) -> Element<'a, Message> {
+    let has_buttons = !buttons.is_empty();
     let mut elements: Vec<Element<Message>> = vec![];
+
     let mut buttons = buttons.into_iter().peekable();
     while let Some(b) = buttons.next() {
         elements.push(b.style(custom_button_style).into());
@@ -104,7 +106,7 @@ pub fn modal<'a, Message: Clone + 'static>(
         .padding(body_padding)
         .height(iced::Fill);
 
-    if buttons.len() > 0 {
+    if has_buttons {
         content = content.push(Space::new().height(4)).push(button_row);
     }
 

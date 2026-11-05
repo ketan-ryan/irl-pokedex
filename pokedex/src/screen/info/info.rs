@@ -74,7 +74,7 @@ pub struct Info {
     current_pokemon: PokemonEntry,
     list: Vec<PokemonEntry>,
     pokemon_data: HashMap<String, PokemonInfo>,
-    owned_pokemon: HashSet<String>,
+    owned_pokemon: HashMap<String, HashSet<String>>,
     imgs_dir: String,
     // used to prevent out-of-order results
     generation: u64,
@@ -171,7 +171,7 @@ impl Info {
         current_pokemon: PokemonEntry,
         list: Vec<PokemonEntry>,
         pokemon_data: HashMap<String, PokemonInfo>,
-        owned: HashSet<String>,
+        owned: HashMap<String, HashSet<String>>,
         imgs_dir: String,
     ) -> (Self, Task<Message>) {
         debug!("Info opened with pokemon {:?}", current_pokemon,);
@@ -304,6 +304,12 @@ impl Info {
         }
     }
 
+    pub fn remove_gallery_image(&mut self, path: &std::path::Path) {
+        if let Some(images) = self.gallery_images.get_mut(&self.current_pokemon.key) {
+            images.retain(|img| *img.path != *path);
+        }
+    }
+
     pub fn update(&mut self, msg: Message) -> Action {
         match msg {
             Message::LoadImages => {
@@ -311,6 +317,9 @@ impl Info {
                 let generation = self.generation;
                 let path = self.imgs_dir.clone();
                 let key = self.current_pokemon.key.clone();
+                if let Some(set) = self.gallery_images.get_mut(&key) {
+                    set.clear();
+                }
 
                 Action::Run(Task::perform(
                     io::get_dex_images(path.into(), key.clone()),
@@ -414,7 +423,12 @@ impl Info {
                 None => Action::None,
             },
             Message::OpenGallery => match self.gallery_images.get(&self.current_pokemon.key) {
-                Some(_) => Action::OpenGallery,
+                Some(set) => {
+                    if set.len() > 0 {
+                        return Action::OpenGallery;
+                    }
+                    Action::None
+                }
                 None => Action::None,
             },
         }
@@ -486,7 +500,7 @@ impl Info {
         let info = self.pokemon_data.get(&self.current_pokemon.key).unwrap();
 
         // Owned indicator
-        let is_owned = self.owned_pokemon.contains(&self.current_pokemon.key);
+        let is_owned = self.owned_pokemon.contains_key(&self.current_pokemon.key);
         let state = if is_owned {
             IconState::Registered
         } else {

@@ -20,7 +20,7 @@ use iced::widget::{button, column, space, svg};
 use iced::window::{self};
 use iced::{Center, Element, Event, Fill, Subscription, Task, event};
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -396,9 +396,9 @@ impl App {
     fn handle_gallery_action(&mut self, action: gallery::Action) -> Task<Message> {
         match action {
             gallery::Action::None => Task::none(),
-            gallery::Action::Return(info) => {
+            gallery::Action::Return(info, task) => {
                 self.screen = Screen::Info(*info);
-                Task::none()
+                task.map(Message::Info)
             }
             gallery::Action::Run(task) => task.map(Message::Gallery),
         }
@@ -478,14 +478,7 @@ impl App {
         browse_pokedex::PokedexBrowser::new(
             Arc::clone(self.config.as_ref().unwrap()),
             self.config.as_ref().unwrap().pokedex_json.clone(),
-            self.config
-                .as_ref()
-                .unwrap()
-                .local_dex
-                .borrow()
-                .iter()
-                .cloned()
-                .collect(),
+            self.config.as_ref().unwrap().local_dex.borrow().clone(),
         )
     }
 
@@ -534,14 +527,7 @@ impl App {
             selected,
             list,
             self.config.as_ref().unwrap().pokedex_json.clone(),
-            self.config
-                .as_ref()
-                .unwrap()
-                .local_dex
-                .borrow()
-                .iter()
-                .cloned()
-                .collect(),
+            self.config.as_ref().unwrap().local_dex.borrow().clone(),
             self.config.as_ref().unwrap().saved_imgs_dir.clone(),
         );
         self.screen = Screen::Info(info);
@@ -551,19 +537,12 @@ impl App {
     fn open_info_from_register(&mut self, name: String) -> Task<Message> {
         let (mut browser, _load) = self.build_browser();
         let pokemon_data = self.config.as_ref().unwrap().pokedex_json.clone();
-        let owned_pokemon: std::collections::HashSet<String> = self
-            .config
-            .as_ref()
-            .unwrap()
-            .local_dex
-            .borrow()
-            .iter()
-            .cloned()
-            .collect();
+        let owned_pokemon: HashMap<String, HashSet<String>> =
+            self.config.as_ref().unwrap().local_dex.borrow().clone();
         let display = pokemon_data
             .get(&name)
             .and_then(|d| {
-                if owned_pokemon.contains(&name) {
+                if owned_pokemon.contains_key(&name) {
                     Some(name.clone())
                 } else {
                     d.display_name.clone()
@@ -614,7 +593,7 @@ impl App {
                 let display = pokemon_data
                     .get(&name)
                     .and_then(|d| {
-                        if owned_pokemon.contains(&name) {
+                        if owned_pokemon.contains_key(&name) {
                             Some(name.clone())
                         } else {
                             d.display_name.clone()
