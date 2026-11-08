@@ -74,7 +74,7 @@ pub fn modal<'a, Message: Clone + 'static>(
 
     let mut buttons = buttons.into_iter().peekable();
     while let Some(b) = buttons.next() {
-        elements.push(b.style(custom_button_style).into());
+        elements.push(b.into());
         if buttons.peek().is_some() {
             elements.push(Space::new().width(iced::Fill).into());
         }
@@ -121,6 +121,19 @@ pub fn modal<'a, Message: Clone + 'static>(
     .align_x(iced::Center)
     .align_y(iced::Center)
     .into()
+}
+
+pub fn modal_button_style(
+    focus: Option<Color>,
+) -> impl Fn(&Theme, button::Status) -> button::Style {
+    move |theme, status| {
+        let mut style = custom_button_style(theme, status);
+        if let Some(color) = focus {
+            style.border.color = color;
+            style.border.width = 3.0;
+        }
+        style
+    }
 }
 
 fn custom_button_style(theme: &Theme, status: button::Status) -> button::Style {

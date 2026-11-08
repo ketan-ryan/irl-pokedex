@@ -116,7 +116,7 @@ impl RangeSliderScreen {
         .center_x(Length::Fill);
 
         let footer = row![
-            secondary_button("Cancel", Message::Cancel, None, false),
+            secondary_button("Cancel", Message::Cancel, None, false, false),
             Space::new().width(Length::FillPortion(3)),
             primary_button("OK", Message::Confirm, false),
         ]

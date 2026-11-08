@@ -15,6 +15,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use crate::elements::message_box::Metrics;
+use crate::elements::modal::modal_button_style;
 use crate::{
     elements::{
         gstreamer_stream::VideoFrame,
@@ -819,11 +820,13 @@ impl Register {
             //TODO: Investigate stutter
             let dex_but = button("Go to Pokédex")
                 .padding(10)
-                .on_press(Message::OpenPokedex);
+                .on_press(Message::OpenPokedex)
+                .style(modal_button_style(None));
 
             let ret_but = button("Retry Photo")
                 .padding(10)
-                .on_press(Message::HomeToggled);
+                .on_press(Message::HomeToggled)
+                .style(modal_button_style(None));
 
             let t = self.failed_classification.as_ref().unwrap();
 

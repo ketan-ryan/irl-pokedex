@@ -918,10 +918,17 @@ impl Info {
             Message::Relations,
             None,
             relations_focused,
+            false,
         );
-        let forms_button =
-            secondary_button("Forms".to_string(), Message::Form, None, forms_focused);
-        let cry_button = secondary_button("Cry".to_string(), Message::Cry, None, cry_focused);
+        let forms_button = secondary_button(
+            "Forms".to_string(),
+            Message::Form,
+            None,
+            forms_focused,
+            false,
+        );
+        let cry_button =
+            secondary_button("Cry".to_string(), Message::Cry, None, cry_focused, false);
         let elements = vec![
             up,
             down,

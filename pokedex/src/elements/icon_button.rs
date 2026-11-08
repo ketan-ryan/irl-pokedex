@@ -187,6 +187,25 @@ pub fn icon_button<'a, Message>(
 where
     Message: Clone + 'a,
 {
+    mouse_area(icon_button_base(icon, size, label, state, colors, focused))
+        .on_enter(on_interact(IconButtonInteraction::Hovered))
+        .on_exit(on_interact(IconButtonInteraction::None))
+        .on_press(on_interact(IconButtonInteraction::Pressed))
+        .on_release(on_interact(IconButtonInteraction::Released))
+        .into()
+}
+
+fn icon_button_base<'a, Message>(
+    icon: svg::Handle,
+    size: IconButtonSize,
+    label: Option<&'a str>,
+    state: &IconButtonInteraction,
+    colors: IconButtonColors,
+    focused: bool,
+) -> Element<'a, Message>
+where
+    Message: Clone + 'a,
+{
     let (bg, svg_col, fg, shadow) = colors.resolve(state);
 
     // SVG — tinted to fg color
@@ -254,12 +273,27 @@ where
             ..Default::default()
         });
 
-    mouse_area(btn)
-        .on_enter(on_interact(IconButtonInteraction::Hovered))
-        .on_exit(on_interact(IconButtonInteraction::None))
-        .on_press(on_interact(IconButtonInteraction::Pressed))
-        .on_release(on_interact(IconButtonInteraction::Released))
-        .into()
+    btn.into()
+}
+
+pub fn icon_button_disableable<'a, Message>(
+    icon: svg::Handle,
+    size: IconButtonSize,
+    label: Option<&'a str>,
+    state: &IconButtonInteraction,
+    colors: IconButtonColors,
+    on_interact: impl Fn(IconButtonInteraction) -> Message + 'a,
+    focused: bool,
+    disabled: bool,
+) -> Element<'a, Message>
+where
+    Message: Clone + 'a,
+{
+    if disabled {
+        icon_button_base(icon, size, label, state, colors, focused).into()
+    } else {
+        icon_button(icon, size, label, state, colors, on_interact, focused).into()
+    }
 }
 
 fn combined_interaction(

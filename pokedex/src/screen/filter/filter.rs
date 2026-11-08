@@ -878,19 +878,22 @@ fn action_row<'a>(
             "Select all".to_string(),
             Message::SelectAllToggle,
             Some(all_selected),
-            selectall_focus
+            selectall_focus,
+            false
         ),
         secondary_button(
             format!("Filter Mode: {}", filter_mode.label()),
             Message::FilterModeToggled,
             None,
-            filtermode_focus
+            filtermode_focus,
+            false
         ),
         secondary_button(
             "Clear all filters".to_string(),
             Message::ClearAllFilters,
             None,
-            clear_focus
+            clear_focus,
+            false
         ),
         primary_button("OK".to_string(), Message::OkPressed, ok_focus),
     ]

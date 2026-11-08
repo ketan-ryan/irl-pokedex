@@ -129,6 +129,7 @@ pub fn secondary_button<'a, Message: Clone + 'a>(
     message: Message,
     selected: Option<bool>,
     focused: bool,
+    disabled: bool,
 ) -> Element<'a, Message> {
     let is_selected = selected.unwrap_or(false);
     let text_color = if is_selected {
@@ -171,7 +172,7 @@ pub fn secondary_button<'a, Message: Clone + 'a>(
             ..Default::default()
         }
     })
-    .on_press(message)
+    .on_press_maybe((!disabled).then_some(message))
     .into()
 }
 

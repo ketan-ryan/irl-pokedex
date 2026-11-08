@@ -6,29 +6,48 @@ use crate::{
             self, CONDENSED, CommonAssets, action_row, default_shadow, inner_shadow,
             secondary_button,
         },
-        icon_button::{IconButtonColors, IconButtonInteraction, IconButtonSize, icon_button},
+        icon_button::{
+            IconButtonColors, IconButtonInteraction, IconButtonSize, icon_button,
+            icon_button_disableable,
+        },
         message_box::Metrics,
-        modal::modal,
+        modal::{modal, modal_button_style},
         selectable::{
             SectionShape, SelectionDirection, SelectionGrid, SelectionPosition, is_focused_at,
         },
-    }, enums::IOAction, io::{self, GalleryImage}, screen::info::info::Info,
+    },
+    enums::IOAction,
+    io::{self, GalleryImage},
+    screen::info::info::Info,
 };
 use iced::{
     Alignment, Border, Color, ContentFit, Element, Font, Length, Task, Theme,
     font::Weight,
     widget::{
-        Canvas, Image, Space, button,
-        column, container, mouse_area, responsive, row, scrollable,
+        Canvas, Image, Space, button, column, container, mouse_area, responsive, row, scrollable,
         scrollable::{Direction, Scrollbar},
         space, stack, svg, text,
     },
 };
 use log::debug;
 
+#[derive(Clone, Debug, PartialEq)]
+enum GalleryState {
+    Default,
+    DeleteConfirmation,
+    DeleteError,
+}
+
 mod section {
     pub const GALLERY: usize = 0;
     pub const BUTTONS: usize = 1;
+
+    pub mod delete_conf {
+        pub const DELETE_CONF: usize = 0;
+    }
+    pub mod delete_err {
+        pub const DELETE_ERR: usize = 0;
+    }
 }
 
 fn escape(
@@ -55,21 +74,58 @@ fn escape(
     }
 }
 
+fn escape_del(
+    _sections: &[SectionShape],
+    section: usize,
+    _row: usize,
+    _col: usize,
+    direction: SelectionDirection,
+) -> Option<SelectionPosition> {
+    use SelectionDirection::*;
+
+    match (section, direction) {
+        (s, Up) | (s, Down) if s == section::delete_conf::DELETE_CONF => None,
+        _ => None,
+    }
+}
+
 const GALLERY_COLUMNS: usize = 2;
 const GALLERY_SPACING: f32 = 8.0;
 
-fn build_selection_grid(gallery_rows: usize, gallery_cols: usize) -> SelectionGrid {
-    SelectionGrid::new(
-        vec![
-            SectionShape {
-                rows: gallery_rows,
-                cols: gallery_cols,
-            },
-            SectionShape { rows: 1, cols: 4 }, // buttons
-        ],
-        section::GALLERY,
-        escape,
-    )
+fn build_selection_grid(
+    gallery_rows: usize,
+    gallery_cols: usize,
+    state: GalleryState,
+) -> SelectionGrid {
+    match state {
+        GalleryState::Default => SelectionGrid::new(
+            vec![
+                SectionShape {
+                    rows: gallery_rows,
+                    cols: gallery_cols,
+                },
+                SectionShape { rows: 1, cols: 4 }, // buttons
+            ],
+            section::GALLERY,
+            escape,
+        ),
+        GalleryState::DeleteConfirmation => SelectionGrid::new(
+            vec![
+                SectionShape { rows: 1, cols: 2 },
+                SectionShape { rows: 1, cols: 2 },
+            ],
+            section::delete_conf::DELETE_CONF,
+            escape_del,
+        ),
+        GalleryState::DeleteError => SelectionGrid::new(
+            vec![
+                SectionShape { rows: 1, cols: 1 },
+                SectionShape { rows: 1, cols: 1 },
+            ],
+            section::delete_err::DELETE_ERR,
+            escape,
+        ),
+    }
 }
 
 fn grid_shape(n: usize) -> (usize, usize) {
@@ -88,8 +144,8 @@ pub struct Gallery {
 
     selection: SelectionGrid,
 
-    delete_open: bool,
-    delete_failed_open: String,
+    state: GalleryState,
+    delete_failed_reason: String,
 }
 
 #[derive(Clone, Debug)]
@@ -99,13 +155,13 @@ pub enum Message {
     Thumbnail,
     DeleteClicked,
     Delete,
-    DeleteResult(Result<String , String>),
+    DeleteResult(Result<String, String>),
     Storage,
 
     CloseInteraction(IconButtonInteraction),
 
     ImageSelected(GalleryImage),
-    CloseModals
+    CloseModals,
 }
 
 pub enum Action {
@@ -118,8 +174,7 @@ impl Gallery {
     pub fn new(return_to: Box<Info>) -> (Self, Task<Message>) {
         let images = return_to.get_gallery_images();
         let selected_image = images[0].clone();
-        let cols = images.len().clamp(1, GALLERY_COLUMNS);
-        let rows = images.len().div_ceil(cols);
+        let (rows, cols) = grid_shape(images.len());
 
         debug!("Gallery of size {}x{}", rows, cols);
 
@@ -134,10 +189,10 @@ impl Gallery {
 
                 selected_image,
 
-                selection: build_selection_grid(rows, cols),
+                selection: build_selection_grid(rows, cols, GalleryState::Default),
 
-                delete_open: false,
-                delete_failed_open: "".into(),
+                state: GalleryState::Default,
+                delete_failed_reason: "".into(),
             },
             Task::none(),
         )
@@ -145,20 +200,29 @@ impl Gallery {
 
     fn focused_message(&self) -> Option<Message> {
         let SelectionPosition { section, row, col } = self.selection.position?;
-
-        match section {
-            section::GALLERY => self
+        let state = self.state.clone();
+        match (state, section) {
+            (GalleryState::Default, section::GALLERY) => self
                 .return_to
                 .as_ref()?
                 .get_gallery_images()
                 .get(row * GALLERY_COLUMNS + col)
                 .cloned()
                 .map(Message::ImageSelected),
-            section::BUTTONS => match col {
+            (GalleryState::Default, section::BUTTONS) => match col {
                 0 => Some(Message::Thumbnail),
                 1 => Some(Message::DeleteClicked),
                 2 => Some(Message::Storage),
                 3 => Some(Message::CloseInteraction(IconButtonInteraction::Released)),
+                _ => None,
+            },
+            (GalleryState::DeleteConfirmation, section::delete_conf::DELETE_CONF) => match col {
+                0 => Some(Message::CloseModals),
+                1 => Some(Message::Delete),
+                _ => None,
+            },
+            (GalleryState::DeleteError, section::delete_err::DELETE_ERR) => match col {
+                0 => Some(Message::CloseModals),
                 _ => None,
             },
             _ => None,
@@ -189,22 +253,29 @@ impl Gallery {
                     None => Action::None,
                 },
             },
+
             Message::Thumbnail => Action::None,
             Message::DeleteClicked => {
-                self.delete_open = !self.delete_open;
+                if self.state == GalleryState::Default {
+                    self.state = GalleryState::DeleteConfirmation;
+                    self.selection = build_selection_grid(1, 2, GalleryState::DeleteConfirmation);
+                } else {
+                    self.state = GalleryState::Default;
+                }
                 Action::None
             }
             Message::Delete => {
-                self.delete_open = false;
+                self.state = GalleryState::Default;
                 Action::Run(
                     Task::future(io::delete_dex_img(self.selected_image.path.clone()))
-                    .map(|res| Message::DeleteResult(
-                        res.map_err(|e| e.to_string())
-                )))
+                        .map(|res| Message::DeleteResult(res.map_err(|e| e.to_string()))),
+                )
             }
             Message::DeleteResult(res) => {
                 if let Err(e) = res {
-                    self.delete_failed_open = e;
+                    self.delete_failed_reason = e;
+                    self.state = GalleryState::DeleteError;
+                    self.selection = build_selection_grid(1, 1, GalleryState::DeleteConfirmation);
                     return Action::None;
                 }
 
@@ -227,7 +298,7 @@ impl Gallery {
 
                 let (rows, cols) = grid_shape(images.len());
                 let pos = self.selection.position;
-                self.selection = build_selection_grid(rows, cols);
+                self.selection = build_selection_grid(rows, cols, GalleryState::Default);
                 self.selection.position = pos; // delete is triggered from the button row, so this stays valid
                 Action::None
             }
@@ -249,8 +320,11 @@ impl Gallery {
                 Action::None
             }
             Message::CloseModals => {
-                self.delete_open = false;
-                self.delete_failed_open.clear();
+                self.state = GalleryState::Default;
+                let info = self.return_to.as_mut().unwrap();
+                let (rows, cols) = grid_shape(info.get_gallery_images().len());
+                self.selection = build_selection_grid(rows, cols, GalleryState::Default);
+                self.delete_failed_reason.clear();
 
                 Action::None
             }
@@ -345,22 +419,25 @@ impl Gallery {
                 .width(Length::Fill)
                 .padding(iced::Padding::new(20.0).top(10.0).bottom(5.0)),
                 container(inner_shadow(
-                    container(self::gallery_grid(gallery_images, focus, selected_img))
-                        .clip(true)
-                        .width(Length::Fill)
-                        .height(Length::Fill)
-                        .padding(12.0)
-                        .style(|_: &Theme| container::Style {
-                            background: Some(iced::Background::Color(Color::from_rgb8(
-                                25, 105, 188
-                            ))),
-                            border: iced::Border {
-                                color: Color::TRANSPARENT,
-                                width: 0.0,
-                                radius: 20.0.into(),
-                            },
-                            ..Default::default()
-                        }),
+                    container(self::gallery_grid(
+                        gallery_images,
+                        focus,
+                        selected_img,
+                        self.state.clone()
+                    ))
+                    .clip(true)
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .padding(12.0)
+                    .style(|_: &Theme| container::Style {
+                        background: Some(iced::Background::Color(Color::from_rgb8(25, 105, 188))),
+                        border: iced::Border {
+                            color: Color::TRANSPARENT,
+                            width: 0.0,
+                            radius: 20.0.into(),
+                        },
+                        ..Default::default()
+                    }),
                     20.0,
                     8,
                     Color::from_rgba(0.0, 0.0, 0.0, 0.06)
@@ -387,24 +464,33 @@ impl Gallery {
         let storage_focus = is_focused_at(focus, section::BUTTONS, 0, 2);
         let close_focus = is_focused_at(focus, section::BUTTONS, 0, 3);
 
+        let disabled = self.state != GalleryState::Default;
+
         let thumbnail_button = secondary_button(
             "Use as thumbnail".to_string(),
             Message::Thumbnail,
             None,
             thumbnail_focus,
+            disabled,
         );
 
-        let delete_button =
-            secondary_button("Delete".to_string(), Message::DeleteClicked, None, delete_focus);
+        let delete_button = secondary_button(
+            "Delete".to_string(),
+            Message::DeleteClicked,
+            None,
+            delete_focus,
+            disabled,
+        );
 
         let storage_button = secondary_button(
             "Manage storage".to_string(),
             Message::Storage,
             None,
             storage_focus,
+            disabled,
         );
 
-        let close = icon_button(
+        let close = icon_button_disableable(
             self.close_icon.clone(),
             IconButtonSize::large(),
             None,
@@ -415,6 +501,7 @@ impl Gallery {
             },
             Message::CloseInteraction,
             close_focus,
+            disabled,
         );
 
         let elements = vec![thumbnail_button, delete_button, storage_button, close];
@@ -449,69 +536,94 @@ impl Gallery {
             .into(),
         );
 
-        if self.delete_open {
+        if self.state == GalleryState::DeleteConfirmation {
             bottom_screen.push(
                 mouse_area(
-                container(Space::new())
-                    .width(Length::Fill)
-                    .height(Length::Fill)
-                    .style(|_| iced::widget::container::Style {
-                        background: Some(iced::Background::Color(Color::from_rgba8(0, 0, 0, 0.6))),
-                        ..Default::default()
-                    })).on_release(Message::CloseModals)
-                    .into(),
+                    container(Space::new())
+                        .width(Length::Fill)
+                        .height(Length::Fill)
+                        .style(|_| iced::widget::container::Style {
+                            background: Some(iced::Background::Color(Color::from_rgba8(
+                                0, 0, 0, 0.6,
+                            ))),
+                            ..Default::default()
+                        }),
+                )
+                .on_release(Message::CloseModals)
+                .into(),
             );
 
-            let cancel_button = button("Cancel").padding(10).on_press(Message::DeleteClicked);
+            let cancel_focus = is_focused_at(focus, section::delete_conf::DELETE_CONF, 0, 0);
+            let confirm_focus = is_focused_at(focus, section::delete_conf::DELETE_CONF, 0, 1);
+
+            let cancel_button = button("Cancel")
+                .padding(10)
+                .on_press(Message::DeleteClicked)
+                .style(modal_button_style(
+                    cancel_focus.then_some(common::colors::SECONDARY_FOCUS),
+                ));
 
             let confirm_button = button("Confirm Deletion")
                 .padding(10)
-                .on_press(Message::Delete);
+                .on_press(Message::Delete)
+                .style(modal_button_style(
+                    confirm_focus.then_some(common::colors::SECONDARY_FOCUS),
+                ));
 
             bottom_screen.push(
                 container(
                     modal(
                         Some("Delete selected image?".to_string()), 
                         text("Would you like to delete the currently selected image shown on the top screen?".to_string()).into(), 
-                        vec![cancel_button, confirm_button], 
-                        400.0, 
-                        200.0, 
-                        Metrics::REFERENCE, 
+                        vec![cancel_button, confirm_button],
+                        400.0,
+                        200.0,
+                        Metrics::REFERENCE,
                         None)
                     ).center(Length::Fill)
                     .into()
             );
-        } else if !self.delete_failed_open.is_empty() {
+        } else if self.state == GalleryState::DeleteError {
             bottom_screen.push(
                 mouse_area(
-                container(Space::new())
-                    .width(Length::Fill)
-                    .height(Length::Fill)
-                    .style(|_| iced::widget::container::Style {
-                        background: Some(iced::Background::Color(Color::from_rgba8(0, 0, 0, 0.6))),
-                        ..Default::default()
-                    })).on_release(Message::CloseModals)
-                    .into(),
+                    container(Space::new())
+                        .width(Length::Fill)
+                        .height(Length::Fill)
+                        .style(|_| iced::widget::container::Style {
+                            background: Some(iced::Background::Color(Color::from_rgba8(
+                                0, 0, 0, 0.6,
+                            ))),
+                            ..Default::default()
+                        }),
+                )
+                .on_release(Message::CloseModals)
+                .into(),
             );
-
+            let confirm_focus = is_focused_at(focus, section::delete_err::DELETE_ERR, 0, 0);
             let confirm_button = button("Ok")
                 .padding(10)
-                .on_press(Message::CloseModals);
+                .on_press(Message::CloseModals)
+                .style(modal_button_style(
+                    confirm_focus.then_some(common::colors::SECONDARY_FOCUS),
+                ));
 
-            let display = format!("Failed to delete selected image {}", self.delete_failed_open);
+            let display = format!(
+                "Failed to delete selected image {}",
+                self.delete_failed_reason
+            );
 
             bottom_screen.push(
-                container(
-                    modal(
-                        Some("Deletion Failed".to_string()), 
-                        text(display).into(), 
-                        vec![confirm_button], 
-                        400.0, 
-                        200.0, 
-                        Metrics::REFERENCE, 
-                        None)
-                    ).center(Length::Fill)
-                    .into()
+                container(modal(
+                    Some("Deletion Failed".to_string()),
+                    text(display).into(),
+                    vec![confirm_button],
+                    400.0,
+                    200.0,
+                    Metrics::REFERENCE,
+                    None,
+                ))
+                .center(Length::Fill)
+                .into(),
             );
         }
 
@@ -523,8 +635,8 @@ fn gallery_grid<'a>(
     images: Vec<GalleryImage>,
     focus: Option<SelectionPosition>,
     selected_img: GalleryImage,
+    state: GalleryState,
 ) -> Element<'a, Message> {
-    let gallery_focused = focus.is_some_and(|section| section.section == section::GALLERY);
     responsive(move |size| {
         let scrolls = images.len() > GALLERY_COLUMNS;
         let cols = images.len().clamp(1, GALLERY_COLUMNS);
@@ -542,7 +654,7 @@ fn gallery_grid<'a>(
             let (w, h) = (img.width as f32 * scale, img.height as f32 * scale);
             let img_selected = selected_img.handle.id() == img.handle.id();
             let border_color =
-                if gallery_focused && focus.unwrap().row == r && focus.unwrap().col == c {
+                if is_focused_at(focus, section::GALLERY, r, c) && state == GalleryState::Default {
                     common::colors::SECONDARY_FOCUS
                 } else if img_selected {
                     common::colors::PRIMARY_FOCUS
