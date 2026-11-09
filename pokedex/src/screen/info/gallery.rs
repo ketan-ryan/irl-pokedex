@@ -7,8 +7,7 @@ use crate::{
             secondary_button,
         },
         icon_button::{
-            IconButtonColors, IconButtonInteraction, IconButtonSize, icon_button,
-            icon_button_disableable,
+            IconButtonColors, IconButtonInteraction, IconButtonSize, icon_button_disableable,
         },
         message_box::Metrics,
         modal::{modal, modal_button_style},
@@ -24,7 +23,8 @@ use iced::{
     Alignment, Border, Color, ContentFit, Element, Font, Length, Task, Theme,
     font::Weight,
     widget::{
-        Canvas, Image, Space, button, column, container, mouse_area, responsive, row, scrollable,
+        Canvas, Id, Image, Space, button, column, container, mouse_area, operation, responsive,
+        row, scrollable,
         scrollable::{Direction, Scrollbar},
         space, stack, svg, text,
     },
@@ -229,24 +229,47 @@ impl Gallery {
         }
     }
 
+    fn scroll_to_focus(&self) -> Task<Message> {
+        let Some(pos) = self.selection.position else {
+            return Task::none();
+        };
+        if pos.section != section::GALLERY {
+            return Task::none();
+        }
+        let count = self
+            .return_to
+            .as_ref()
+            .map_or(0, |i| i.get_gallery_images().len());
+        let rows = count.div_ceil(GALLERY_COLUMNS);
+        if rows <= 1 {
+            return Task::none(); // not scrollable
+        }
+        let y = pos.row as f32 / (rows - 1) as f32;
+        debug!("Scrolling to {}", y);
+        operation::snap_to(
+            gallery_scroll_id(),
+            scrollable::RelativeOffset { x: 0.0, y },
+        )
+    }
+
     pub fn update(&mut self, msg: Message) -> Action {
         match msg {
             Message::IOInput(input) => match input {
                 IOAction::Left => {
                     self.selection.navigate(SelectionDirection::Left);
-                    Action::None
+                    Action::Run(self.scroll_to_focus())
                 }
                 IOAction::Right => {
                     self.selection.navigate(SelectionDirection::Right);
-                    Action::None
+                    Action::Run(self.scroll_to_focus())
                 }
                 IOAction::ScrollUp => {
                     self.selection.navigate(SelectionDirection::Up);
-                    Action::None
+                    Action::Run(self.scroll_to_focus())
                 }
                 IOAction::ScrollDown => {
                     self.selection.navigate(SelectionDirection::Down);
-                    Action::None
+                    Action::Run(self.scroll_to_focus())
                 }
                 IOAction::Select => match self.focused_message() {
                     Some(message) => self.update(message),
@@ -631,6 +654,10 @@ impl Gallery {
     }
 }
 
+fn gallery_scroll_id() -> Id {
+    Id::new("gallery-scroll")
+}
+
 fn gallery_grid<'a>(
     images: Vec<GalleryImage>,
     focus: Option<SelectionPosition>,
@@ -758,6 +785,7 @@ fn gallery_grid<'a>(
                         },
                     }
                 })
+                .id(gallery_scroll_id())
                 .into()
         } else {
             container(grid).center(Length::Fill).into()
