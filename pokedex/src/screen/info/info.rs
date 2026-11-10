@@ -1,4 +1,7 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    path::{Path, PathBuf},
+};
 
 use iced::{
     Alignment, Background, Color, Element, Length, Padding, Task, Theme, Vector,
@@ -247,6 +250,10 @@ impl Info {
         self.gallery_images[&self.current_pokemon.key].clone()
     }
 
+    pub fn get_imgs_dir(&self) -> PathBuf {
+        Path::new(&self.imgs_dir).join(&self.current_pokemon.key)
+    }
+
     fn step(&mut self, delta: isize) -> Action {
         let len = self.list.len() as isize;
         let Some(index) = self.list.iter().position(|e| *e == self.current_pokemon) else {
@@ -307,6 +314,18 @@ impl Info {
     pub fn remove_gallery_image(&mut self, path: &std::path::Path) {
         if let Some(images) = self.gallery_images.get_mut(&self.current_pokemon.key) {
             images.retain(|img| *img.path != *path);
+        }
+    }
+
+    // Update in-memory list so thumbnail icon will update properly in gallery.
+    // Actual list will be regenerated upon page re-open
+    pub fn set_thumbnail(&mut self, image: &GalleryImage) {
+        let imgs = self
+            .gallery_images
+            .get_mut(&self.current_pokemon.key)
+            .unwrap();
+        for img in imgs {
+            img.thumbnail = img.path == image.path;
         }
     }
 
@@ -790,25 +809,29 @@ impl Info {
             .get(&self.current_pokemon.key)
             .map_or(0, Vec::len);
         let count_str: String = format!("[{}]", count);
-        let missing_image = svg(self.missing_icon.clone());
-        let thumb: Element<_> = match self.gallery_images.get(&self.current_pokemon.key) {
-            Some(handles) => {
-                if handles.is_empty() {
-                    missing_image.into()
-                } else {
+        let thumb: Element<_> = self
+            .gallery_images
+            .get(&self.current_pokemon.key)
+            .and_then(|images| {
+                images
+                    .iter()
+                    .find(|image| image.thumbnail)
+                    .or_else(|| images.first())
+            })
+            .map_or_else(
+                || svg(self.missing_icon.clone()).into(),
+                |image| {
                     let img_width = 400.0;
                     container(
-                        iced::widget::Image::new(handles[0].handle.clone())
+                        iced::widget::Image::new(image.handle.clone())
                             .width(Length::Fixed(img_width))
                             .height(Length::Fixed(img_width * (3.0 / 4.0)))
                             .border_radius(20.0)
                             .content_fit(iced::ContentFit::Fill),
                     )
                     .into()
-                }
-            }
-            None => missing_image.into(),
-        };
+                },
+            );
         let border_color = if focus.is_some_and(|selection| selection.section == section::GALLERY) {
             common::colors::PRIMARY_FOCUS
         } else {

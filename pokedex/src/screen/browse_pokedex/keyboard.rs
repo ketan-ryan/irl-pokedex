@@ -187,6 +187,7 @@ pub enum Action {
     None,
     /// A letter or space was entered; carries the character actually typed
     /// (already case-adjusted for shift/caps-lock).
+    #[allow(dead_code)]
     KeyPressed(char),
     /// Enter was pressed; carries the full text entered so far.
     Submitted(String),
@@ -231,7 +232,7 @@ impl Keyboard {
     /// Some uses of this keyboard drive a text field that lives *elsewhere*
     /// in the app, and don't need the keyboard's own field displayed.
     /// Key presses still fire `Action::KeyPressed` either way.
-    pub fn with_text_field(mut self, show: bool) -> Self {
+    pub fn _with_text_field(mut self, show: bool) -> Self {
         self.show_text_field = show;
         self
     }

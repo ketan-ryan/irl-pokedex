@@ -337,22 +337,6 @@ impl DiskInfo {
         self.total_space.saturating_sub(self.used_space)
     }
 
-    pub fn used_percent(&self) -> f64 {
-        if self.total_space == 0 {
-            0.0
-        } else {
-            self.used_space as f64 / self.total_space as f64 * 100.0
-        }
-    }
-
-    pub fn free_percent(&self) -> f64 {
-        if self.total_space == 0 {
-            0.0
-        } else {
-            100.0 - self.used_percent()
-        }
-    }
-
     pub fn images_remaining(&self) -> u64 {
         self.free_space() / Self::AVG_IMAGE_BYTES
     }

@@ -140,6 +140,7 @@ fn grid_shape(n: usize) -> (usize, usize) {
 pub struct Gallery {
     return_to: Option<Box<Info>>,
 
+    thumbnail_icon: svg::Handle,
     close_icon: svg::Handle,
     close_interaction: IconButtonInteraction,
 
@@ -148,7 +149,7 @@ pub struct Gallery {
     selection: SelectionGrid,
 
     state: GalleryState,
-    delete_failed_reason: String,
+    io_failed_reason: String,
     storage_info: Option<Result<DiskInfo, String>>,
 }
 
@@ -157,6 +158,7 @@ pub enum Message {
     IOInput(IOAction),
 
     Thumbnail,
+    ThumbnailResult(Result<(), String>),
     DeleteClicked,
     Delete,
     DeleteResult(Result<String, String>),
@@ -187,6 +189,9 @@ impl Gallery {
             Self {
                 return_to: Some(return_to),
 
+                thumbnail_icon: svg::Handle::from_memory(
+                    include_bytes!("../../../assets/browse_screen/thumbnail.svg").as_slice(),
+                ),
                 close_icon: svg::Handle::from_memory(
                     include_bytes!("../../../assets/x.svg").as_slice(),
                 ),
@@ -197,7 +202,7 @@ impl Gallery {
                 selection: build_selection_grid(rows, cols, GalleryState::Default),
 
                 state: GalleryState::Default,
-                delete_failed_reason: "".into(),
+                io_failed_reason: "".into(),
                 storage_info: None,
             },
             Task::none(),
@@ -255,7 +260,6 @@ impl Gallery {
             return Task::none(); // not scrollable
         }
         let y = pos.row as f32 / (rows - 1) as f32;
-        debug!("Scrolling to {}", y);
         operation::snap_to(
             gallery_scroll_id(),
             scrollable::RelativeOffset { x: 0.0, y },
@@ -286,8 +290,32 @@ impl Gallery {
                     None => Action::None,
                 },
             },
-
-            Message::Thumbnail => Action::None,
+            Message::Thumbnail => {
+                let dir = self.return_to.as_mut().unwrap().get_imgs_dir();
+                Action::Run(
+                    Task::done(io::set_thumbnail(
+                        &dir,
+                        &Path::new(&self.selected_image.path),
+                    ))
+                    .map(Message::ThumbnailResult),
+                )
+            }
+            Message::ThumbnailResult(res) => {
+                self.state = match res {
+                    Ok(_) => {
+                        self.return_to
+                            .as_mut()
+                            .unwrap()
+                            .set_thumbnail(&self.selected_image);
+                        GalleryState::Default
+                    }
+                    Err(e) => {
+                        self.io_failed_reason = e.to_string();
+                        GalleryState::DeleteError
+                    }
+                };
+                Action::None
+            }
             Message::DeleteClicked => {
                 if self.state == GalleryState::Default {
                     self.state = GalleryState::DeleteConfirmation;
@@ -306,7 +334,7 @@ impl Gallery {
             }
             Message::DeleteResult(res) => {
                 if let Err(e) = res {
-                    self.delete_failed_reason = e;
+                    self.io_failed_reason = e;
                     self.state = GalleryState::DeleteError;
                     self.selection = build_selection_grid(1, 1, GalleryState::DeleteConfirmation);
                     return Action::None;
@@ -356,7 +384,20 @@ impl Gallery {
                 }
             }
             Message::ImageSelected(handle) => {
-                self.selected_image = handle;
+                self.selected_image = handle.clone();
+                let idx = self
+                    .return_to
+                    .as_mut()
+                    .unwrap()
+                    .get_gallery_images()
+                    .iter()
+                    .position(|h| h == &handle)
+                    .unwrap();
+                self.selection.position = Some(SelectionPosition {
+                    section: section::GALLERY,
+                    row: idx / GALLERY_COLUMNS,
+                    col: idx % GALLERY_COLUMNS,
+                });
                 Action::None
             }
             Message::CloseModals => {
@@ -364,7 +405,7 @@ impl Gallery {
                 let info = self.return_to.as_mut().unwrap();
                 let (rows, cols) = grid_shape(info.get_gallery_images().len());
                 self.selection = build_selection_grid(rows, cols, GalleryState::Default);
-                self.delete_failed_reason.clear();
+                self.io_failed_reason.clear();
 
                 Action::None
             }
@@ -463,7 +504,8 @@ impl Gallery {
                         gallery_images,
                         focus,
                         selected_img,
-                        self.state.clone()
+                        self.state.clone(),
+                        self.thumbnail_icon.clone()
                     ))
                     .clip(true)
                     .width(Length::Fill)
@@ -634,10 +676,7 @@ impl Gallery {
                     confirm_focus.then_some(common::colors::SECONDARY_FOCUS),
                 ));
 
-            let display = format!(
-                "Failed to delete selected image {}",
-                self.delete_failed_reason
-            );
+            let display = format!("Failed to delete selected image {}", self.io_failed_reason);
 
             bottom_screen.push(
                 container(opaque(modal(
@@ -728,6 +767,7 @@ fn gallery_grid<'a>(
     focus: Option<SelectionPosition>,
     selected_img: GalleryImage,
     state: GalleryState,
+    thumbnail_icon: svg::Handle,
 ) -> Element<'a, Message> {
     responsive(move |size| {
         let scrolls = images.len() > GALLERY_COLUMNS;
@@ -753,26 +793,40 @@ fn gallery_grid<'a>(
                 } else {
                     Color::TRANSPARENT
                 };
+
+            let image_widget: Element<_> = if img.thumbnail {
+                stack![
+                    Image::new(img.handle.clone())
+                        .width(w)
+                        .height(h)
+                        .border_radius(20.0)
+                        .content_fit(ContentFit::Fill),
+                    container(svg(thumbnail_icon.clone()).width(24).height(24))
+                        .padding(8)
+                        .align_left(Length::Fill)
+                        .align_top(Length::Fill)
+                ]
+                .into()
+            } else {
+                Image::new(img.handle.clone())
+                    .width(w)
+                    .height(h)
+                    .border_radius(20.0)
+                    .content_fit(ContentFit::Fill)
+                    .into()
+            };
+
             container(
-                container(
-                    mouse_area(
-                        Image::new(img.handle.clone())
-                            .width(w)
-                            .height(h)
-                            .border_radius(20.0)
-                            .content_fit(ContentFit::Fill),
-                    )
-                    .on_press(Message::ImageSelected(img.clone())),
-                )
-                .padding(BORDER_W) // keeps the image inside the ring
-                .style(move |_| container::Style {
-                    border: Border {
-                        color: border_color,
-                        width: BORDER_W,
-                        radius: (20.0 + BORDER_W).into(), // concentric with the image's 20px radius
-                    },
-                    ..Default::default()
-                }),
+                container(mouse_area(image_widget).on_press(Message::ImageSelected(img.clone())))
+                    .padding(BORDER_W) // keeps the image inside the ring
+                    .style(move |_| container::Style {
+                        border: Border {
+                            color: border_color,
+                            width: BORDER_W,
+                            radius: (20.0 + BORDER_W).into(), // concentric with the image's 20px radius
+                        },
+                        ..Default::default()
+                    }),
             )
             .width(cell_w)
             .center_x(Length::Fill)

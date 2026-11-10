@@ -5,12 +5,11 @@ use log::{debug, trace, warn};
 use tokio;
 
 use std::cell::RefCell;
-use std::collections::HashMap;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::env;
 use std::fs;
 use std::io;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::elements::gstreamer_stream::VideoFrame;
@@ -268,7 +267,7 @@ pub fn get_local_path() -> Result<PathBuf, PokedexError> {
             "Executable must be in a directory".into(),
         ));
     }
-    let exe_dir: &std::path::Path = exe_parent.unwrap();
+    let exe_dir: &Path = exe_parent.unwrap();
 
     Ok(exe_dir.into())
 }
@@ -468,12 +467,23 @@ pub async fn delete_dex_img(dex_path: String) -> Result<String, anyhow::Error> {
     Ok(dex_path)
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct GalleryImage {
     pub handle: Handle,
     pub width: u32,
     pub height: u32,
     pub path: String,
+    pub thumbnail: bool,
+}
+
+const THUMBNAIL_FILE: &str = "thumbnail.txt";
+
+pub fn set_thumbnail(dir: &Path, image: &Path) -> Result<(), String> {
+    let name = image
+        .file_name()
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "no file name").to_string())?;
+    fs::write(dir.join(THUMBNAIL_FILE), name.to_string_lossy().as_bytes())
+        .map_err(|e| e.to_string())
 }
 
 /// Read all PNG images stored for a Pokémon from the dex directory.
@@ -487,7 +497,8 @@ pub async fn get_dex_images(
     dex_path: PathBuf,
     pokemon_name: String,
 ) -> anyhow::Result<Vec<GalleryImage>> {
-    let mut read_dir = tokio::fs::read_dir(dex_path.join(pokemon_name)).await?;
+    let dir = dex_path.join(pokemon_name);
+    let mut read_dir = tokio::fs::read_dir(&dir).await?;
     let mut paths = Vec::new();
 
     while let Some(entry) = read_dir.next_entry().await? {
@@ -500,9 +511,23 @@ pub async fn get_dex_images(
     }
     paths.sort(); // read_dir order is unspecified
 
+    // sidecar file
+    let thumbnail_path: Option<PathBuf> = tokio::fs::read_to_string(dir.join(THUMBNAIL_FILE))
+        .await
+        .ok()
+        .and_then(|s| Some(dir.join(Path::new(s.trim()).file_name()?)))
+        .filter(|p| paths.contains(p))
+        .or_else(|| {
+            let first = paths.first().cloned();
+            first.as_ref().map(|f| set_thumbnail(&dir, &f));
+
+            first
+        });
+
     let mut handles = Vec::with_capacity(paths.len());
     for path in paths {
         let bytes = tokio::fs::read(&path).await?;
+        let thumb = Some(&path) == thumbnail_path.as_ref();
         let handle = tokio::task::spawn_blocking(move || {
             let img = image::load_from_memory(&bytes)?.to_rgba8();
             let (w, h) = img.dimensions();
@@ -511,6 +536,7 @@ pub async fn get_dex_images(
                 width: w,
                 height: h,
                 path: path.to_string_lossy().into_owned(),
+                thumbnail: thumb,
             })
         })
         .await??;
