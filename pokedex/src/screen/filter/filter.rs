@@ -842,7 +842,7 @@ fn type_badge<'a>(
         elements.push(
             svg(svg::Handle::from_path(pokemon_type.overlay_path()))
                 .height(Length::Fixed(24.0))
-                .opacity(0.85)
+                .opacity(0.85_f32)
                 .into(),
         );
     }

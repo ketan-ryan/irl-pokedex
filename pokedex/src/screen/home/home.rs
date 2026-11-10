@@ -218,7 +218,7 @@ impl Home {
         let opacity = if self.state == State::Loading {
             0.5
         } else {
-            1.0
+            1.0_f32
         };
         let handle = if self.pressed {
             &self.bottom_pressed_handle
@@ -228,7 +228,7 @@ impl Home {
 
         stack![
             // warmup render so there's no flash while it loads the image
-            iced::widget::image(&self.bottom_pressed_handle).opacity(0.0),
+            iced::widget::image(&self.bottom_pressed_handle).opacity(0.0_f32),
             mouse_area(
                 container(iced::widget::image(handle).opacity(opacity)).style(|_| {
                     iced::widget::container::Style {

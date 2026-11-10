@@ -1,5 +1,6 @@
 use anyhow::{Result, anyhow};
 use config::Config;
+use fs4;
 use log::{debug, trace, warn};
 use tokio;
 
@@ -13,6 +14,7 @@ use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::elements::gstreamer_stream::VideoFrame;
+use crate::enums::DiskInfo;
 use crate::enums::{PokedexConfig, PokemonInfo, PokemonType};
 use crate::{PokedexError, ml};
 
@@ -517,8 +519,6 @@ pub async fn get_dex_images(
     Ok(handles)
 }
 
-// pub fn delete_image
-
 pub fn resolve_type_images(types: Vec<PokemonType>) -> Vec<iced::widget::image::Handle> {
     let type_images = get_type_images(types);
 
@@ -530,4 +530,16 @@ pub fn resolve_type_images(types: Vec<PokemonType>) -> Vec<iced::widget::image::
             )
         })
         .collect()
+}
+
+pub fn get_remaining_space() -> std::result::Result<DiskInfo, String> {
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    let bin_dir = exe.parent().ok_or("Could not determine binary directory")?;
+    let available_bytes = fs4::available_space(bin_dir).map_err(|e| e.to_string())?;
+    let total_bytes = fs4::total_space(bin_dir).map_err(|e| e.to_string())?;
+
+    Ok(DiskInfo {
+        used_space: total_bytes.saturating_sub(available_bytes),
+        total_space: total_bytes,
+    })
 }

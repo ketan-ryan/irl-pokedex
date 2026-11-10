@@ -3,7 +3,7 @@ use std::path::Path;
 use crate::{
     elements::{
         common::{
-            self, CONDENSED, CommonAssets, action_row, default_shadow, inner_shadow,
+            self, CONDENSED, CommonAssets, action_row, default_shadow, gb, inner_shadow,
             secondary_button,
         },
         icon_button::{
@@ -15,16 +15,16 @@ use crate::{
             SectionShape, SelectionDirection, SelectionGrid, SelectionPosition, is_focused_at,
         },
     },
-    enums::IOAction,
+    enums::{DiskInfo, IOAction},
     io::{self, GalleryImage},
     screen::info::info::Info,
 };
 use iced::{
-    Alignment, Border, Color, ContentFit, Element, Font, Length, Task, Theme,
+    Alignment, Background, Border, Color, ContentFit, Element, Font, Length, Task, Theme,
     font::Weight,
     widget::{
-        Canvas, Id, Image, Space, button, column, container, mouse_area, operation, responsive,
-        row, scrollable,
+        Canvas, Id, Image, Space, button, column, container, mouse_area, opaque, operation,
+        progress_bar, responsive, row, scrollable,
         scrollable::{Direction, Scrollbar},
         space, stack, svg, text,
     },
@@ -36,6 +36,7 @@ enum GalleryState {
     Default,
     DeleteConfirmation,
     DeleteError,
+    StorageOpen,
 }
 
 mod section {
@@ -47,6 +48,9 @@ mod section {
     }
     pub mod delete_err {
         pub const DELETE_ERR: usize = 0;
+    }
+    pub mod storage {
+        pub const STORAGE: usize = 0;
     }
 }
 
@@ -110,20 +114,19 @@ fn build_selection_grid(
             escape,
         ),
         GalleryState::DeleteConfirmation => SelectionGrid::new(
-            vec![
-                SectionShape { rows: 1, cols: 2 },
-                SectionShape { rows: 1, cols: 2 },
-            ],
+            vec![SectionShape { rows: 1, cols: 2 }],
             section::delete_conf::DELETE_CONF,
             escape_del,
         ),
         GalleryState::DeleteError => SelectionGrid::new(
-            vec![
-                SectionShape { rows: 1, cols: 1 },
-                SectionShape { rows: 1, cols: 1 },
-            ],
+            vec![SectionShape { rows: 1, cols: 1 }],
             section::delete_err::DELETE_ERR,
             escape,
+        ),
+        GalleryState::StorageOpen => SelectionGrid::new(
+            vec![SectionShape { rows: 1, cols: 1 }],
+            section::storage::STORAGE,
+            escape_del,
         ),
     }
 }
@@ -146,6 +149,7 @@ pub struct Gallery {
 
     state: GalleryState,
     delete_failed_reason: String,
+    storage_info: Option<Result<DiskInfo, String>>,
 }
 
 #[derive(Clone, Debug)]
@@ -157,6 +161,7 @@ pub enum Message {
     Delete,
     DeleteResult(Result<String, String>),
     Storage,
+    StorageResult(Result<DiskInfo, String>),
 
     CloseInteraction(IconButtonInteraction),
 
@@ -193,6 +198,7 @@ impl Gallery {
 
                 state: GalleryState::Default,
                 delete_failed_reason: "".into(),
+                storage_info: None,
             },
             Task::none(),
         )
@@ -225,6 +231,10 @@ impl Gallery {
                 0 => Some(Message::CloseModals),
                 _ => None,
             },
+            (GalleryState::StorageOpen, section::storage::STORAGE) => match col {
+                0 => Some(Message::CloseModals),
+                _ => None,
+            },
             _ => None,
         }
     }
@@ -233,7 +243,7 @@ impl Gallery {
         let Some(pos) = self.selection.position else {
             return Task::none();
         };
-        if pos.section != section::GALLERY {
+        if pos.section != section::GALLERY || self.state != GalleryState::Default {
             return Task::none();
         }
         let count = self
@@ -325,7 +335,14 @@ impl Gallery {
                 self.selection.position = pos; // delete is triggered from the button row, so this stays valid
                 Action::None
             }
-            Message::Storage => Action::None,
+            Message::Storage => {
+                Action::Run(Task::done(io::get_remaining_space()).map(Message::StorageResult))
+            }
+            Message::StorageResult(res) => {
+                self.storage_info = Some(res);
+                self.state = GalleryState::StorageOpen;
+                Action::None
+            }
             Message::CloseInteraction(i) => {
                 if i == IconButtonInteraction::Released {
                     self.close_interaction = IconButtonInteraction::Hovered;
@@ -559,7 +576,7 @@ impl Gallery {
             .into(),
         );
 
-        if self.state == GalleryState::DeleteConfirmation {
+        if self.state != GalleryState::Default {
             bottom_screen.push(
                 mouse_area(
                     container(Space::new())
@@ -575,7 +592,9 @@ impl Gallery {
                 .on_release(Message::CloseModals)
                 .into(),
             );
+        }
 
+        if self.state == GalleryState::DeleteConfirmation {
             let cancel_focus = is_focused_at(focus, section::delete_conf::DELETE_CONF, 0, 0);
             let confirm_focus = is_focused_at(focus, section::delete_conf::DELETE_CONF, 0, 1);
 
@@ -594,7 +613,7 @@ impl Gallery {
                 ));
 
             bottom_screen.push(
-                container(
+                container(opaque(
                     modal(
                         Some("Delete selected image?".to_string()), 
                         text("Would you like to delete the currently selected image shown on the top screen?".to_string()).into(), 
@@ -603,25 +622,10 @@ impl Gallery {
                         200.0,
                         Metrics::REFERENCE,
                         None)
-                    ).center(Length::Fill)
+                    )).center(Length::Fill)
                     .into()
             );
         } else if self.state == GalleryState::DeleteError {
-            bottom_screen.push(
-                mouse_area(
-                    container(Space::new())
-                        .width(Length::Fill)
-                        .height(Length::Fill)
-                        .style(|_| iced::widget::container::Style {
-                            background: Some(iced::Background::Color(Color::from_rgba8(
-                                0, 0, 0, 0.6,
-                            ))),
-                            ..Default::default()
-                        }),
-                )
-                .on_release(Message::CloseModals)
-                .into(),
-            );
             let confirm_focus = is_focused_at(focus, section::delete_err::DELETE_ERR, 0, 0);
             let confirm_button = button("Ok")
                 .padding(10)
@@ -636,7 +640,7 @@ impl Gallery {
             );
 
             bottom_screen.push(
-                container(modal(
+                container(opaque(modal(
                     Some("Deletion Failed".to_string()),
                     text(display).into(),
                     vec![confirm_button],
@@ -644,7 +648,68 @@ impl Gallery {
                     200.0,
                     Metrics::REFERENCE,
                     None,
-                ))
+                )))
+                .center(Length::Fill)
+                .into(),
+            );
+        } else if self.state == GalleryState::StorageOpen {
+            let confirm_focus = is_focused_at(focus, section::delete_err::DELETE_ERR, 0, 0);
+            let confirm_button = button("Ok")
+                .padding(10)
+                .on_press(Message::CloseModals)
+                .style(modal_button_style(
+                    confirm_focus.then_some(common::colors::SECONDARY_FOCUS),
+                ));
+
+            let body: Element<'a, Message> = match &self.storage_info {
+                None => text("Failed to fetch storage details").into(),
+                Some(Err(e)) => text(e.as_str()).into(),
+                Some(Ok(d)) => {
+                    let frac = if d.total_space == 0 {
+                        0.0
+                    } else {
+                        d.used_space as f32 / d.total_space as f32
+                    };
+
+                    let images_left =
+                        text(format!("~{} images remaining", d.images_remaining_short()));
+
+                    column![
+                        Space::new(),
+                        images_left,
+                        row![
+                            text(format!("{:.1} GB", gb(d.used_space))),
+                            progress_bar(0.0..=1.0, frac)
+                                .length(Length::Fill)
+                                .girth(12)
+                                .style(|theme| progress_bar::Style {
+                                    bar: Background::Color(common::colors::CARD_BORDER),
+                                    border: Border {
+                                        radius: 6.0.into(),
+                                        ..Border::default()
+                                    },
+                                    ..progress_bar::primary(theme)
+                                }),
+                            text(format!("{:.1} GB", gb(d.total_space))),
+                        ]
+                        .spacing(10)
+                        .align_y(iced::Alignment::Center)
+                    ]
+                    .spacing(20)
+                    .into()
+                }
+            };
+
+            bottom_screen.push(
+                container(opaque(modal(
+                    Some("Storage Details".to_string()),
+                    body,
+                    vec![confirm_button],
+                    400.0,
+                    200.0,
+                    Metrics::REFERENCE,
+                    None,
+                )))
                 .center(Length::Fill)
                 .into(),
             );

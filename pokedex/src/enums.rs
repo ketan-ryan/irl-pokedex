@@ -322,3 +322,51 @@ pub struct PokedexConfig {
     pub local_dex: RefCell<HashMap<String, HashSet<String>>>,
     pub saved_imgs_dir: String,
 }
+
+#[derive(Clone, Debug)]
+pub struct DiskInfo {
+    pub total_space: u64,
+    pub used_space: u64,
+}
+
+impl DiskInfo {
+    /// Rough average size of a 640x480 PNG.
+    const AVG_IMAGE_BYTES: u64 = 400_000;
+
+    pub fn free_space(&self) -> u64 {
+        self.total_space.saturating_sub(self.used_space)
+    }
+
+    pub fn used_percent(&self) -> f64 {
+        if self.total_space == 0 {
+            0.0
+        } else {
+            self.used_space as f64 / self.total_space as f64 * 100.0
+        }
+    }
+
+    pub fn free_percent(&self) -> f64 {
+        if self.total_space == 0 {
+            0.0
+        } else {
+            100.0 - self.used_percent()
+        }
+    }
+
+    pub fn images_remaining(&self) -> u64 {
+        self.free_space() / Self::AVG_IMAGE_BYTES
+    }
+
+    pub fn images_remaining_short(&self) -> String {
+        shorten_count(self.images_remaining())
+    }
+}
+
+fn shorten_count(n: u64) -> String {
+    const UNITS: [(f64, &str); 4] = [(1e12, "T"), (1e9, "B"), (1e6, "M"), (1e3, "K")];
+    let n = n as f64;
+    UNITS.iter().find(|(div, _)| n >= *div).map_or_else(
+        || format!("{n:.0}"),
+        |(div, s)| format!("{:.2}{s}", n / div),
+    )
+}

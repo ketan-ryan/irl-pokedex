@@ -491,7 +491,7 @@ impl Info {
         let thumb: Element<_> = match image {
             Some(h) => iced::widget::Image::new(h)
                 .width(Length::Fill)
-                .scale(0.85)
+                .scale(0.85_f32)
                 .into(),
             None => Space::new().into(),
         };

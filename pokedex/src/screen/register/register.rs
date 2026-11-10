@@ -452,6 +452,7 @@ impl Register {
                 let is_error_set = self.failed_classification.is_some();
                 // if we are here, err is Some
                 self.failed_classification = err;
+                self.found_pokemon = None;
 
                 let cfg = self.config.clone();
                 let loc = cfg.sprites_location.clone();
@@ -1083,7 +1084,7 @@ impl Register {
                     .content_fit(ContentFit::Fill);
 
                 // "Timer" - give the pokeball a few seconds to show up
-                let ball_opacity = if ball_scale > 5.0 { 0.0 } else { 1.0 };
+                let ball_opacity = if ball_scale > 5.0 { 0.0 } else { 1.0_f32 };
 
                 // Pokeball icon
                 let ball_img = iced::widget::image(self.pokeball_icon.clone())

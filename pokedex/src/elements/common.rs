@@ -1,5 +1,3 @@
-// screen/common.rs
-
 use iced::font::Weight;
 use iced::widget::{Canvas, Space, button, column, container, image, row, space, stack, svg, text};
 use iced::{Alignment, Background, Border, Color, Element, Font, Length, Padding, Shadow, Theme};
@@ -73,8 +71,8 @@ pub fn holo_header_backdrop_with<'a, Message: 'a>(
         column![
             Space::new().height(Length::Fixed(50.0)),
             image(assets.pokeball_handle.clone())
-                .opacity(0.2)
-                .scale(0.95)
+                .opacity(0.2_f32)
+                .scale(0.95_f32)
         ]
         .width(Length::Fill)
         .height(Length::Fill)
@@ -82,7 +80,7 @@ pub fn holo_header_backdrop_with<'a, Message: 'a>(
         Canvas::new(&assets.scanlines)
             .width(Length::Fill)
             .height(Length::Fill),
-        container(svg(modal.clone()).opacity(1.0)).padding(Padding {
+        container(svg(modal.clone()).opacity(1.0_f32)).padding(Padding {
             top: 15.0,
             ..Default::default()
         }),
@@ -147,14 +145,15 @@ pub fn secondary_button<'a, Message: Clone + 'a>(
     .height(Length::Fixed(50.0))
     .padding([12, 22])
     .style(move |_theme: &Theme, status: button::Status| {
-        let background = match (status, is_selected) {
+        let enableable = is_selected && !disabled;
+        let background = match (status, enableable) {
             (button::Status::Hovered, true) => colors::PRIMARY_HOVER_BG,
             (button::Status::Hovered, false) => colors::CONTROL_HOVER_BG,
             (_, true) => colors::PRIMARY_BG,
             (_, false) => Color::WHITE,
         };
 
-        let (border_color, border_width) = if focused {
+        let (border_color, border_width) = if focused && !disabled {
             (colors::SECONDARY_FOCUS, 3.0)
         } else {
             (colors::CARD_BORDER, 2.0)
@@ -270,4 +269,8 @@ pub fn inner_shadow<'a, Message: Clone + 'a>(
     }));
 
     stack(layers).into()
+}
+
+pub fn gb(bytes: u64) -> f64 {
+    bytes as f64 / 1_073_741_824.0
 }
