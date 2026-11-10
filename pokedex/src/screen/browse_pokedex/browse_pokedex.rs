@@ -989,8 +989,8 @@ impl PokedexBrowser {
                 // push it down a bit for visual rather than true centering
                 Space::new().height(Length::Fixed(50.0)),
                 image(common.pokeball_handle.clone())
-                    .opacity(0.2)
-                    .scale(0.95)
+                    .opacity(0.2_f32)
+                    .scale(0.95_f32)
             ]
             .width(Length::Fill)
             .align_x(Alignment::Center)
@@ -1174,7 +1174,7 @@ impl PokedexBrowser {
                         image(handle.clone())
                             .width(Length::Fixed(info_size))
                             .height(Length::Fixed(info_size))
-                            .opacity(0.0),
+                            .opacity(0.0_f32),
                         container(
                             image(handle.clone())
                                 .content_fit(iced::ContentFit::Cover)
