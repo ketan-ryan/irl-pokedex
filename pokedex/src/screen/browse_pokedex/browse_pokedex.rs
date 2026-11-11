@@ -470,6 +470,11 @@ impl PokedexBrowser {
         )
     }
 
+    pub fn load_entries(&mut self, keys: &[String]) -> Task<Message> {
+        self.image_cache
+            .load_extra(self.config.sprites_location.clone(), keys)
+    }
+
     /// Restores selection and scroll position after returning from another screen.
     pub fn jump_to_entry(&mut self, entry: PokemonEntry) -> Task<Message> {
         let Some(idx) = self

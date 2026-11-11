@@ -265,9 +265,14 @@ impl Info {
     }
 
     pub fn get_sprite(&self, key: &str) -> Option<iced::widget::image::Handle> {
-        self.return_to
-            .as_ref()
-            .and_then(|b| b.image_cache.get(&self.current_pokemon.key))
+        self.return_to.as_ref().and_then(|b| b.image_cache.get(key))
+    }
+
+    pub fn load_sprites(&mut self, keys: &[String]) -> Task<Message> {
+        match self.return_to.as_mut() {
+            Some(browser) => browser.load_entries(keys).map(Message::Browser),
+            None => Task::none(),
+        }
     }
 
     pub fn step(&mut self, delta: isize) -> Task<Message> {

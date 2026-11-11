@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, RwLock as StdRwLock};
 
 use crate::browse_pokedex::Message;
@@ -25,6 +25,8 @@ pub struct ImageCache {
     // Current visible range
     pub visible_start: usize,
     pub visible_end: usize,
+    /// Keys loaded outside the visible window (e.g. an evolution line) that eviction must keep
+    pinned: HashSet<String>,
     // Buffer size
     pub buffer_size: usize,
     // Track which images are currently being loaded and which load cycle owns them
@@ -47,6 +49,7 @@ impl ImageCache {
             pokemon_order: pokemon_names,
             visible_start: 0,
             visible_end: 0,
+            pinned: HashSet::new(),
             buffer_size,
             loading: Arc::new(StdRwLock::new(HashMap::new())),
             load_generation: Arc::new(StdRwLock::new(0)),
@@ -128,11 +131,13 @@ impl ImageCache {
         {
             let mut cache = self.sync_cache.write().unwrap();
             let pokemon_order = &self.pokemon_order;
+            let pinned = &self.pinned;
             cache.retain(|name, _| {
-                pokemon_order
-                    .iter()
-                    .position(|n| &n.key == name)
-                    .is_some_and(|index| index >= load_start && index < load_end)
+                pinned.contains(name)
+                    || pokemon_order
+                        .iter()
+                        .position(|n| &n.key == name)
+                        .is_some_and(|index| index >= load_start && index < load_end)
             });
         }
 
@@ -272,6 +277,38 @@ impl ImageCache {
                 }
             },
         )
+    }
+
+    /// Load specific sprites outside the visible window without disturbing the
+    /// current load cycle. Only entries that aren't cached or in flight are loaded.
+    pub fn load_extra(&mut self, sprite_folder: String, keys: &[String]) -> iced::Task<Message> {
+        let generation = self.current_generation();
+
+        // Prefer the canonical key from pokemon_order, but don't require it:
+        // a search filter may have removed the entry from the list.
+        let wanted: HashSet<String> = keys
+            .iter()
+            .map(|k| {
+                self.pokemon_order
+                    .iter()
+                    .find(|e| e.key.eq_ignore_ascii_case(k))
+                    .map(|e| e.key.clone())
+                    .unwrap_or_else(|| k.clone())
+            })
+            .collect();
+
+        self.pinned = wanted.clone();
+
+        let tasks: Vec<_> = wanted
+            .into_iter()
+            .filter(|key| {
+                !self.sync_cache.read().unwrap().contains_key(key)
+                    && !self.loading.read().unwrap().contains_key(key)
+            })
+            .map(|key| self.load_image_async(sprite_folder.clone(), key, generation))
+            .collect();
+
+        iced::Task::batch(tasks)
     }
 
     /// Return the cached image handle for a Pokémon, if it has already been loaded.

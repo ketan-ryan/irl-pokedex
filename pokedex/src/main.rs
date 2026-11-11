@@ -70,6 +70,7 @@ fn main() -> iced::Result {
         .subscription(App::subscription)
         .font(include_bytes!("../assets/OpenSans-Light.ttf"))
         .font(include_bytes!("../assets/OpenSans_Condensed-Semibold.ttf"))
+        .antialiasing(true)
         .run()
 }
 
