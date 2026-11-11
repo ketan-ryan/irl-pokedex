@@ -14,4 +14,5 @@ pub enum Screen {
     Slider(filter::slider::RangeSliderScreen),
     Info(info::info::Info),
     Gallery(info::gallery::Gallery),
+    Relations(info::relations::Relations),
 }

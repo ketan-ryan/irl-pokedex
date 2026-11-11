@@ -205,7 +205,7 @@ impl<'de> Deserialize<'de> for Measurement {
     }
 }
 
-#[derive(Clone, Deserialize, Debug)]
+#[derive(Clone, Deserialize, Debug, PartialEq)]
 pub struct PokemonInfo {
     pub number: String,
     #[serde(rename = "type", deserialize_with = "deserialize_types")]
@@ -219,6 +219,8 @@ pub struct PokemonInfo {
     pub base: Option<bool>,
     pub display_name: Option<String>,
     pub relations: Option<Vec<String>>,
+    pub evolves_into: Option<Vec<String>>,
+    pub evolves_from: Option<Vec<String>>,
 }
 
 impl Default for PokemonInfo {
@@ -241,6 +243,8 @@ impl Default for PokemonInfo {
             base: None,
             display_name: None,
             relations: None,
+            evolves_from: None,
+            evolves_into: None,
         }
     }
 }

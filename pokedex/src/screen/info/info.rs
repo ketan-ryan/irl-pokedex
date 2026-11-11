@@ -131,6 +131,7 @@ pub enum Action {
     Run(Task<Message>),
     Return(Box<PokedexBrowser>, Task<crate::browse_pokedex::Message>),
     OpenGallery,
+    OpenRelations,
 }
 
 impl Info {
@@ -254,10 +255,25 @@ impl Info {
         Path::new(&self.imgs_dir).join(&self.current_pokemon.key)
     }
 
-    fn step(&mut self, delta: isize) -> Action {
+    pub fn get_pokemon_info(&self, pokemon: Option<String>) -> PokemonInfo {
+        let query = pokemon.unwrap_or(self.current_pokemon.key.clone());
+        self.pokemon_data.get(&query).cloned().unwrap_or_default()
+    }
+
+    pub fn get_current(&self) -> PokemonEntry {
+        self.current_pokemon.clone()
+    }
+
+    pub fn get_sprite(&self, key: &str) -> Option<iced::widget::image::Handle> {
+        self.return_to
+            .as_ref()
+            .and_then(|b| b.image_cache.get(&self.current_pokemon.key))
+    }
+
+    pub fn step(&mut self, delta: isize) -> Task<Message> {
         let len = self.list.len() as isize;
         let Some(index) = self.list.iter().position(|e| *e == self.current_pokemon) else {
-            return Action::None;
+            return Task::none();
         };
         let new_index = (index as isize + delta).rem_euclid(len) as usize;
         self.current_pokemon = self.list[new_index].clone();
@@ -275,7 +291,7 @@ impl Info {
         }
         self.up_interaction = IconButtonInteraction::None;
         self.down_interaction = IconButtonInteraction::None;
-        Action::Run(Task::batch(tasks))
+        Task::batch(tasks)
     }
 
     fn focused_message(&self) -> Option<Message> {
@@ -402,7 +418,7 @@ impl Info {
             Message::UpInteraction(i) => {
                 if i == IconButtonInteraction::Released {
                     self.up_interaction = IconButtonInteraction::Hovered;
-                    return self.step(1);
+                    return Action::Run(self.step(1));
                 }
                 self.up_interaction = i;
                 Action::None
@@ -410,7 +426,7 @@ impl Info {
             Message::DownInteraction(i) => {
                 if i == IconButtonInteraction::Released {
                     self.down_interaction = IconButtonInteraction::Hovered;
-                    return self.step(-1);
+                    return Action::Run(self.step(-1));
                 }
                 self.down_interaction = i;
                 Action::None
@@ -431,7 +447,7 @@ impl Info {
                 }
             }
             Message::Info => Action::None,
-            Message::Relations => Action::None,
+            Message::Relations => Action::OpenRelations,
             Message::Form => Action::None,
             Message::Cry => Action::None,
             Message::Browser(m) => match self.return_to.as_mut() {
@@ -800,7 +816,7 @@ impl Info {
 
     pub fn bottom_view<'a>(&'a self, common: &'a CommonAssets) -> Element<'a, Message> {
         let font = common::CONDENSED;
-        let focus = self.selection.position();
+        let focus: Option<SelectionPosition> = self.selection.position();
         const FOCUS_W: f32 = 4.0;
 
         // ======================= gallery ========================

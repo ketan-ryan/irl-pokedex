@@ -30,7 +30,7 @@ use crate::enums::{IOAction, PokedexConfig, PokemonEntry};
 use crate::screen::browse_pokedex::browse_pokedex::{self, PokedexBrowser};
 use crate::screen::browse_pokedex::filter_predicate::RangeOriginator;
 use crate::screen::filter::{filter, slider};
-use crate::screen::info::{gallery, info};
+use crate::screen::info::{gallery, info, relations};
 use crate::screen::register::register;
 
 fn main() -> iced::Result {
@@ -187,6 +187,7 @@ enum Message {
     Init,
     #[allow(unused)]
     WindowOpened(window::Id),
+
     Home(home::Message),
     Register(register::Message),
     PokedexBrowser(browse_pokedex::Message),
@@ -194,6 +195,8 @@ enum Message {
     Slider(slider::Message),
     Info(info::Message),
     Gallery(gallery::Message),
+    Relations(relations::Message),
+
     OpenHome,
     OpenRegister(Arc<VideoFrame>),
     OpenSlider(RangeOriginator),
@@ -202,6 +205,8 @@ enum Message {
     OpenInfo(PokemonEntry, Vec<PokemonEntry>),
     OpenInfoFromRegister(String),
     OpenGallery,
+    OpenRelations,
+
     IOInput(IOAction),
     Tick(Instant),
 }
@@ -291,6 +296,13 @@ impl App {
                 let action = gallery.update(message);
                 self.handle_gallery_action(action)
             }
+            Message::Relations(message) => {
+                let Screen::Relations(relations) = &mut self.screen else {
+                    return Task::none();
+                };
+                let action = relations.update(message);
+                self.handle_relations_action(action)
+            }
             Message::IOInput(action) => match &mut self.screen {
                 Screen::Home(home) => {
                     Self::handle_home_action(home.update(home::Message::IOInput(action)))
@@ -316,6 +328,10 @@ impl App {
                     let action = gallery.update(gallery::Message::IOInput(action));
                     self.handle_gallery_action(action)
                 }
+                Screen::Relations(relations) => {
+                    let action = relations.update(relations::Message::IOInput(action));
+                    self.handle_relations_action(action)
+                }
             },
             Message::OpenRegister(result) => self.open_register(result),
             Message::OpenPokedexBrowser => self.open_browser(),
@@ -324,6 +340,7 @@ impl App {
             Message::OpenInfo(selected, list) => self.open_info(selected, list),
             Message::OpenInfoFromRegister(name) => self.open_info_from_register(name),
             Message::OpenGallery => self.open_gallery(),
+            Message::OpenRelations => self.open_relations(),
         }
     }
 
@@ -390,6 +407,7 @@ impl App {
             }
             info::Action::Run(task) => task.map(Message::Info),
             info::Action::OpenGallery => Task::done(Message::OpenGallery),
+            info::Action::OpenRelations => Task::done(Message::OpenRelations),
         }
     }
 
@@ -401,6 +419,17 @@ impl App {
                 task.map(Message::Info)
             }
             gallery::Action::Run(task) => task.map(Message::Gallery),
+        }
+    }
+
+    fn handle_relations_action(&mut self, action: relations::Action) -> Task<Message> {
+        match action {
+            relations::Action::None => Task::none(),
+            relations::Action::Return(info, task) => {
+                self.screen = Screen::Info(*info);
+                task.map(Message::Info)
+            }
+            relations::Action::Run(task) => task.map(Message::Relations),
         }
     }
 
@@ -515,6 +544,15 @@ impl App {
         let (gallery, task) = gallery::Gallery::new(Box::new(info));
         self.screen = Screen::Gallery(gallery);
         task.map(Message::Gallery)
+    }
+
+    fn open_relations(&mut self) -> Task<Message> {
+        let Screen::Info(info) = std::mem::replace(&mut self.screen, Screen::Loading) else {
+            return Task::none();
+        };
+        let (relations, task) = relations::Relations::new(Box::new(info));
+        self.screen = Screen::Relations(relations);
+        task.map(Message::Relations)
     }
 
     fn open_info(&mut self, selected: PokemonEntry, list: Vec<PokemonEntry>) -> Task<Message> {
@@ -660,6 +698,9 @@ impl App {
                 }
                 Screen::Info(info) => info.top_view(&self.common).map(Message::Info),
                 Screen::Gallery(gallery) => gallery.top_view(&self.common).map(Message::Gallery),
+                Screen::Relations(relations) => {
+                    relations.top_view(&self.common).map(Message::Relations)
+                }
             }
         } else {
             iced::widget::container(
@@ -706,6 +747,9 @@ impl App {
                 Screen::Slider(slider) => slider.bottom_view(&self.common).map(Message::Slider),
                 Screen::Info(info) => info.bottom_view(&self.common).map(Message::Info),
                 Screen::Gallery(gallery) => gallery.bottom_view(&self.common).map(Message::Gallery),
+                Screen::Relations(relations) => {
+                    relations.bottom_view(&self.common).map(Message::Relations)
+                }
                 Screen::PokedexBrowser(browser) => browser
                     .bottom_view(&self.common)
                     .map(Message::PokedexBrowser),
