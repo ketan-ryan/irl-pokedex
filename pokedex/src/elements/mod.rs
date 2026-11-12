@@ -1,4 +1,5 @@
 pub mod common;
+pub mod evo_graph;
 pub mod gstreamer_stream;
 pub mod icon_button;
 pub mod message_box;

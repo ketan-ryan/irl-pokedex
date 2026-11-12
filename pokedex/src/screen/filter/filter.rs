@@ -128,18 +128,18 @@ const TYPE_GRID_COLS: usize = 6;
 fn build_selection_grid() -> SelectionGrid {
     SelectionGrid::new(
         vec![
-            SectionShape {
-                rows: Region::ALL.len().div_ceil(REGION_GRID_COLS),
-                cols: REGION_GRID_COLS,
-            },
-            SectionShape { rows: 1, cols: 2 }, // Sort Order: direction, key
-            SectionShape { rows: 1, cols: 2 }, // Height
-            SectionShape { rows: 1, cols: 2 }, // Weight
-            SectionShape {
-                rows: PokemonType::ALL.len().div_ceil(TYPE_GRID_COLS),
-                cols: TYPE_GRID_COLS,
-            },
-            SectionShape { rows: 1, cols: 4 }, // Actions: Select all, Filter Mode, Clear, OK
+            SectionShape::grid(
+                Region::ALL.len().div_ceil(REGION_GRID_COLS),
+                REGION_GRID_COLS,
+            ),
+            SectionShape::grid(1, 2), // Sort Order: direction, key
+            SectionShape::grid(1, 2), // Height
+            SectionShape::grid(1, 2), // Weight
+            SectionShape::grid(
+                PokemonType::ALL.len().div_ceil(TYPE_GRID_COLS),
+                TYPE_GRID_COLS,
+            ),
+            SectionShape::grid(1, 4), // Actions: Select all, Filter Mode, Clear, OK
         ],
         section::REGION,
         escape,

@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use iced::{
     Alignment::Center,
@@ -8,9 +8,8 @@ use iced::{
         svg, text,
     },
 };
+use log::debug;
 use petgraph::{
-    Direction::{Incoming, Outgoing},
-    algo::toposort,
     graph::{DiGraph, NodeIndex},
     visit::EdgeRef,
 };
@@ -20,12 +19,13 @@ use crate::{
         common::{
             self, CommonAssets, action_row, holo_header_backdrop, primary_button, secondary_button,
         },
+        evo_graph::{build_evo_graph, columns, locate, node_at, paths, stages},
         icon_button::{IconButtonColors, IconButtonInteraction, IconButtonSize, icon_button},
         selectable::{
             SectionShape, SelectionDirection, SelectionGrid, SelectionPosition, is_focused_at,
         },
     },
-    enums::{IOAction, PokemonInfo},
+    enums::IOAction,
     screen::info::{
         arrow_layer::{ARROW, ArrowLayer},
         info::{self, Info},
@@ -69,30 +69,24 @@ fn escape(
 
         (section::RELATIONS, Down) => at(section::BUTTONS, 0, map_col(section::BUTTONS)),
         (section::BUTTONS, Up) => {
-            let last_row = sections[section::RELATIONS].rows - 1;
-            at(section::RELATIONS, last_row, map_col(section::RELATIONS))
+            let c = map_col(section::RELATIONS);
+            at(
+                section::RELATIONS,
+                sections[section::RELATIONS].rows_in_col(c) - 1,
+                c,
+            )
         }
 
         _ => None,
     }
 }
 
-fn build_selection_grid(
-    top_cols: usize,
-    relations_rows: usize,
-    relations_cols: usize,
-) -> SelectionGrid {
+fn build_selection_grid(top_cols: usize, relations: SectionShape) -> SelectionGrid {
     SelectionGrid::new(
         vec![
-            SectionShape {
-                rows: 1,
-                cols: top_cols,
-            },
-            SectionShape {
-                rows: relations_rows,
-                cols: relations_cols,
-            },
-            SectionShape { rows: 1, cols: 7 },
+            SectionShape::grid(1, top_cols),
+            relations,
+            SectionShape::grid(1, 7),
         ],
         section::RELATIONS,
         escape,
@@ -114,6 +108,7 @@ pub struct Relations {
 
     arrow_icon: svg::Handle,
     close_icon: svg::Handle,
+    outline_svg: svg::Handle,
 
     up_interaction: IconButtonInteraction,
     down_interaction: IconButtonInteraction,
@@ -135,6 +130,8 @@ pub enum Message {
     MegaBtn,
     GigaBtn,
 
+    JumpToPokemon(String),
+
     InfoBtn,
     RelationsBtn,
     FormBtn,
@@ -149,121 +146,9 @@ pub enum Action {
     Run(Task<Message>),
 }
 
-fn build_evo_graph(start: &str, get: impl Fn(&str) -> PokemonInfo) -> DiGraph<String, ()> {
-    let mut g = DiGraph::new();
-    let mut nodes: HashMap<String, NodeIndex> = HashMap::new();
-    let mut seen: HashSet<String> = HashSet::new();
-    let mut stack = vec![start.to_lowercase()];
-
-    let idx = |g: &mut DiGraph<String, ()>, nodes: &mut HashMap<String, NodeIndex>, name: &str| {
-        *nodes
-            .entry(name.to_string())
-            .or_insert_with(|| g.add_node(name.to_string()))
-    };
-
-    // lowercase first, then drop megas
-    let neighbors = |l: Option<Vec<String>>| -> Vec<String> {
-        l.unwrap_or_default()
-            .into_iter()
-            .map(|n| n.to_lowercase())
-            .filter(|n| !n.contains("mega") && get(n).base.unwrap_or(true))
-            .collect()
-    };
-
-    while let Some(name) = stack.pop() {
-        if !seen.insert(name.clone()) {
-            continue;
-        }
-        let info = get(&name);
-        let me = idx(&mut g, &mut nodes, &name);
-
-        for from in neighbors(info.evolves_from) {
-            let f = idx(&mut g, &mut nodes, &from);
-            g.update_edge(f, me, ());
-            stack.push(from);
-        }
-        for into in neighbors(info.evolves_into) {
-            let t = idx(&mut g, &mut nodes, &into);
-            g.update_edge(me, t, ());
-            stack.push(into);
-        }
-    }
-    g
-}
-
 struct Layout {
     graph: DiGraph<String, ()>,
     selection: SelectionGrid,
-}
-
-/// Stage (column) of each node, indexed by `NodeIndex::index()`.
-fn stages(g: &DiGraph<String, ()>) -> Vec<usize> {
-    // If bad data creates a cycle, fall back to arbitrary order instead of panicking
-    let order = toposort(g, None).unwrap_or_else(|_| g.node_indices().collect());
-    let mut stage = vec![0usize; g.node_count()];
-    for n in order {
-        for m in g.neighbors_directed(n, Outgoing) {
-            stage[m.index()] = stage[m.index()].max(stage[n.index()] + 1);
-        }
-    }
-    stage
-}
-
-/// Nodes grouped by stage. Within a stage, order by the row of the parents
-/// so branches don't cross.
-fn columns(g: &DiGraph<String, ()>) -> Vec<Vec<NodeIndex>> {
-    let stage = stages(g);
-    let n_cols = stage.iter().max().map_or(0, |m| m + 1);
-    let mut cols = vec![Vec::new(); n_cols];
-    let mut row_of: HashMap<NodeIndex, usize> = HashMap::new();
-
-    for (s, col) in cols.iter_mut().enumerate() {
-        let mut nodes: Vec<NodeIndex> =
-            g.node_indices().filter(|i| stage[i.index()] == s).collect();
-        nodes.sort_by_key(|&n| {
-            let parent_row = g
-                .neighbors_directed(n, Incoming)
-                .filter_map(|p| row_of.get(&p).copied())
-                .min()
-                .unwrap_or(0);
-            (parent_row, n.index())
-        });
-        for (r, &n) in nodes.iter().enumerate() {
-            row_of.insert(n, r);
-        }
-        *col = nodes;
-    }
-    cols
-}
-
-/// Every root-to-leaf path (used for the scrolling layout).
-fn paths(g: &DiGraph<String, ()>) -> Vec<Vec<NodeIndex>> {
-    fn walk(g: &DiGraph<String, ()>, path: Vec<NodeIndex>, out: &mut Vec<Vec<NodeIndex>>) {
-        let last = *path.last().unwrap();
-        let mut next: Vec<_> = g
-            .neighbors_directed(last, Outgoing)
-            .filter(|n| !path.contains(n)) // guard against cycles in bad data
-            .collect();
-        next.sort();
-        if next.is_empty() {
-            out.push(path);
-            return;
-        }
-        for n in next {
-            let mut p = path.clone();
-            p.push(n);
-            walk(g, p, out);
-        }
-    }
-
-    let mut out = Vec::new();
-    for root in g
-        .node_indices()
-        .filter(|&i| g.neighbors_directed(i, Incoming).next().is_none())
-    {
-        walk(g, vec![root], &mut out);
-    }
-    out
 }
 
 fn compute_layout(info: &Info) -> Layout {
@@ -287,11 +172,32 @@ fn compute_layout(info: &Info) -> Layout {
     for &s in &stage {
         per_stage[s] += 1;
     }
-    let rows = per_stage.into_iter().max().unwrap_or(1).max(1);
+
+    // find widest stage
+    let cols = columns(&graph);
+    let widest = cols.iter().map(Vec::len).max().unwrap_or(1);
+
+    let scroll_mode = widest > 2;
+    let current = locate(&graph, &cols, scroll_mode, &name.to_lowercase());
+
+    let relations = if widest > 2 {
+        // scroll mode: one row per path, so every row is a full rectangle
+        let ps = paths(&graph);
+        let max_len = ps.iter().map(Vec::len).max().unwrap_or(1);
+        SectionShape::grid(ps.len(), max_len)
+    } else {
+        SectionShape::ragged(cols.iter().map(Vec::len).collect())
+    };
+
+    let mut selection = build_selection_grid(top_cols, relations);
+    if let Some((row, col)) = current {
+        selection = selection.with_start(section::RELATIONS, row, col);
+        debug!("Starting at position {} {}", row, col);
+    }
 
     Layout {
         graph,
-        selection: build_selection_grid(top_cols, rows, cols),
+        selection: selection,
     }
 }
 
@@ -306,6 +212,8 @@ impl Relations {
     pub fn new(return_to: Box<Info>) -> (Self, Task<Message>) {
         let Layout { graph, selection } = compute_layout(&return_to);
 
+        debug!("{:#?}", selection);
+
         let mut this = Self {
             return_to: Some(return_to),
 
@@ -316,6 +224,9 @@ impl Relations {
             ),
             close_icon: svg::Handle::from_memory(
                 include_bytes!("../../../assets/x.svg").as_slice(),
+            ),
+            outline_svg: svg::Handle::from_memory(
+                include_bytes!("../../../assets/info_screen/sprite_outline.svg").as_slice(),
             ),
 
             up_interaction: IconButtonInteraction::default(),
@@ -341,6 +252,9 @@ impl Relations {
         let Some(info) = self.return_to.as_mut() else {
             return Action::None;
         };
+        if self.selection.position().is_some() {
+            return Action::None;
+        }
         let step_task = info.step(delta).map(Message::Info);
         self.refresh();
         let sprite_task = self.load_graph_sprites();
@@ -355,12 +269,63 @@ impl Relations {
         }
     }
 
+    fn focused_message(&self) -> Option<Message> {
+        let SelectionPosition { section, row, col } = self.selection.position?;
+
+        match section {
+            section::TOP_BUTTONS => match col {
+                0 => Some(Message::EvoBtn),
+                1 => Some(Message::MegaBtn),
+                2 => Some(Message::GigaBtn),
+                _ => None,
+            },
+            section::RELATIONS => {
+                let cols = columns(&self.evo_graph);
+                let scroll_mode = cols.iter().map(Vec::len).max().unwrap_or(1) > 2;
+                let Some(node) = node_at(&self.evo_graph, &cols, scroll_mode, row, col) else {
+                    return None;
+                };
+
+                let key = self.evo_graph[node].clone();
+                Some(Message::JumpToPokemon(key))
+            }
+            section::BUTTONS => match col {
+                0 => Some(Message::UpInteraction(IconButtonInteraction::Released)),
+                1 => Some(Message::DownInteraction(IconButtonInteraction::Released)),
+                2 => Some(Message::InfoBtn),
+                3 => Some(Message::RelationsBtn),
+                4 => Some(Message::FormBtn),
+                5 => Some(Message::CryBtn),
+                6 => Some(Message::CloseInteraction(IconButtonInteraction::Released)),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
     pub fn update(&mut self, msg: Message) -> Action {
         match msg {
             Message::IOInput(input) => match input {
-                IOAction::ScrollUp => self.step(1),
-                IOAction::ScrollDown => self.step(-1),
-                _ => Action::None,
+                IOAction::ScrollUp => {
+                    self.selection.navigate(SelectionDirection::Up);
+                    self.step(1)
+                }
+                IOAction::ScrollDown => {
+                    self.selection.navigate(SelectionDirection::Down);
+                    self.step(-1)
+                }
+                IOAction::Left => {
+                    self.selection.navigate(SelectionDirection::Left);
+                    Action::None
+                }
+                IOAction::Right => {
+                    self.selection.navigate(SelectionDirection::Right);
+                    Action::None
+                }
+                IOAction::Select => match self.focused_message() {
+                    Some(message) => self.update(message),
+                    None => Action::None,
+                },
             },
             Message::UpInteraction(i) => {
                 if i == IconButtonInteraction::Released {
@@ -389,6 +354,19 @@ impl Relations {
                     self.close_interaction = i;
                     Action::None
                 }
+            }
+            Message::JumpToPokemon(key) => {
+                let Some(info) = self.return_to.as_mut() else {
+                    return Action::None;
+                };
+                if info.get_current().key.eq_ignore_ascii_case(&key) {
+                    return Action::None; // already showing it
+                }
+
+                let jump = info.jump_to(&key);
+                self.refresh();
+                let sprites = self.load_graph_sprites();
+                Action::Run(Task::batch([jump.map(Message::Info), sprites]))
             }
             Message::Info(msg) => match self.return_to.as_mut().unwrap().update(msg) {
                 info::Action::Run(task) => Action::Run(task.map(Message::Info)),
@@ -426,8 +404,31 @@ impl Relations {
         .into()
     }
 
-    fn node_cell<'a>(&'a self, name: &str, w: f32, sprite_h: f32) -> Element<'a, Message> {
+    fn node_cell<'a>(
+        &'a self,
+        name: &str,
+        w: f32,
+        sprite_h: f32,
+        focused: bool,
+    ) -> Element<'a, Message> {
         let info = self.return_to.as_ref().unwrap();
+        let unfocused = self.selection.position.is_none();
+
+        let outline_color = if unfocused {
+            Color::from_rgb8(180, 180, 180)
+        } else {
+            common::colors::SECONDARY_FOCUS
+        };
+
+        let buff_w = w * 0.10;
+        let buff_h = sprite_h * 0.10;
+
+        let outline = svg(self.outline_svg.clone())
+            .width(Length::Fixed(w + buff_w))
+            .height(Length::Fixed(sprite_h + buff_h))
+            .style(move |_, _| svg::Style {
+                color: Some(outline_color),
+            });
 
         let sprite: Element<_> = match info.get_sprite(&name.to_string()) {
             Some(h) => Image::new(h)
@@ -438,13 +439,19 @@ impl Relations {
             None => Space::new().height(sprite_h).into(),
         };
 
+        let content: Element<_> = if ((name == info.get_current().key) && unfocused) || focused {
+            stack![sprite, outline].into()
+        } else {
+            sprite.into()
+        };
+
         let label = info
             .get_pokemon_info(Some(name.to_string()))
             .display_name
             .unwrap_or_else(|| capitalize(name));
 
         container(
-            column![sprite, text(label).size(14).color(Color::WHITE)]
+            column![content, text(label).size(14).color(Color::WHITE)]
                 .align_x(Center)
                 .spacing(4),
         )
@@ -454,20 +461,25 @@ impl Relations {
     }
 
     fn evo_view<'a>(&'a self) -> Element<'a, Message> {
+        let focus = self.selection.position();
         let widest = columns(&self.evo_graph)
             .iter()
             .map(Vec::len)
             .max()
             .unwrap_or(1);
         if widest > 2 {
-            responsive(move |size| self.evo_scroll(size)).into()
+            responsive(move |size| self.evo_scroll(size, &focus)).into()
         } else {
-            responsive(move |size| self.evo_fit(size)).into()
+            responsive(move |size| self.evo_fit(size, &focus)).into()
         }
     }
 
     /// <= 2 branches: everything fits, columns evenly spaced.
-    fn evo_fit<'a>(&'a self, size: Size) -> Element<'a, Message> {
+    fn evo_fit<'a>(
+        &'a self,
+        size: Size,
+        focus: &Option<SelectionPosition>,
+    ) -> Element<'a, Message> {
         let g = &self.evo_graph;
         let cols = columns(g);
         let n_cols = cols.len().max(1) as f32;
@@ -482,8 +494,8 @@ impl Relations {
         let node_w = col_w - gutter;
         let arrow_len = (gutter * 0.75).clamp(ARROW, 64.0);
 
-        // center, sprite height, and column of every node
-        let mut pos: HashMap<NodeIndex, (f32, f32, f32)> = HashMap::new();
+        // x, y, sprite_h, row, col
+        let mut pos: HashMap<NodeIndex, (f32, f32, f32, usize, usize)> = HashMap::new();
         let mut col_of: HashMap<NodeIndex, usize> = HashMap::new();
         for (c, col) in cols.iter().enumerate() {
             let n = col.len() as f32;
@@ -496,6 +508,8 @@ impl Relations {
                         (c as f32 + 0.5) * col_w,
                         size.height * (r as f32 + 0.5) / n,
                         sprite_h,
+                        r,
+                        c,
                     ),
                 );
                 col_of.insert(node, c);
@@ -506,8 +520,8 @@ impl Relations {
             .edge_references()
             .filter(|e| col_of[&e.target()] == col_of[&e.source()] + 1)
             .map(|e| {
-                let (ax, ay, _) = pos[&e.source()];
-                let (bx, by, _) = pos[&e.target()];
+                let (ax, ay, _, _, _) = pos[&e.source()];
+                let (bx, by, _, _, _) = pos[&e.target()];
                 (
                     Point::new((ax + bx) / 2.0, (ay + by) / 2.0),
                     (by - ay).atan2(bx - ax),
@@ -523,10 +537,11 @@ impl Relations {
                 .into(),
         ];
 
-        for (&node, &(x, y, sprite_h)) in &pos {
+        for (&node, &(x, y, sprite_h, row, col)) in &pos {
             let cell_h = sprite_h + LABEL_H;
+            let focused = is_focused_at(*focus, section::RELATIONS, row, col);
             layers.push(
-                pin(self.node_cell(&g[node], node_w, sprite_h))
+                pin(self.node_cell(&g[node], node_w, sprite_h, focused))
                     .x(x - node_w / 2.0)
                     .y(y - cell_h / 2.0)
                     .width(Length::Fill)
@@ -543,7 +558,11 @@ impl Relations {
 
     /// > 2 branches: one scrollable row per evolution path, each sized like a
     /// plain 2-stage layout but slightly shorter than the viewport.
-    fn evo_scroll<'a>(&'a self, size: Size) -> Element<'a, Message> {
+    fn evo_scroll<'a>(
+        &'a self,
+        size: Size,
+        focus: &Option<SelectionPosition>,
+    ) -> Element<'a, Message> {
         let g = &self.evo_graph;
         let all_paths = paths(g);
 
@@ -557,13 +576,14 @@ impl Relations {
         let row_h = size.height * SCROLL_ROW_FRACTION;
         let sprite_h = (row_h - LABEL_H - 8.0).max(40.0);
 
-        let rows = all_paths.into_iter().map(|path| {
+        let rows = all_paths.into_iter().enumerate().map(|(row, path)| {
             let mut r = Row::new().align_y(Center);
-            for (i, &node) in path.iter().enumerate() {
-                if i > 0 {
+            for (col, &node) in path.iter().enumerate() {
+                if col > 0 {
                     r = r.push(self.arrow());
                 }
-                r = r.push(self.node_cell(&g[node], node_w, sprite_h));
+                let focused = is_focused_at(*focus, section::RELATIONS, row, col);
+                r = r.push(self.node_cell(&g[node], node_w, sprite_h, focused));
             }
             container(r)
                 .width(Length::Fill)

@@ -62,10 +62,7 @@ fn escape(
 
 fn build_selection_grid() -> SelectionGrid {
     SelectionGrid::new(
-        vec![
-            SectionShape { rows: 1, cols: 1 },
-            SectionShape { rows: 1, cols: 7 },
-        ],
+        vec![SectionShape::grid(1, 1), SectionShape::grid(1, 7)],
         section::GALLERY,
         escape,
     )
@@ -275,28 +272,46 @@ impl Info {
         }
     }
 
+    fn go_to(&mut self, entry: PokemonEntry) -> Task<Message> {
+        self.current_pokemon = entry;
+        self.update_info();
+
+        let mut tasks = vec![Task::done(Message::LoadImages)];
+        if let Some(browser) = self.return_to.as_mut() {
+            tasks.push(
+                browser
+                    .load_around_entry(&self.current_pokemon)
+                    .map(Message::Browser),
+            );
+        }
+        self.up_interaction = IconButtonInteraction::None;
+        self.down_interaction = IconButtonInteraction::None;
+        Task::batch(tasks)
+    }
+
     pub fn step(&mut self, delta: isize) -> Task<Message> {
         let len = self.list.len() as isize;
         let Some(index) = self.list.iter().position(|e| *e == self.current_pokemon) else {
             return Task::none();
         };
         let new_index = (index as isize + delta).rem_euclid(len) as usize;
-        self.current_pokemon = self.list[new_index].clone();
-        self.update_info();
+        let entry = self.list[new_index].clone();
+        self.go_to(entry)
+    }
 
-        let mut tasks: Vec<Task<Message>> = Vec::new();
-        tasks.push(Task::done(Message::LoadImages));
-
-        match self.return_to.as_mut() {
-            Some(browser) => {
-                let task = browser.load_around_entry(&self.current_pokemon);
-                tasks.push(task.map(Message::Browser));
-            }
-            None => (),
-        }
-        self.up_interaction = IconButtonInteraction::None;
-        self.down_interaction = IconButtonInteraction::None;
-        Task::batch(tasks)
+    /// Jump straight to a Pokémon by key (graph keys are lowercase).
+    pub fn jump_to(&mut self, key: &str) -> Task<Message> {
+        let entry = self
+            .list
+            .iter()
+            .find(|e| e.key.eq_ignore_ascii_case(key))
+            .cloned()
+            // not in the list (e.g. a search filter removed it): build one
+            .unwrap_or_else(|| PokemonEntry {
+                key: key.to_string(),
+                display: key.to_string(),
+            });
+        self.go_to(entry)
     }
 
     fn focused_message(&self) -> Option<Message> {

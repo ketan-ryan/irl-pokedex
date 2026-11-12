@@ -104,27 +104,24 @@ fn build_selection_grid(
     match state {
         GalleryState::Default => SelectionGrid::new(
             vec![
-                SectionShape {
-                    rows: gallery_rows,
-                    cols: gallery_cols,
-                },
-                SectionShape { rows: 1, cols: 4 }, // buttons
+                SectionShape::grid(gallery_rows, gallery_cols),
+                SectionShape::grid(1, 4), // buttons
             ],
             section::GALLERY,
             escape,
         ),
         GalleryState::DeleteConfirmation => SelectionGrid::new(
-            vec![SectionShape { rows: 1, cols: 2 }],
+            vec![SectionShape::grid(1, 2)],
             section::delete_conf::DELETE_CONF,
             escape_del,
         ),
         GalleryState::DeleteError => SelectionGrid::new(
-            vec![SectionShape { rows: 1, cols: 1 }],
+            vec![SectionShape::grid(1, 1)],
             section::delete_err::DELETE_ERR,
             escape,
         ),
         GalleryState::StorageOpen => SelectionGrid::new(
-            vec![SectionShape { rows: 1, cols: 1 }],
+            vec![SectionShape::grid(1, 1)],
             section::storage::STORAGE,
             escape_del,
         ),
