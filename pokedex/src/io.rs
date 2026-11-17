@@ -13,8 +13,7 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::elements::gstreamer_stream::VideoFrame;
-use crate::enums::DiskInfo;
-use crate::enums::{PokedexConfig, PokemonInfo, PokemonType};
+use crate::enums::{DiskInfo, PokedexConfig, PokemonInfo, PokemonType};
 use crate::{PokedexError, ml};
 
 use iced::widget::image::Handle;
@@ -545,19 +544,30 @@ pub async fn get_dex_images(
     Ok(handles)
 }
 
-pub fn resolve_type_images(types: Vec<PokemonType>) -> Vec<iced::widget::image::Handle> {
-    let type_images = get_type_images(types);
+const UNKNOWN_TYPE_IMAGE: &str = "assets/types/unknown.png";
 
-    type_images
-        .iter()
-        .map(|path| {
-            iced::widget::image::Handle::from_bytes(
-                std::fs::read(path).expect(&format!("Failed to read type image at path: {}", path)),
-            )
-        })
-        .collect()
+fn load_image(path: &str) -> Option<Handle> {
+    match std::fs::read(path) {
+        Ok(bytes) => Some(Handle::from_bytes(bytes)),
+        Err(err) => {
+            warn!("Failed to read type image at {path:?}: {err}");
+            None
+        }
+    }
 }
 
+pub fn resolve_type_images(types: Vec<PokemonType>) -> Vec<Handle> {
+    let mut handles: Vec<Handle> = get_type_images(types)
+        .iter()
+        .filter_map(|path| load_image(path))
+        .collect();
+
+    if handles.is_empty() {
+        handles.extend(load_image(UNKNOWN_TYPE_IMAGE));
+    }
+
+    handles
+}
 pub fn get_remaining_space() -> std::result::Result<DiskInfo, String> {
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
     let bin_dir = exe.parent().ok_or("Could not determine binary directory")?;

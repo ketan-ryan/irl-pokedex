@@ -221,6 +221,8 @@ pub struct PokemonInfo {
     pub relations: Option<Vec<String>>,
     pub evolves_into: Option<Vec<String>>,
     pub evolves_from: Option<Vec<String>>,
+    pub mega: Option<Vec<String>>,
+    pub gmax: Option<String>,
 }
 
 impl Default for PokemonInfo {
@@ -228,13 +230,13 @@ impl Default for PokemonInfo {
         PokemonInfo {
             number: "0000".to_string(),
             types: vec![PokemonType::Unknown],
-            species: "???".to_string(),
+            species: "????".to_string(),
             height: Measurement {
-                raw: "???".to_string(),
+                raw: "????".to_string(),
                 metric: -999.99,
             },
             weight: Measurement {
-                raw: "???".to_string(),
+                raw: "????".to_string(),
                 metric: -999.99,
             },
             abilities: Vec::new(),
@@ -245,6 +247,8 @@ impl Default for PokemonInfo {
             relations: None,
             evolves_from: None,
             evolves_into: None,
+            mega: None,
+            gmax: None,
         }
     }
 }

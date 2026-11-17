@@ -8,7 +8,7 @@ use iced::{
         svg, text,
     },
 };
-use log::debug;
+use log::{debug, warn};
 use petgraph::{
     graph::{DiGraph, NodeIndex},
     visit::EdgeRef,
@@ -60,7 +60,7 @@ fn escape(
         let from_cols = sections[section].cols as f32;
         let to_cols = sections[to].cols;
         let x = (col as f32 + 0.5) / from_cols;
-        ((x * to_cols as f32) as usize).min(to_cols - 1)
+        ((x * to_cols as f32) as usize).min(to_cols.saturating_sub(1))
     };
 
     match (section, direction) {
@@ -151,19 +151,22 @@ struct Layout {
     selection: SelectionGrid,
 }
 
-fn compute_layout(info: &Info) -> Layout {
+fn compute_layout(info: &Info, state: &RelationsState) -> Layout {
     let poke_info = info.get_pokemon_info(None);
 
-    let has_mega = poke_info
-        .evolves_into
-        .iter()
-        .flatten()
-        .any(|e| e.to_lowercase().contains("mega"));
-    let top_cols = if has_mega { 2 } else { 1 };
+    let has_mega = poke_info.mega.as_ref().is_some_and(|megas| megas.len() > 0);
+    let has_gmax = poke_info.gmax.is_some();
+
+    let top_cols = if has_mega && has_gmax {
+        3
+    } else if has_mega || has_gmax {
+        2
+    } else {
+        1
+    };
 
     let name = info.get_current().key;
     let graph = build_evo_graph(&name, |n| info.get_pokemon_info(Some(n.to_string())));
-
     let stage = stages(&graph);
     let cols = stage.iter().max().map_or(1, |m| m + 1);
 
@@ -180,17 +183,27 @@ fn compute_layout(info: &Info) -> Layout {
     let scroll_mode = widest > 2;
     let current = locate(&graph, &cols, scroll_mode, &name.to_lowercase());
 
-    let relations = if widest > 2 {
-        // scroll mode: one row per path, so every row is a full rectangle
-        let ps = paths(&graph);
-        let max_len = ps.iter().map(Vec::len).max().unwrap_or(1);
-        SectionShape::grid(ps.len(), max_len)
-    } else {
-        SectionShape::ragged(cols.iter().map(Vec::len).collect())
+    let relations: SectionShape = match state {
+        RelationsState::Evolutions => {
+            if widest > 2 {
+                // scroll mode: one row per path, so every row is a full rectangle
+                let ps = paths(&graph);
+                let max_len = ps.iter().map(Vec::len).max().unwrap_or(1);
+                SectionShape::grid(ps.len(), max_len)
+            } else {
+                SectionShape::ragged(cols.iter().map(Vec::len).collect())
+            }
+        }
+        RelationsState::Megas => SectionShape::grid(1, poke_info.mega.unwrap_or_default().len()),
+        RelationsState::Gigantamax => SectionShape::grid(1, 1),
     };
 
+    debug!("Section shape {:?} with state {:?}", relations, state);
+
     let mut selection = build_selection_grid(top_cols, relations);
-    if let Some((row, col)) = current {
+    if *state == RelationsState::Evolutions
+        && let Some((row, col)) = current
+    {
         selection = selection.with_start(section::RELATIONS, row, col);
         debug!("Starting at position {} {}", row, col);
     }
@@ -210,9 +223,8 @@ fn capitalize(s: &str) -> String {
 
 impl Relations {
     pub fn new(return_to: Box<Info>) -> (Self, Task<Message>) {
-        let Layout { graph, selection } = compute_layout(&return_to);
-
-        debug!("{:#?}", selection);
+        let start_state = RelationsState::Evolutions;
+        let Layout { graph, selection } = compute_layout(&return_to, &start_state);
 
         let mut this = Self {
             return_to: Some(return_to),
@@ -234,7 +246,7 @@ impl Relations {
             close_interaction: IconButtonInteraction::default(),
 
             selection,
-            state: RelationsState::Evolutions,
+            state: start_state,
         };
         let task = this.load_graph_sprites();
         (this, task)
@@ -242,29 +254,45 @@ impl Relations {
 
     fn refresh(&mut self) {
         if let Some(info) = self.return_to.as_ref() {
-            let Layout { graph, selection } = compute_layout(info);
+            let Layout { graph, selection } = compute_layout(info, &self.state);
             self.evo_graph = graph;
             self.selection = selection;
+
+            self.close_interaction = IconButtonInteraction::None;
+            self.down_interaction = IconButtonInteraction::None;
+            self.up_interaction = IconButtonInteraction::None;
         }
     }
 
     fn step(&mut self, delta: isize) -> Action {
         let Some(info) = self.return_to.as_mut() else {
+            warn!("No info to return to from step!");
             return Action::None;
         };
-        if self.selection.position().is_some() {
-            return Action::None;
-        }
         let step_task = info.step(delta).map(Message::Info);
+        self.state = RelationsState::Evolutions;
         self.refresh();
         let sprite_task = self.load_graph_sprites();
         Action::Run(Task::batch([step_task, sprite_task]))
     }
 
     fn load_graph_sprites(&mut self) -> Task<Message> {
-        let keys: Vec<String> = self.evo_graph.node_weights().cloned().collect();
+        let state = self.state.clone();
         match self.return_to.as_mut() {
-            Some(info) => info.load_sprites(&keys).map(Message::Info),
+            Some(info) => {
+                let current = info.get_pokemon_info(Some(info.get_current().key));
+                let mut evos: Vec<String> = self.evo_graph.node_weights().cloned().collect();
+                evos.extend(current.mega.unwrap_or_default());
+                evos.extend(current.gmax.into_iter());
+                debug!(
+                    "Loading sprites for {:?} with current {:?} and state {:?} with full list {:?}",
+                    current.display_name,
+                    info.get_current(),
+                    state,
+                    evos
+                );
+                info.load_sprites(&evos).map(Message::Info)
+            }
             None => Task::none(),
         }
     }
@@ -282,11 +310,24 @@ impl Relations {
             section::RELATIONS => {
                 let cols = columns(&self.evo_graph);
                 let scroll_mode = cols.iter().map(Vec::len).max().unwrap_or(1) > 2;
-                let Some(node) = node_at(&self.evo_graph, &cols, scroll_mode, row, col) else {
+
+                let info_ref = self.return_to.as_ref().unwrap();
+                let curr_info = info_ref.get_pokemon_info(Some(info_ref.get_current().key));
+
+                let key = match self.state {
+                    RelationsState::Evolutions => {
+                        node_at(&self.evo_graph, &cols, scroll_mode, row, col)
+                            .map(|n| self.evo_graph[n].clone())
+                    }
+                    RelationsState::Megas => {
+                        curr_info.mega.as_ref().and_then(|m| m.get(col)).cloned()
+                    }
+                    RelationsState::Gigantamax => curr_info.gmax.clone(),
+                };
+                let Some(key) = key else {
                     return None;
                 };
 
-                let key = self.evo_graph[node].clone();
                 Some(Message::JumpToPokemon(key))
             }
             section::BUTTONS => match col {
@@ -307,12 +348,24 @@ impl Relations {
         match msg {
             Message::IOInput(input) => match input {
                 IOAction::ScrollUp => {
-                    self.selection.navigate(SelectionDirection::Up);
-                    self.step(1)
+                    if self.selection.position.is_none() {
+                        Action::Run(Task::done(Message::UpInteraction(
+                            IconButtonInteraction::Released,
+                        )))
+                    } else {
+                        self.selection.navigate(SelectionDirection::Up);
+                        Action::None
+                    }
                 }
                 IOAction::ScrollDown => {
-                    self.selection.navigate(SelectionDirection::Down);
-                    self.step(-1)
+                    if self.selection.position.is_none() {
+                        Action::Run(Task::done(Message::DownInteraction(
+                            IconButtonInteraction::Released,
+                        )))
+                    } else {
+                        self.selection.navigate(SelectionDirection::Down);
+                        Action::None
+                    }
                 }
                 IOAction::Left => {
                     self.selection.navigate(SelectionDirection::Left);
@@ -363,7 +416,9 @@ impl Relations {
                     return Action::None; // already showing it
                 }
 
+                debug!("Jumping to {}", key);
                 let jump = info.jump_to(&key);
+                self.state = RelationsState::Evolutions;
                 self.refresh();
                 let sprites = self.load_graph_sprites();
                 Action::Run(Task::batch([jump.map(Message::Info), sprites]))
@@ -385,11 +440,15 @@ impl Relations {
             }
             Message::MegaBtn => {
                 self.state = RelationsState::Megas;
-                Action::None
+                debug!("Mega pressed");
+                self.refresh();
+                Action::Run(self.load_graph_sprites())
             }
             Message::GigaBtn => {
                 self.state = RelationsState::Gigantamax;
-                Action::None
+                debug!("Giga pressed");
+                self.refresh();
+                Action::Run(self.load_graph_sprites())
             }
         }
     }
@@ -420,12 +479,14 @@ impl Relations {
             common::colors::SECONDARY_FOCUS
         };
 
+        let img_h = sprite_h.min(w);
+
         let buff_w = w * 0.10;
-        let buff_h = sprite_h * 0.10;
+        let buff_h = img_h * 0.10;
 
         let outline = svg(self.outline_svg.clone())
             .width(Length::Fixed(w + buff_w))
-            .height(Length::Fixed(sprite_h + buff_h))
+            .height(Length::Fixed(img_h + buff_h))
             .style(move |_, _| svg::Style {
                 color: Some(outline_color),
             });
@@ -433,13 +494,26 @@ impl Relations {
         let sprite: Element<_> = match info.get_sprite(&name.to_string()) {
             Some(h) => Image::new(h)
                 .width(Length::Fill)
-                .height(Length::Fixed(sprite_h))
+                .height(Length::Fixed(img_h))
                 .content_fit(ContentFit::Contain)
                 .into(),
-            None => Space::new().height(sprite_h).into(),
+            None => Space::new().height(img_h).into(),
         };
 
-        let content: Element<_> = if ((name == info.get_current().key) && unfocused) || focused {
+        let current = info.get_current().key;
+        let should_outline = match self.state {
+            RelationsState::Evolutions => name == current,
+            RelationsState::Megas => info
+                .get_pokemon_info(Some(current))
+                .mega
+                .is_some_and(|megas| megas.get(0) == Some(&name.to_string())),
+            RelationsState::Gigantamax => info
+                .get_pokemon_info(Some(current))
+                .gmax
+                .is_some_and(|gmax| gmax == name),
+        };
+
+        let content: Element<_> = if (should_outline && unfocused) || focused {
             stack![sprite, outline].into()
         } else {
             sprite.into()
@@ -451,13 +525,54 @@ impl Relations {
             .unwrap_or_else(|| capitalize(name));
 
         container(
-            column![content, text(label).size(14).color(Color::WHITE)]
-                .align_x(Center)
-                .spacing(4),
+            column![
+                content,
+                text(label).size(14).align_x(Center).color(Color::WHITE)
+            ]
+            .align_x(Center)
+            .spacing(4),
         )
         .width(w)
-        .height(sprite_h + LABEL_H)
+        .center_y(sprite_h + LABEL_H)
         .into()
+    }
+
+    /// Draws `names` as evenly spaced node cells with no arrows.
+    /// Sizing matches `evo_fit` for a single row of columns.
+    fn node_row<'a>(
+        &'a self,
+        names: &[String],
+        size: Size,
+        focus: &Option<SelectionPosition>,
+        section_id: usize,
+    ) -> Element<'a, Message> {
+        let n = names.len().max(1) as f32;
+        let col_w = size.width / n;
+
+        // same gutter rule as evo_fit, so sprites are the same width as in a 2-stage layout
+        let gutter = if n > 1.0 {
+            (col_w * 0.30).max(ARROW + 16.0)
+        } else {
+            0.0
+        };
+        let node_w = col_w - gutter;
+        let sprite_h = (size.height - LABEL_H - 8.0).max(40.0);
+        let cell_h = sprite_h + LABEL_H;
+
+        let cells = names.iter().enumerate().map(|(col, name)| {
+            let focused = is_focused_at(*focus, section_id, 0, col);
+            pin(self.node_cell(name, node_w, sprite_h, focused))
+                .x((col as f32 + 0.5) * col_w - node_w / 2.0)
+                .y((size.height - cell_h) / 2.0)
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .into()
+        });
+
+        stack(cells.collect::<Vec<Element<'a, Message>>>())
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .into()
     }
 
     fn evo_view<'a>(&'a self) -> Element<'a, Message> {
@@ -696,7 +811,6 @@ impl Relations {
             megas_focused,
             self.state == RelationsState::Megas,
         );
-        // TODO: Gigantamax
         let gigas = tab(
             "Gigantamax",
             Message::GigaBtn,
@@ -707,14 +821,18 @@ impl Relations {
         let mut top_elements = vec![evos];
         if info
             .get_pokemon_info(Some(info.get_current().key))
-            .evolves_into
-            .iter()
-            .flatten()
-            .filter(|evo| evo.contains("Mega"))
-            .count()
-            > 0
+            .mega
+            .is_some_and(|megas| megas.len() > 0)
         {
             top_elements.push(megas);
+        }
+
+        if info
+            .get_pokemon_info(Some(info.get_current().key))
+            .gmax
+            .is_some()
+        {
+            top_elements.push(gigas);
         }
 
         let top_row = Row::from_vec(top_elements).spacing(10).padding(Padding {
@@ -722,8 +840,36 @@ impl Relations {
             ..Padding::ZERO
         });
 
+        let center: Element<_> = match self.state {
+            RelationsState::Evolutions => self.evo_view(),
+            RelationsState::Megas => {
+                let megas: Vec<String> = info
+                    .get_pokemon_info(Some(info.get_current().key))
+                    .mega
+                    .iter()
+                    .flatten()
+                    .cloned()
+                    .collect();
+                responsive(move |size| self.node_row(&megas, size, &focus, section::RELATIONS))
+                    .into()
+            }
+            RelationsState::Gigantamax => {
+                match info.get_pokemon_info(Some(info.get_current().key)).gmax {
+                    Some(gmax) => responsive(move |size| {
+                        self.node_row(&[gmax.clone()], size, &focus, section::RELATIONS)
+                    })
+                    .into(),
+                    None => text(format!(
+                        "Failed to retrieve gmax form for {}",
+                        info.get_current().key
+                    ))
+                    .into(),
+                }
+            }
+        };
+
         // ====================== evo graph row ======================
-        let chain_background = container(self.evo_view())
+        let chain_background = container(center)
             .width(Length::Fill)
             .height(Length::Fill)
             .padding(20)

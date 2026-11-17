@@ -12,7 +12,7 @@ use iced::{
     widget::{Space, canvas, column, container, image, image::Handle, row, scrollable, svg, text},
     window,
 };
-use log::debug;
+use log::{debug, error};
 
 use crate::elements::icon_button::IconButtonSize;
 use crate::{
@@ -672,7 +672,8 @@ impl PokedexBrowser {
                     None => Action::None,
                 }
             }
-            Message::ImageLoadFailed(_name, generation) => {
+            Message::ImageLoadFailed(name, generation) => {
+                error!("Failed to load sprite {:?}", name);
                 if !self.image_cache.is_generation_current(generation) {
                     return Action::None;
                 }

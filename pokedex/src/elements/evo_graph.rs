@@ -1,3 +1,4 @@
+use log::debug;
 use petgraph::{
     Direction::{Incoming, Outgoing},
     algo::toposort,
@@ -13,6 +14,8 @@ pub fn build_evo_graph(start: &str, get: impl Fn(&str) -> PokemonInfo) -> DiGrap
     let mut seen: HashSet<String> = HashSet::new();
     let mut stack = vec![start.to_lowercase()];
 
+    debug!("Getting evo graph for {:?}", start);
+
     let idx = |g: &mut DiGraph<String, ()>, nodes: &mut HashMap<String, NodeIndex>, name: &str| {
         *nodes
             .entry(name.to_string())
@@ -23,8 +26,8 @@ pub fn build_evo_graph(start: &str, get: impl Fn(&str) -> PokemonInfo) -> DiGrap
     let neighbors = |l: Option<Vec<String>>| -> Vec<String> {
         l.unwrap_or_default()
             .into_iter()
-            .map(|n| n.to_lowercase())
-            .filter(|n| !n.contains("mega") && get(n).base.unwrap_or(true))
+            .map(|name| name.to_lowercase())
+            .filter(|name| get(name).base.unwrap_or(true))
             .collect()
     };
 
@@ -46,6 +49,8 @@ pub fn build_evo_graph(start: &str, get: impl Fn(&str) -> PokemonInfo) -> DiGrap
             stack.push(into);
         }
     }
+
+    debug!("Built graph {:?}", g);
     g
 }
 

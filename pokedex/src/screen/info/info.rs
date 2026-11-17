@@ -3,12 +3,6 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use iced::{
-    Alignment, Background, Color, Element, Length, Padding, Task, Theme, Vector,
-    widget::{Canvas, Space, canvas, column, container, mouse_area, row, stack, svg, text},
-};
-use log::{debug, error};
-
 use crate::{
     elements::{
         common::{
@@ -30,6 +24,12 @@ use crate::{
         register::register::to_proper_case,
     },
 };
+use iced::{
+    Alignment, Background, Color, Element, Length, Padding, Task, Theme, Vector,
+    widget::{Canvas, Space, canvas, column, container, mouse_area, row, stack, svg, text},
+};
+use log::{debug, error, warn};
+use rand::seq::IteratorRandom;
 
 mod section {
     pub const GALLERY: usize = 0;
@@ -133,21 +133,41 @@ pub enum Action {
 
 impl Info {
     fn update_info(&mut self) {
-        let current_info = self.pokemon_data.get(&self.current_pokemon.key).unwrap();
-        let random_index = rand::random_range(0..current_info.dex_entries.len());
-        let dex_entry = current_info
+        let key = self.current_pokemon.key.to_lowercase();
+
+        let Some(info) = self.pokemon_data.get(&key) else {
+            warn!("No data for Pokémon {:?}", self.current_pokemon.key);
+            self.apply_missing_info();
+            return;
+        };
+
+        // From here on, `info` is a plain &PokemonInfo.
+        let dex_entry = info
             .dex_entries
-            .iter()
-            .nth(random_index)
-            .map(|(_, v)| v.clone());
+            .values()
+            .choose(&mut rand::rng()) // needs `use rand::seq::IteratorRandom;`
+            .cloned()
+            .unwrap_or_else(|| "No Pokédex entry available.".to_string());
 
-        let failure_text = format!(
+        let avail = Metrics::content_size(iced::Size::new(620.0, 95.0), Metrics::REFERENCE);
+        self.dex_entry_size =
+            shrink_text_to_fit(&dex_entry, 22.0, avail.width, 10.0, 3, avail.height);
+        self.dex_entry_text = dex_entry.to_string();
+
+        self.name_size =
+            shrink_text_to_fit(&self.current_pokemon.display, 16.0, 154.0, 10.0, 1, 28.0);
+
+        let abilities = info.abilities.join(", ");
+        self.abilities_size = shrink_text_to_fit(&abilities, 16.0, 200.0, 10.0, 1, 28.0);
+
+        self.type_images = io::resolve_type_images(info.types.clone());
+    }
+
+    fn apply_missing_info(&mut self) {
+        self.dex_entry_text = format!(
             "Failed to find information for Pokémon {:?}!",
-            &self.current_pokemon.key
+            self.current_pokemon.key
         );
-
-        self.dex_entry_text = dex_entry.unwrap_or(failure_text);
-
         let avail = Metrics::content_size(iced::Size::new(620.0, 95.0), Metrics::REFERENCE);
         self.dex_entry_size = shrink_text_to_fit(
             &self.dex_entry_text,
@@ -157,14 +177,10 @@ impl Info {
             3,
             avail.height,
         );
-
-        debug!("{} {}", self.dex_entry_size, self.dex_entry_text);
         self.name_size =
             shrink_text_to_fit(&self.current_pokemon.display, 16.0, 154.0, 10.0, 1, 28.0);
-        let abilities = current_info.abilities.join(", ");
-        self.abilities_size = shrink_text_to_fit(&abilities, 16.0, 200.0, 10.0, 1, 28.0);
-
-        self.type_images = io::resolve_type_images(current_info.types.clone());
+        self.abilities_size = 16.0; // or whatever your default is
+        self.type_images = Vec::new(); // or a "???" placeholder type image
     }
 
     pub fn new(
@@ -266,6 +282,7 @@ impl Info {
     }
 
     pub fn load_sprites(&mut self, keys: &[String]) -> Task<Message> {
+        debug!("Got call to load sprites {:?}", keys);
         match self.return_to.as_mut() {
             Some(browser) => browser.load_entries(keys).map(Message::Browser),
             None => Task::none(),
@@ -284,12 +301,13 @@ impl Info {
                     .map(Message::Browser),
             );
         }
-        self.up_interaction = IconButtonInteraction::None;
-        self.down_interaction = IconButtonInteraction::None;
+
         Task::batch(tasks)
     }
 
     pub fn step(&mut self, delta: isize) -> Task<Message> {
+        self.up_interaction = IconButtonInteraction::None;
+        self.down_interaction = IconButtonInteraction::None;
         let len = self.list.len() as isize;
         let Some(index) = self.list.iter().position(|e| *e == self.current_pokemon) else {
             return Task::none();
@@ -311,6 +329,7 @@ impl Info {
                 key: key.to_string(),
                 display: key.to_string(),
             });
+        debug!("Going to {:?}", entry);
         self.go_to(entry)
     }
 
@@ -537,11 +556,10 @@ impl Info {
         .spacing(1)
         .padding(5);
 
+        let key = &self.current_pokemon.key.to_lowercase();
+
         // sprite
-        let image = self
-            .return_to
-            .as_ref()
-            .and_then(|b| b.image_cache.get(&self.current_pokemon.key));
+        let image = self.return_to.as_ref().and_then(|b| b.image_cache.get(key));
 
         let thumb: Element<_> = match image {
             Some(h) => iced::widget::Image::new(h)
@@ -552,10 +570,10 @@ impl Info {
         };
 
         // ============info box=================
-        let info = self.pokemon_data.get(&self.current_pokemon.key).unwrap();
+        let info = self.pokemon_data.get(key).unwrap();
 
         // Owned indicator
-        let is_owned = self.owned_pokemon.contains_key(&self.current_pokemon.key);
+        let is_owned = self.owned_pokemon.contains_key(key);
         let state = if is_owned {
             IconState::Registered
         } else {
@@ -838,16 +856,14 @@ impl Info {
         let font = common::CONDENSED;
         let focus: Option<SelectionPosition> = self.selection.position();
         const FOCUS_W: f32 = 4.0;
+        let key = &self.current_pokemon.key.to_lowercase();
 
         // ======================= gallery ========================
-        let count = self
-            .gallery_images
-            .get(&self.current_pokemon.key)
-            .map_or(0, Vec::len);
+        let count = self.gallery_images.get(key).map_or(0, Vec::len);
         let count_str: String = format!("[{}]", count);
         let thumb: Element<_> = self
             .gallery_images
-            .get(&self.current_pokemon.key)
+            .get(key)
             .and_then(|images| {
                 images
                     .iter()

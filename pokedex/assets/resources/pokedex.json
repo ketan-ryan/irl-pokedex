@@ -112,9 +112,10 @@
         "evolves_from": [
             "Ivysaur"
         ],
-        "evolves_into": [
+        "mega": [
             "Mega Venusaur"
-        ]
+        ],
+        "gmax": "Gigantamax Venusaur"
     },
     "Mega Venusaur": {
         "number": "0003",
@@ -131,7 +132,25 @@
         "evolves_from": [
             "Venusaur"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
+    },
+    "Gigantamax Venusaur": {
+        "number": "0003",
+        "type": "Grass/Poison",
+        "species": "Seed Pokémon",
+        "height": "2.0 m (6′07″)",
+        "weight": "100.0 kg (220.5 lbs)",
+        "abilities": [
+            "Overgrow",
+            "Chlorophyll"
+        ],
+        "dex_entries": {},
+        "evolves_from": [
+            "Venusaur"
+        ],
+        "evolves_into": [],
+        "base": false
     },
     "Charmander": {
         "number": "0004",
@@ -247,10 +266,11 @@
         "evolves_from": [
             "Charmeleon"
         ],
-        "evolves_into": [
+        "mega": [
             "Mega Charizard X",
             "Mega Charizard Y"
-        ]
+        ],
+        "gmax": "Gigantamax Charizard"
     },
     "Mega Charizard X": {
         "number": "0006",
@@ -267,7 +287,8 @@
         "evolves_from": [
             "Charizard"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Mega Charizard Y": {
         "number": "0006",
@@ -284,7 +305,25 @@
         "evolves_from": [
             "Charizard"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
+    },
+    "Gigantamax Charizard": {
+        "number": "0006",
+        "type": "Fire/Flying",
+        "species": "Flame Pokémon",
+        "height": "1.7 m (5′07″)",
+        "weight": "90.5 kg (199.5 lbs)",
+        "abilities": [
+            "Blaze",
+            "Solar Power"
+        ],
+        "dex_entries": {},
+        "evolves_from": [
+            "Charizard"
+        ],
+        "evolves_into": [],
+        "base": false
     },
     "Squirtle": {
         "number": "0007",
@@ -401,9 +440,10 @@
         "evolves_from": [
             "Wartortle"
         ],
-        "evolves_into": [
+        "mega": [
             "Mega Blastoise"
-        ]
+        ],
+        "gmax": "Gigantamax Blastoise"
     },
     "Mega Blastoise": {
         "number": "0009",
@@ -420,7 +460,25 @@
         "evolves_from": [
             "Blastoise"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
+    },
+    "Gigantamax Blastoise": {
+        "number": "0009",
+        "type": "Water",
+        "species": "Shellfish Pokémon",
+        "height": "1.6 m (5′03″)",
+        "weight": "85.5 kg (188.5 lbs)",
+        "abilities": [
+            "Torrent",
+            "Rain Dish"
+        ],
+        "dex_entries": {},
+        "evolves_from": [
+            "Blastoise"
+        ],
+        "evolves_into": [],
+        "base": false
     },
     "Caterpie": {
         "number": "0010",
@@ -547,7 +605,25 @@
         "evolves_from": [
             "Metapod"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "gmax": "Gigantamax Butterfree"
+    },
+    "Gigantamax Butterfree": {
+        "number": "0012",
+        "type": "Bug/Flying",
+        "species": "Butterfly Pokémon",
+        "height": "1.1 m (3′07″)",
+        "weight": "32.0 kg (70.5 lbs)",
+        "abilities": [
+            "Compound Eyes",
+            "Tinted Lens"
+        ],
+        "dex_entries": {},
+        "evolves_from": [
+            "Butterfree"
+        ],
+        "evolves_into": [],
+        "base": false
     },
     "Weedle": {
         "number": "0013",
@@ -656,7 +732,7 @@
         "evolves_from": [
             "Kakuna"
         ],
-        "evolves_into": [
+        "mega": [
             "Mega Beedrill"
         ]
     },
@@ -675,7 +751,8 @@
         "evolves_from": [
             "Beedrill"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Pidgey": {
         "number": "0016",
@@ -788,7 +865,7 @@
         "evolves_from": [
             "Pidgeotto"
         ],
-        "evolves_into": [
+        "mega": [
             "Mega Pidgeot"
         ]
     },
@@ -807,7 +884,8 @@
         "evolves_from": [
             "Pidgeot"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Rattata": {
         "number": "0019",
@@ -1167,7 +1245,25 @@
         "evolves_into": [
             "Raichu",
             "Alolan Raichu"
-        ]
+        ],
+        "gmax": "Gigantamax Pikachu"
+    },
+    "Gigantamax Pikachu": {
+        "number": "0025",
+        "type": "Electric",
+        "species": "Mouse Pokémon",
+        "height": "0.4 m (1′04″)",
+        "weight": "6.0 kg (13.2 lbs)",
+        "abilities": [
+            "Static",
+            "Lightning Rod"
+        ],
+        "dex_entries": {},
+        "evolves_from": [
+            "Pikachu"
+        ],
+        "evolves_into": [],
+        "base": false
     },
     "Raichu": {
         "number": "0026",
@@ -2595,7 +2691,30 @@
         "evolves_from": [],
         "evolves_into": [
             "Persian"
-        ]
+        ],
+        "gmax": "Gigantamax Meowth"
+    },
+    "Gigantamax Meowth": {
+        "number": "0052",
+        "type": "Normal",
+        "species": "Scratch Cat Pokémon",
+        "height": "0.4 m (1′04″)",
+        "weight": "4.2 kg (9.3 lbs)",
+        "abilities": [
+            "Pickup",
+            "Technician",
+            "Unnerve"
+        ],
+        "dex_entries": {},
+        "relations": [
+            "Alolan Meowth",
+            "Galarian Meowth"
+        ],
+        "base": false,
+        "evolves_from": [
+            "Meowth"
+        ],
+        "evolves_into": []
     },
     "Alolan Meowth": {
         "number": "0052",
@@ -3352,7 +3471,7 @@
         "evolves_from": [
             "Kadabra"
         ],
-        "evolves_into": [
+        "mega": [
             "Mega Alakazam"
         ]
     },
@@ -3375,7 +3494,8 @@
         "evolves_from": [
             "Alakazam"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Machop": {
         "number": "0066",
@@ -3524,7 +3644,26 @@
         "evolves_from": [
             "Machoke"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "gmax": "Gigantamax Machamp"
+    },
+    "Gigantamax Machamp": {
+        "number": "0068",
+        "type": "Fighting",
+        "species": "Superpower Pokémon",
+        "height": "1.6 m (5′03″)",
+        "weight": "130.0 kg (286.6 lbs)",
+        "abilities": [
+            "Guts",
+            "No Guard",
+            "Steadfast"
+        ],
+        "dex_entries": {},
+        "evolves_from": [
+            "Machamp"
+        ],
+        "evolves_into": [],
+        "base": false
     },
     "Bellsprout": {
         "number": "0069",
@@ -4244,7 +4383,7 @@
         "evolves_from": [
             "Slowpoke"
         ],
-        "evolves_into": [
+        "mega": [
             "Mega Slowbro"
         ]
     },
@@ -4268,7 +4407,8 @@
         "evolves_from": [
             "Slowbro"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Galarian Slowbro": {
         "number": "0080",
@@ -5007,9 +5147,10 @@
         "evolves_from": [
             "Haunter"
         ],
-        "evolves_into": [
+        "mega": [
             "Mega Gengar"
-        ]
+        ],
+        "gmax": "Gigantamax Gengar"
     },
     "Mega Gengar": {
         "number": "0094",
@@ -5030,7 +5171,24 @@
         "evolves_from": [
             "Gengar"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
+    },
+    "Gigantamax Gengar": {
+        "number": "0094",
+        "type": "Ghost/Poison",
+        "species": "Shadow Pokémon",
+        "height": "1.5 m (4′11″)",
+        "weight": "40.5 kg (89.3 lbs)",
+        "abilities": [
+            "Cursed Body"
+        ],
+        "dex_entries": {},
+        "evolves_from": [
+            "Gengar"
+        ],
+        "evolves_into": [],
+        "base": false
     },
     "Onix": {
         "number": "0095",
@@ -5238,7 +5396,26 @@
         "evolves_from": [
             "Krabby"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "gmax": "Gigantamax Kingler"
+    },
+    "Gigantamax Kingler": {
+        "number": "0099",
+        "type": "Water",
+        "species": "Pincer Pokémon",
+        "height": "1.3 m (4′03″)",
+        "weight": "60.0 kg (132.3 lbs)",
+        "abilities": [
+            "Hyper Cutter",
+            "Shell Armor",
+            "Sheer Force"
+        ],
+        "dex_entries": {},
+        "evolves_from": [
+            "Kingler"
+        ],
+        "evolves_into": [],
+        "base": false
     },
     "Voltorb": {
         "number": "0100",
@@ -6074,7 +6251,7 @@
         },
         "region": "Kanto",
         "evolves_from": [],
-        "evolves_into": [
+        "mega": [
             "Mega Kangaskhan"
         ]
     },
@@ -6097,7 +6274,8 @@
         "evolves_from": [
             "Kangaskhan"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Horsea": {
         "number": "0116",
@@ -6673,7 +6851,7 @@
         },
         "region": "Kanto",
         "evolves_from": [],
-        "evolves_into": [
+        "mega": [
             "Mega Pinsir"
         ]
     },
@@ -6696,7 +6874,8 @@
         "evolves_from": [
             "Pinsir"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Tauros": {
         "number": "0128",
@@ -6920,7 +7099,7 @@
         "evolves_from": [
             "Magikarp"
         ],
-        "evolves_into": [
+        "mega": [
             "Mega Gyarados"
         ]
     },
@@ -6943,7 +7122,8 @@
         "evolves_from": [
             "Gyarados"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Lapras": {
         "number": "0131",
@@ -6985,7 +7165,26 @@
         },
         "region": "Kanto",
         "evolves_from": [],
-        "evolves_into": []
+        "evolves_into": [],
+        "gmax": "Gigantamax Lapras"
+    },
+    "Gigantamax Lapras": {
+        "number": "0131",
+        "type": "Water/Ice",
+        "species": "Transport Pokémon",
+        "height": "2.5 m (8′02″)",
+        "weight": "220.0 kg (485.0 lbs)",
+        "abilities": [
+            "Water Absorb",
+            "Shell Armor",
+            "Hydration"
+        ],
+        "dex_entries": {},
+        "evolves_from": [
+            "Lapras"
+        ],
+        "evolves_into": [],
+        "base": false
     },
     "Ditto": {
         "number": "0132",
@@ -7083,7 +7282,26 @@
             "Leafeon",
             "Glaceon",
             "Sylveon"
-        ]
+        ],
+        "gmax": "Gigantamax Eevee"
+    },
+    "Gigantamax Eevee": {
+        "number": "0133",
+        "type": "Normal",
+        "species": "Evolution Pokémon",
+        "height": "0.3 m (1′00″)",
+        "weight": "6.5 kg (14.3 lbs)",
+        "abilities": [
+            "Run Away",
+            "Adaptability",
+            "Anticipation"
+        ],
+        "dex_entries": {},
+        "evolves_from": [
+            "Eevee"
+        ],
+        "evolves_into": [],
+        "base": false
     },
     "Vaporeon": {
         "number": "0134",
@@ -7474,7 +7692,7 @@
         },
         "region": "Kanto",
         "evolves_from": [],
-        "evolves_into": [
+        "mega": [
             "Mega Aerodactyl"
         ]
     },
@@ -7497,7 +7715,8 @@
         "evolves_from": [
             "Aerodactyl"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Snorlax": {
         "number": "0143",
@@ -7544,7 +7763,26 @@
         "evolves_from": [
             "Munchlax"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "gmax": "Gigantamax Snorlax"
+    },
+    "Gigantamax Snorlax": {
+        "number": "0143",
+        "type": "Normal",
+        "species": "Sleeping Pokémon",
+        "height": "2.1 m (6′11″)",
+        "weight": "460.0 kg (1014.1 lbs)",
+        "abilities": [
+            "Immunity",
+            "Thick Fat",
+            "Gluttony"
+        ],
+        "dex_entries": {},
+        "evolves_from": [
+            "Snorlax"
+        ],
+        "evolves_into": [],
+        "base": false
     },
     "Articuno": {
         "number": "0144",
@@ -7896,7 +8134,7 @@
         },
         "region": "Kanto",
         "evolves_from": [],
-        "evolves_into": [
+        "mega": [
             "Mega Mewtwo X",
             "Mega Mewtwo Y"
         ]
@@ -7916,7 +8154,8 @@
         "evolves_from": [
             "Mewtwo"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Mega Mewtwo Y": {
         "number": "0150",
@@ -7933,7 +8172,8 @@
         "evolves_from": [
             "Mewtwo"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Mew": {
         "number": "0151",
@@ -9142,7 +9382,7 @@
         "evolves_from": [
             "Flaaffy"
         ],
-        "evolves_into": [
+        "mega": [
             "Mega Ampharos"
         ]
     },
@@ -9162,7 +9402,8 @@
         "evolves_from": [
             "Ampharos"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Bellossom": {
         "number": "0182",
@@ -10295,7 +10536,27 @@
         "evolves_from": [
             "Onix"
         ],
-        "evolves_into": []
+        "mega": [
+            "Mega Steelix"
+        ]
+    },
+    "Mega Steelix": {
+        "number": "0208",
+        "type": "Steel/Ground",
+        "species": "Iron Snake Pokémon",
+        "height": "9.2 m (30′02″)",
+        "weight": "400.0 kg (881.8 lbs)",
+        "abilities": [
+            "Rock Head",
+            "Sturdy",
+            "Sheer Force"
+        ],
+        "dex_entries": {},
+        "evolves_from": [
+            "Steelix"
+        ],
+        "evolves_into": [],
+        "base": false
     },
     "Snubbull": {
         "number": "0209",
@@ -10479,7 +10740,7 @@
         "evolves_from": [
             "Scyther"
         ],
-        "evolves_into": [
+        "mega": [
             "Mega Scizor"
         ]
     },
@@ -10501,7 +10762,8 @@
         "evolves_from": [
             "Scizor"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Shuckle": {
         "number": "0213",
@@ -10581,7 +10843,7 @@
         },
         "region": "Johto",
         "evolves_from": [],
-        "evolves_into": [
+        "mega": [
             "Mega Heracross"
         ]
     },
@@ -10601,7 +10863,8 @@
         "evolves_from": [
             "Heracross"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Sneasel": {
         "number": "0215",
@@ -11262,7 +11525,7 @@
         "evolves_from": [
             "Houndour"
         ],
-        "evolves_into": [
+        "mega": [
             "Mega Houndoom"
         ]
     },
@@ -11282,7 +11545,8 @@
         "evolves_from": [
             "Houndoom"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Kingdra": {
         "number": "0230",
@@ -12006,7 +12270,7 @@
         "evolves_from": [
             "Pupitar"
         ],
-        "evolves_into": [
+        "mega": [
             "Mega Tyranitar"
         ]
     },
@@ -12026,7 +12290,8 @@
         "evolves_from": [
             "Tyranitar"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Lugia": {
         "number": "0249",
@@ -12212,7 +12477,26 @@
         "evolves_from": [
             "Grovyle"
         ],
-        "evolves_into": []
+        "mega": [
+            "Mega Sceptile"
+        ]
+    },
+    "Mega Sceptile": {
+        "number": "0254",
+        "type": "Grass",
+        "species": "Forest Pokémon",
+        "height": "1.7 m (5′07″)",
+        "weight": "52.2 kg (115.1 lbs)",
+        "abilities": [
+            "Overgrow",
+            "Unburden"
+        ],
+        "dex_entries": {},
+        "evolves_from": [
+            "Sceptile"
+        ],
+        "evolves_into": [],
+        "base": false
     },
     "Torchic": {
         "number": "0255",
@@ -12304,7 +12588,26 @@
         "evolves_from": [
             "Combusken"
         ],
-        "evolves_into": []
+        "mega": [
+            "Mega Blaziken"
+        ]
+    },
+    "Mega Blaziken": {
+        "number": "0257",
+        "type": "Fire/Fighting",
+        "species": "Blaze Pokémon",
+        "height": "1.9 m (6′03″)",
+        "weight": "52.0 kg (114.6 lbs)",
+        "abilities": [
+            "Blaze",
+            "Speed Boost"
+        ],
+        "dex_entries": {},
+        "evolves_from": [
+            "Blaziken"
+        ],
+        "evolves_into": [],
+        "base": false
     },
     "Mudkip": {
         "number": "0258",
@@ -12396,7 +12699,26 @@
         "evolves_from": [
             "Marshtomp"
         ],
-        "evolves_into": []
+        "mega": [
+            "Mega Swampert"
+        ]
+    },
+    "Mega Swampert": {
+        "number": "0260",
+        "type": "Water/Ground",
+        "species": "Mud Fish Pokémon",
+        "height": "1.5 m (4′11″)",
+        "weight": "81.9 kg (180.6 lbs)",
+        "abilities": [
+            "Torrent",
+            "Damp"
+        ],
+        "dex_entries": {},
+        "evolves_from": [
+            "Swampert"
+        ],
+        "evolves_into": [],
+        "base": false
     },
     "Poochyena": {
         "number": "0261",
@@ -13219,7 +13541,27 @@
         "evolves_from": [
             "Kirlia"
         ],
-        "evolves_into": []
+        "mega": [
+            "Mega Gardevoir"
+        ]
+    },
+    "Mega Gardevoir": {
+        "number": "0282",
+        "type": "Psychic/Fairy",
+        "species": "Embrace Pokémon",
+        "height": "1.6 m (5′03″)",
+        "weight": "48.4 kg (106.7 lbs)",
+        "abilities": [
+            "Synchronize",
+            "Trace",
+            "Telepathy"
+        ],
+        "dex_entries": {},
+        "evolves_from": [
+            "Gardevoir"
+        ],
+        "evolves_into": [],
+        "base": false
     },
     "Surskit": {
         "number": "0283",
@@ -13901,7 +14243,7 @@
         },
         "region": "Hoenn",
         "evolves_from": [],
-        "evolves_into": [
+        "mega": [
             "Mega Sableye"
         ]
     },
@@ -13923,7 +14265,8 @@
         "evolves_from": [
             "Sableye"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Mawile": {
         "number": "0303",
@@ -13956,7 +14299,7 @@
         },
         "region": "Hoenn",
         "evolves_from": [],
-        "evolves_into": [
+        "mega": [
             "Mega Mawile"
         ]
     },
@@ -13976,7 +14319,8 @@
         "evolves_from": [
             "Mawile"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Aron": {
         "number": "0304",
@@ -14080,7 +14424,27 @@
         "evolves_from": [
             "Lairon"
         ],
-        "evolves_into": []
+        "mega": [
+            "Mega Aggron"
+        ]
+    },
+    "Mega Aggron": {
+        "number": "0306",
+        "type": "Steel/Rock",
+        "species": "Iron Armor Pokémon",
+        "height": "2.1 m (6′11″)",
+        "weight": "360.0 kg (793.7 lbs)",
+        "abilities": [
+            "Sturdy",
+            "Rock Head",
+            "Heavy Metal"
+        ],
+        "dex_entries": {},
+        "evolves_from": [
+            "Aggron"
+        ],
+        "evolves_into": [],
+        "base": false
     },
     "Meditite": {
         "number": "0307",
@@ -14150,7 +14514,26 @@
         "evolves_from": [
             "Meditite"
         ],
-        "evolves_into": []
+        "mega": [
+            "Mega Medicham"
+        ]
+    },
+    "Mega Medicham": {
+        "number": "0308",
+        "type": "Fighting/Psychic",
+        "species": "Meditate Pokémon",
+        "height": "1.3 m (4′03″)",
+        "weight": "31.5 kg (69.4 lbs)",
+        "abilities": [
+            "Pure Power",
+            "Telepathy"
+        ],
+        "dex_entries": {},
+        "evolves_from": [
+            "Medicham"
+        ],
+        "evolves_into": [],
+        "base": false
     },
     "Electrike": {
         "number": "0309",
@@ -14220,7 +14603,7 @@
         "evolves_from": [
             "Electrike"
         ],
-        "evolves_into": [
+        "mega": [
             "Mega Manectric"
         ]
     },
@@ -14240,7 +14623,8 @@
         "evolves_from": [
             "Manectric"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Plusle": {
         "number": "0311",
@@ -14532,7 +14916,7 @@
         "evolves_from": [
             "Carvanha"
         ],
-        "evolves_into": [
+        "mega": [
             "Mega Sharpedo"
         ]
     },
@@ -14554,7 +14938,8 @@
         "evolves_from": [
             "Sharpedo"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Wailmer": {
         "number": "0320",
@@ -14698,7 +15083,27 @@
         "evolves_from": [
             "Numel"
         ],
-        "evolves_into": []
+        "mega": [
+            "Mega Camerupt"
+        ]
+    },
+    "Mega Camerupt": {
+        "number": "0323",
+        "type": "Fire/Ground",
+        "species": "Eruption Pokémon",
+        "height": "1.9 m (6′03″)",
+        "weight": "220.0 kg (485.0 lbs)",
+        "abilities": [
+            "Magma Armor",
+            "Solid Rock",
+            "Anger Point"
+        ],
+        "dex_entries": {},
+        "evolves_from": [
+            "Camerupt"
+        ],
+        "evolves_into": [],
+        "base": false
     },
     "Torkoal": {
         "number": "0324",
@@ -15084,7 +15489,26 @@
         "evolves_from": [
             "Swablu"
         ],
-        "evolves_into": []
+        "mega": [
+            "Mega Altaria"
+        ]
+    },
+    "Mega Altaria": {
+        "number": "0334",
+        "type": "Dragon/Flying",
+        "species": "Humming Pokémon",
+        "height": "1.1 m (3′07″)",
+        "weight": "20.6 kg (45.4 lbs)",
+        "abilities": [
+            "Natural Cure",
+            "Cloud Nine"
+        ],
+        "dex_entries": {},
+        "evolves_from": [
+            "Altaria"
+        ],
+        "evolves_into": [],
+        "base": false
     },
     "Zangoose": {
         "number": "0335",
@@ -15860,7 +16284,7 @@
         "evolves_from": [
             "Shuppet"
         ],
-        "evolves_into": [
+        "mega": [
             "Mega Banette"
         ]
     },
@@ -15880,7 +16304,8 @@
         "evolves_from": [
             "Banette"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Duskull": {
         "number": "0355",
@@ -16055,7 +16480,7 @@
         },
         "region": "Hoenn",
         "evolves_from": [],
-        "evolves_into": [
+        "mega": [
             "Mega Absol"
         ]
     },
@@ -16077,7 +16502,8 @@
         "evolves_from": [
             "Absol"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Wynaut": {
         "number": "0360",
@@ -16192,7 +16618,7 @@
         "evolves_from": [
             "Snorunt"
         ],
-        "evolves_into": [
+        "mega": [
             "Mega Glalie"
         ]
     },
@@ -16214,7 +16640,8 @@
         "evolves_from": [
             "Glalie"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Spheal": {
         "number": "0363",
@@ -16603,7 +17030,7 @@
         "evolves_from": [
             "Shelgon"
         ],
-        "evolves_into": [
+        "mega": [
             "Mega Salamence"
         ]
     },
@@ -16625,7 +17052,8 @@
         "evolves_from": [
             "Salamence"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Beldum": {
         "number": "0374",
@@ -16738,7 +17166,9 @@
         "evolves_from": [
             "Metang"
         ],
-        "evolves_into": []
+        "mega": [
+            "Mega Metagross"
+        ]
     },
     "Mega Metagross": {
         "number": "0376",
@@ -16755,8 +17185,11 @@
             "Ultra Sun": "Its intellect surpasses its previous level, resulting in battles so cruel, they’ll make you want to cover your eyes.",
             "Ultra Moon": "When it knows it can’t win, it digs the claws on its legs into its opponent and starts the countdown to a big explosion."
         },
-        "evolves_from": [],
-        "evolves_into": []
+        "evolves_from": [
+            "Metagross"
+        ],
+        "evolves_into": [],
+        "base": false
     },
     "Regirock": {
         "number": "0377",
@@ -16873,7 +17306,25 @@
         },
         "region": "Hoenn",
         "evolves_from": [],
-        "evolves_into": []
+        "mega": [
+            "Mega Latias"
+        ]
+    },
+    "Mega Latias": {
+        "number": "0380",
+        "type": "Dragon/Psychic",
+        "species": "Eon Pokémon",
+        "height": "1.4 m (4′07″)",
+        "weight": "40.0 kg (88.2 lbs)",
+        "abilities": [
+            "Levitate"
+        ],
+        "dex_entries": {},
+        "evolves_from": [
+            "Latias"
+        ],
+        "evolves_into": [],
+        "base": false
     },
     "Latios": {
         "number": "0381",
@@ -16900,7 +17351,25 @@
         },
         "region": "Hoenn",
         "evolves_from": [],
-        "evolves_into": []
+        "mega": [
+            "Mega Latios"
+        ]
+    },
+    "Mega Latios": {
+        "number": "0381",
+        "type": "Dragon/Psychic",
+        "species": "Eon Pokémon",
+        "height": "2.0 m (6′07″)",
+        "weight": "60.0 kg (132.3 lbs)",
+        "abilities": [
+            "Levitate"
+        ],
+        "dex_entries": {},
+        "evolves_from": [
+            "Latios"
+        ],
+        "evolves_into": [],
+        "base": false
     },
     "Kyogre": {
         "number": "0382",
@@ -16927,7 +17396,25 @@
         },
         "region": "Hoenn",
         "evolves_from": [],
-        "evolves_into": []
+        "mega": [
+            "Primal Kyogre"
+        ]
+    },
+    "Primal Kyogre": {
+        "number": "0382",
+        "type": "Water",
+        "species": "Sea Basin Pokémon",
+        "height": "4.5 m (14′09″)",
+        "weight": "352.0 kg (776.0 lbs)",
+        "abilities": [
+            "Drizzle"
+        ],
+        "dex_entries": {},
+        "evolves_from": [
+            "Kyogre"
+        ],
+        "evolves_into": [],
+        "base": false
     },
     "Groudon": {
         "number": "0383",
@@ -16954,7 +17441,25 @@
         },
         "region": "Hoenn",
         "evolves_from": [],
-        "evolves_into": []
+        "mega": [
+            "Primal Groudon"
+        ]
+    },
+    "Primal Groudon": {
+        "number": "0383",
+        "type": "Ground",
+        "species": "Continent Pokémon",
+        "height": "3.5 m (11′06″)",
+        "weight": "950.0 kg (2094.4 lbs)",
+        "abilities": [
+            "Drought"
+        ],
+        "dex_entries": {},
+        "evolves_from": [
+            "Groudon"
+        ],
+        "evolves_into": [],
+        "base": false
     },
     "Rayquaza": {
         "number": "0384",
@@ -16981,7 +17486,25 @@
         },
         "region": "Hoenn",
         "evolves_from": [],
-        "evolves_into": []
+        "mega": [
+            "Mega Rayquaza"
+        ]
+    },
+    "Mega Rayquaza": {
+        "number": "0384",
+        "type": "Dragon/Flying",
+        "species": "Sky High Pokémon",
+        "height": "7.0 m (23′00″)",
+        "weight": "206.5 kg (455.3 lbs)",
+        "abilities": [
+            "Air Lock"
+        ],
+        "dex_entries": {},
+        "evolves_from": [
+            "Rayquaza"
+        ],
+        "evolves_into": [],
+        "base": false
     },
     "Jirachi": {
         "number": "0385",
@@ -18620,7 +19143,7 @@
         "evolves_from": [
             "Buneary"
         ],
-        "evolves_into": [
+        "mega": [
             "Mega Lopunny"
         ]
     },
@@ -18640,7 +19163,8 @@
         "evolves_from": [
             "Lopunny"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Mismagius": {
         "number": "0429",
@@ -19202,7 +19726,7 @@
         "evolves_from": [
             "Gabite"
         ],
-        "evolves_into": [
+        "mega": [
             "Mega Garchomp"
         ]
     },
@@ -19224,7 +19748,8 @@
         "evolves_from": [
             "Garchomp"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Munchlax": {
         "number": "0446",
@@ -19335,7 +19860,7 @@
         "evolves_from": [
             "Riolu"
         ],
-        "evolves_into": [
+        "mega": [
             "Mega Lucario"
         ]
     },
@@ -19357,7 +19882,8 @@
         "evolves_from": [
             "Lucario"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "base": false
     },
     "Hippopotas": {
         "number": "0449",
@@ -19749,7 +20275,26 @@
         "evolves_from": [
             "Snover"
         ],
-        "evolves_into": []
+        "mega": [
+            "Mega Abomasnow"
+        ]
+    },
+    "Mega Abomasnow": {
+        "number": "0460",
+        "type": "Grass/Ice",
+        "species": "Frost Tree Pokémon",
+        "height": "2.2 m (7′03″)",
+        "weight": "135.5 kg (298.7 lbs)",
+        "abilities": [
+            "Snow Warning",
+            "Soundproof"
+        ],
+        "dex_entries": {},
+        "evolves_from": [
+            "Abomasnow"
+        ],
+        "evolves_into": [],
+        "base": false
     },
     "Weavile": {
         "number": "0461",
@@ -20232,7 +20777,27 @@
         "evolves_from": [
             "Kirlia"
         ],
-        "evolves_into": []
+        "mega": [
+            "Mega Gallade"
+        ]
+    },
+    "Mega Gallade": {
+        "number": "0475",
+        "type": "Psychic/Fighting",
+        "species": "Blade Pokémon",
+        "height": "1.6 m (5′03″)",
+        "weight": "52.0 kg (114.6 lbs)",
+        "abilities": [
+            "Steadfast",
+            "Sharpness",
+            "Justified"
+        ],
+        "dex_entries": {},
+        "evolves_from": [
+            "Gallade"
+        ],
+        "evolves_into": [],
+        "base": false
     },
     "Probopass": {
         "number": "0476",
@@ -21933,7 +22498,27 @@
         },
         "region": "Unova",
         "evolves_from": [],
-        "evolves_into": []
+        "mega": [
+            "Mega Audino"
+        ]
+    },
+    "Mega Audino": {
+        "number": "0531",
+        "type": "Normal",
+        "species": "Hearing Pokémon",
+        "height": "1.1 m (3′07″)",
+        "weight": "31.0 kg (68.3 lbs)",
+        "abilities": [
+            "Healer",
+            "Regenerator",
+            "Klutz"
+        ],
+        "dex_entries": {},
+        "evolves_from": [
+            "Audino"
+        ],
+        "evolves_into": [],
+        "base": false
     },
     "Timburr": {
         "number": "0532",
@@ -23189,7 +23774,26 @@
         "evolves_from": [
             "Trubbish"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "gmax": "Gigantamax Garbodor"
+    },
+    "Gigantamax Garbodor": {
+        "number": "0569",
+        "type": "Poison",
+        "species": "Trash Heap Pokémon",
+        "height": "1.9 m (6′03″)",
+        "weight": "107.3 kg (236.6 lbs)",
+        "abilities": [
+            "Stench",
+            "Weak Armor",
+            "Aftermath"
+        ],
+        "dex_entries": {},
+        "evolves_from": [
+            "Garbodor"
+        ],
+        "evolves_into": [],
+        "base": false
     },
     "Zorua": {
         "number": "0570",
@@ -27693,7 +28297,25 @@
         },
         "region": "Kalos",
         "evolves_from": [],
-        "evolves_into": []
+        "mega": [
+            "Mega Diancie"
+        ]
+    },
+    "Mega Diancie": {
+        "number": "0719",
+        "type": "Rock/Fairy",
+        "species": "Jewel Pokémon",
+        "height": "0.7 m (2′04″)",
+        "weight": "8.8 kg (19.4 lbs)",
+        "abilities": [
+            "Clear Body"
+        ],
+        "dex_entries": {},
+        "evolves_from": [
+            "Diancie"
+        ],
+        "evolves_into": [],
+        "base": false
     },
     "Hoopa Confined": {
         "number": "0720",
@@ -30112,7 +30734,24 @@
         "evolves_from": [
             "Meltan"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "gmax": "Gigantamax Melmetal"
+    },
+    "Gigantamax Melmetal": {
+        "number": "0809",
+        "type": "Steel",
+        "species": "Hex Nut Pokémon",
+        "height": "2.5 m (8′02″)",
+        "weight": "800.0 kg (1763.7 lbs)",
+        "abilities": [
+            "Iron Fist"
+        ],
+        "dex_entries": {},
+        "evolves_from": [
+            "Melmetal"
+        ],
+        "evolves_into": [],
+        "base": false
     },
     "Grookey": {
         "number": "0810",
@@ -30174,7 +30813,25 @@
         "evolves_from": [
             "Thwackey"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "gmax": "Gigantamax Rillaboom"
+    },
+    "Gigantamax Rillaboom": {
+        "number": "0812",
+        "type": "Grass",
+        "species": "Drummer Pokémon",
+        "height": "2.1 m (6′11″)",
+        "weight": "90.0 kg (198.4 lbs)",
+        "abilities": [
+            "Overgrow",
+            "Grassy Surge"
+        ],
+        "dex_entries": {},
+        "evolves_from": [
+            "Rillaboom"
+        ],
+        "evolves_into": [],
+        "base": false
     },
     "Scorbunny": {
         "number": "0813",
@@ -30236,7 +30893,25 @@
         "evolves_from": [
             "Raboot"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "gmax": "Gigantamax Cinderace"
+    },
+    "Gigantamax Cinderace": {
+        "number": "0815",
+        "type": "Fire",
+        "species": "Striker Pokémon",
+        "height": "1.4 m (4′07″)",
+        "weight": "33.0 kg (72.8 lbs)",
+        "abilities": [
+            "Blaze",
+            "Libero"
+        ],
+        "dex_entries": {},
+        "evolves_from": [
+            "Cinderace"
+        ],
+        "evolves_into": [],
+        "base": false
     },
     "Sobble": {
         "number": "0816",
@@ -30298,7 +30973,25 @@
         "evolves_from": [
             "Drizzile"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "gmax": "Gigantamax Inteleon"
+    },
+    "Gigantamax Inteleon": {
+        "number": "0818",
+        "type": "Water",
+        "species": "Secret Agent Pokémon",
+        "height": "1.9 m (6′03″)",
+        "weight": "45.2 kg (99.6 lbs)",
+        "abilities": [
+            "Torrent",
+            "Sniper"
+        ],
+        "dex_entries": {},
+        "evolves_from": [
+            "Inteleon"
+        ],
+        "evolves_into": [],
+        "base": false
     },
     "Skwovet": {
         "number": "0819",
@@ -30413,7 +31106,26 @@
         "evolves_from": [
             "Corvisquire"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "gmax": "Gigantamax Corviknight"
+    },
+    "Gigantamax Corviknight": {
+        "number": "0823",
+        "type": "Flying/Steel",
+        "species": "Raven Pokémon",
+        "height": "2.2 m (7′03″)",
+        "weight": "75.0 kg (165.3 lbs)",
+        "abilities": [
+            "Pressure",
+            "Unnerve",
+            "Mirror Armor"
+        ],
+        "dex_entries": {},
+        "evolves_from": [
+            "Corviknight"
+        ],
+        "evolves_into": [],
+        "base": false
     },
     "Blipbug": {
         "number": "0824",
@@ -30478,7 +31190,26 @@
         "evolves_from": [
             "Dottler"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "gmax": "Gigantamax Orbeetle"
+    },
+    "Gigantamax Orbeetle": {
+        "number": "0826",
+        "type": "Bug/Psychic",
+        "species": "Seven Spot Pokémon",
+        "height": "0.4 m (1′04″)",
+        "weight": "40.8 kg (89.9 lbs)",
+        "abilities": [
+            "Swarm",
+            "Frisk",
+            "Telepathy"
+        ],
+        "dex_entries": {},
+        "evolves_from": [
+            "Orbeetle"
+        ],
+        "evolves_into": [],
+        "base": false
     },
     "Nickit": {
         "number": "0827",
@@ -30650,7 +31381,26 @@
         "evolves_from": [
             "Chewtle"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "gmax": "Gigantamax Drednaw"
+    },
+    "Gigantamax Drednaw": {
+        "number": "0834",
+        "type": "Water/Rock",
+        "species": "Bite Pokémon",
+        "height": "1.0 m (3′03″)",
+        "weight": "115.5 kg (254.6 lbs)",
+        "abilities": [
+            "Strong Jaw",
+            "Shell Armor",
+            "Swift Swim"
+        ],
+        "dex_entries": {},
+        "evolves_from": [
+            "Drednaw"
+        ],
+        "evolves_into": [],
+        "base": false
     },
     "Yamper": {
         "number": "0835",
@@ -30761,7 +31511,26 @@
         "evolves_from": [
             "Carkol"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "gmax": "Gigantamax Coalossal"
+    },
+    "Gigantamax Coalossal": {
+        "number": "0839",
+        "type": "Rock/Fire",
+        "species": "Coal Pokémon",
+        "height": "2.8 m (9′02″)",
+        "weight": "310.5 kg (684.5 lbs)",
+        "abilities": [
+            "Steam Engine",
+            "Flame Body",
+            "Flash Fire"
+        ],
+        "dex_entries": {},
+        "evolves_from": [
+            "Coalossal"
+        ],
+        "evolves_into": [],
+        "base": false
     },
     "Applin": {
         "number": "0840",
@@ -30809,7 +31578,26 @@
         "evolves_from": [
             "Applin"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "gmax": "Gigantamax Flapple"
+    },
+    "Gigantamax Flapple": {
+        "number": "0841",
+        "type": "Grass/Dragon",
+        "species": "Apple Wing Pokémon",
+        "height": "0.3 m (1′00″)",
+        "weight": "1.0 kg (2.2 lbs)",
+        "abilities": [
+            "Ripen",
+            "Gluttony",
+            "Hustle"
+        ],
+        "dex_entries": {},
+        "evolves_from": [
+            "Flapple"
+        ],
+        "evolves_into": [],
+        "base": false
     },
     "Appletun": {
         "number": "0842",
@@ -30878,7 +31666,26 @@
         "evolves_from": [
             "Silicobra"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "gmax": "Gigantamax Sandaconda"
+    },
+    "Gigantamax Sandaconda": {
+        "number": "0844",
+        "type": "Ground",
+        "species": "Sand Snake Pokémon",
+        "height": "3.8 m (12′06″)",
+        "weight": "65.5 kg (144.4 lbs)",
+        "abilities": [
+            "Sand Spit",
+            "Shed Skin",
+            "Sand Veil"
+        ],
+        "dex_entries": {},
+        "evolves_from": [
+            "Sandaconda"
+        ],
+        "evolves_into": [],
+        "base": false
     },
     "Cramorant": {
         "number": "0845",
@@ -31060,7 +31867,26 @@
         "evolves_from": [
             "Sizzlipede"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "gmax": "Gigantamax Centiskorch"
+    },
+    "Gigantamax Centiskorch": {
+        "number": "0851",
+        "type": "Fire/Bug",
+        "species": "Radiator Pokémon",
+        "height": "3.0 m (9′10″)",
+        "weight": "120.0 kg (264.6 lbs)",
+        "abilities": [
+            "Flash Fire",
+            "White Smoke",
+            "Flame Body"
+        ],
+        "dex_entries": {},
+        "evolves_from": [
+            "Centiskorch"
+        ],
+        "evolves_into": [],
+        "base": false
     },
     "Clobbopus": {
         "number": "0852",
@@ -31215,7 +32041,26 @@
         "evolves_from": [
             "Hattrem"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "gmax": "Gigantamax Hatterene"
+    },
+    "Gigantamax Hatterene": {
+        "number": "0858",
+        "type": "Psychic/Fairy",
+        "species": "Silent Pokémon",
+        "height": "2.1 m (6′11″)",
+        "weight": "5.1 kg (11.2 lbs)",
+        "abilities": [
+            "Healer",
+            "Anticipation",
+            "Magic Bounce"
+        ],
+        "dex_entries": {},
+        "evolves_from": [
+            "Hatterene"
+        ],
+        "evolves_into": [],
+        "base": false
     },
     "Impidimp": {
         "number": "0859",
@@ -31286,7 +32131,26 @@
         "evolves_from": [
             "Morgrem"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "gmax": "Gigantamax Grimmsnarl"
+    },
+    "Gigantamax Grimmsnarl": {
+        "number": "0861",
+        "type": "Dark/Fairy",
+        "species": "Bulk Up Pokémon",
+        "height": "1.5 m (4′11″)",
+        "weight": "61.0 kg (134.5 lbs)",
+        "abilities": [
+            "Prankster",
+            "Frisk",
+            "Pickpocket"
+        ],
+        "dex_entries": {},
+        "evolves_from": [
+            "Grimmsnarl"
+        ],
+        "evolves_into": [],
+        "base": false
     },
     "Obstagoon": {
         "number": "0862",
@@ -31448,7 +32312,25 @@
         "evolves_from": [
             "Milcery"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "gmax": "Gigantamax Alcremie"
+    },
+    "Gigantamax Alcremie": {
+        "number": "0869",
+        "type": "Fairy",
+        "species": "Cream Pokémon",
+        "height": "0.3 m (1′00″)",
+        "weight": "0.5 kg (1.1 lbs)",
+        "abilities": [
+            "Sweet Veil",
+            "Aroma Veil"
+        ],
+        "dex_entries": {},
+        "evolves_from": [
+            "Alcremie"
+        ],
+        "evolves_into": [],
+        "base": false
     },
     "Falinks": {
         "number": "0870",
@@ -31736,7 +32618,25 @@
         "evolves_from": [
             "Cufant"
         ],
-        "evolves_into": []
+        "evolves_into": [],
+        "gmax": "Gigantamax Copperajah"
+    },
+    "Gigantamax Copperajah": {
+        "number": "0879",
+        "type": "Steel",
+        "species": "Copperderm Pokémon",
+        "height": "3.0 m (9′10″)",
+        "weight": "650.0 kg (1433.0 lbs)",
+        "abilities": [
+            "Sheer Force",
+            "Heavy Metal"
+        ],
+        "dex_entries": {},
+        "evolves_from": [
+            "Copperajah"
+        ],
+        "evolves_into": [],
+        "base": false
     },
     "Dracozolt": {
         "number": "0880",
@@ -31833,7 +32733,26 @@
         "evolves_from": [],
         "evolves_into": [
             "Archaludon"
-        ]
+        ],
+        "gmax": "Gigantamax Duraludon"
+    },
+    "Gigantamax Duraludon": {
+        "number": "0884",
+        "type": "Steel/Dragon",
+        "species": "Alloy Pokémon",
+        "height": "1.8 m (5′11″)",
+        "weight": "40.0 kg (88.2 lbs)",
+        "abilities": [
+            "Light Metal",
+            "Heavy Metal",
+            "Stalwart"
+        ],
+        "dex_entries": {},
+        "evolves_from": [
+            "Duraludon"
+        ],
+        "evolves_into": [],
+        "base": false
     },
     "Dreepy": {
         "number": "0885",
