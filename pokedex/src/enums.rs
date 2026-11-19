@@ -205,6 +205,18 @@ impl<'de> Deserialize<'de> for Measurement {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+pub enum Gender {
+    #[serde(rename = "B")]
+    Both,
+    #[serde(rename = "M")]
+    Male,
+    #[serde(rename = "F")]
+    Female,
+    #[serde(rename = "N")]
+    Genderless,
+}
+
 #[derive(Clone, Deserialize, Debug, PartialEq)]
 pub struct PokemonInfo {
     pub number: String,
@@ -223,6 +235,7 @@ pub struct PokemonInfo {
     pub evolves_from: Option<Vec<String>>,
     pub mega: Option<Vec<String>>,
     pub gmax: Option<String>,
+    pub gender: Gender,
 }
 
 impl Default for PokemonInfo {
@@ -249,6 +262,7 @@ impl Default for PokemonInfo {
             evolves_into: None,
             mega: None,
             gmax: None,
+            gender: Gender::Genderless,
         }
     }
 }
@@ -323,6 +337,7 @@ impl FilterMode {
 pub struct PokedexConfig {
     pub pokedex_json: HashMap<String, PokemonInfo>,
     pub sprites_location: String,
+    pub form_location: String,
     pub session: Arc<Mutex<Session>>,
     pub classes: Vec<String>,
     pub confidence: f32,
