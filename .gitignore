@@ -4,6 +4,8 @@ secrets.txt
 *.zip
 data/gifs/
 data/registering_sprites/
+data/form_sprites/
+data/scrapers/PokemonDB/.cache/
 
 *.ttf
 *.otf

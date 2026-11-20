@@ -129,6 +129,7 @@ pub enum Action {
     Return(Box<PokedexBrowser>, Task<crate::browse_pokedex::Message>),
     OpenGallery,
     OpenRelations,
+    OpenForms,
 }
 
 impl Info {
@@ -487,7 +488,7 @@ impl Info {
             }
             Message::Info => Action::None,
             Message::Relations => Action::OpenRelations,
-            Message::Form => Action::None,
+            Message::Form => Action::OpenForms,
             Message::Cry => Action::None,
             Message::Browser(m) => match self.return_to.as_mut() {
                 Some(browser) => {

@@ -15,4 +15,5 @@ pub enum Screen {
     Info(info::info::Info),
     Gallery(info::gallery::Gallery),
     Relations(info::relations::Relations),
+    Forms(info::forms::Forms),
 }

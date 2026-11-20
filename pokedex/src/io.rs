@@ -21,6 +21,36 @@ use iced::widget::image::Handle;
 const LOCAL_DEX_NAME: &str = "local_pokedex.json";
 const SAVED_IMGS_DIR: &str = "saved_images";
 const STAGING_DIR: &str = "staging";
+const MISSINGNO_IMAGE: &str = "assets/missingno.png";
+
+/// Decode image bytes to an RGBA handle plus dimensions.
+fn decode_rgba(bytes: &[u8]) -> Result<(Handle, u32, u32)> {
+    let img = image::load_from_memory(bytes)?.to_rgba8();
+    let (w, h) = img.dimensions();
+    Ok((Handle::from_rgba(w, h, img.into_raw()), w, h))
+}
+
+fn load_missingno() -> Result<(Handle, u32, u32)> {
+    decode_rgba(&fs::read(MISSINGNO_IMAGE)?)
+}
+
+/// Pick the last PNG (alphabetically) in `folder`, which is the clean default pose.
+fn read_default_png(folder: &Path, pokemon_name: &str) -> Result<Vec<u8>> {
+    let mut entries: Vec<_> = fs::read_dir(folder)?.filter_map(|e| e.ok()).collect();
+    entries.sort_by_key(|e| e.file_name());
+    entries
+        .into_iter()
+        .rev()
+        .find_map(|entry| {
+            let path = entry.path();
+            if path.extension()?.to_str()? == "png" {
+                fs::read(&path).ok()
+            } else {
+                None
+            }
+        })
+        .ok_or_else(|| anyhow!("Failed to get image for pokemon {}", pokemon_name))
+}
 
 /// Build the asset paths for the given Pokémon types.
 ///
@@ -51,6 +81,12 @@ pub fn validate_config() -> Result<PokedexConfig, PokedexError> {
     let path = config.get("sprites_location");
     if path.is_none() {
         let mcerr = "Could not find key sprites_location in config. Assets cannot be loaded.";
+        return Err(PokedexError::MalformedConfig(mcerr.to_string()));
+    }
+
+    let form_path = config.get("renders_location");
+    if form_path.is_none() {
+        let mcerr = "Could not find key renders_location in config. Assets cannot be loaded.";
         return Err(PokedexError::MalformedConfig(mcerr.to_string()));
     }
 
@@ -122,6 +158,7 @@ pub fn validate_config() -> Result<PokedexConfig, PokedexError> {
     Ok(PokedexConfig {
         pokedex_json: entries,
         sprites_location: path.unwrap().to_string(),
+        form_location: form_path.unwrap().to_string(),
         session: model,
         classes: classes,
         confidence: confidence,
@@ -221,29 +258,13 @@ pub fn load_name_maps(filename: &str) -> HashMap<String, String> {
 ///
 /// Returns: The PNG bytes for the selected sprite, or an error if none can be found.
 pub fn load_png(sprite_folder: String, pokemon_name: &str) -> Result<Vec<u8>, anyhow::Error> {
-    let folder = get_local_path()?.join(sprite_folder).join(pokemon_name);
-
-    let img = {
-        // first collect entries
-        let mut entries: Vec<_> = std::fs::read_dir(folder)?.filter_map(|e| e.ok()).collect();
-        // then reverse them
-        entries.sort_by_key(|e| e.file_name());
-        // the last photo in a directory, alphabetically, will be the clean
-        // default pose for the pokemon.
-        entries.into_iter().rev().find_map(|entry| {
-            let path = entry.path();
-            if path.extension()?.to_str()? == "png" {
-                std::fs::read(&path).ok()
-            } else {
-                None
-            }
+    get_local_path()
+        .map_err(anyhow::Error::from)
+        .and_then(|p| read_default_png(&p.join(sprite_folder).join(pokemon_name), pokemon_name))
+        .or_else(|e| {
+            warn!("Falling back to missingno for {pokemon_name}: {e}");
+            fs::read(MISSINGNO_IMAGE).map_err(|e| anyhow!("Failed to read {MISSINGNO_IMAGE}: {e}"))
         })
-    };
-    if img.is_none() {
-        return Err(anyhow!("Failed to get image for pokemon {}", pokemon_name));
-    }
-
-    Ok(img.unwrap())
 }
 
 /// Resolve the local application directory that contains the executable and data files.
@@ -525,21 +546,25 @@ pub async fn get_dex_images(
 
     let mut handles = Vec::with_capacity(paths.len());
     for path in paths {
-        let bytes = tokio::fs::read(&path).await?;
         let thumb = Some(&path) == thumbnail_path.as_ref();
-        let handle = tokio::task::spawn_blocking(move || {
-            let img = image::load_from_memory(&bytes)?.to_rgba8();
-            let (w, h) = img.dimensions();
+        let gallery_img = tokio::task::spawn_blocking(move || {
+            let (handle, width, height) = fs::read(&path)
+                .map_err(anyhow::Error::from)
+                .and_then(|b| decode_rgba(&b))
+                .or_else(|e| {
+                    warn!("Failed to load {path:?}: {e}, falling back to missingno");
+                    load_missingno()
+                })?;
             anyhow::Ok(GalleryImage {
-                handle: Handle::from_rgba(w, h, img.into_raw()),
-                width: w,
-                height: h,
+                handle,
+                width,
+                height,
                 path: path.to_string_lossy().into_owned(),
                 thumbnail: thumb,
             })
         })
         .await??;
-        handles.push(handle);
+        handles.push(gallery_img);
     }
     Ok(handles)
 }
@@ -547,13 +572,16 @@ pub async fn get_dex_images(
 const UNKNOWN_TYPE_IMAGE: &str = "assets/types/unknown.png";
 
 fn load_image(path: &str) -> Option<Handle> {
-    match std::fs::read(path) {
-        Ok(bytes) => Some(Handle::from_bytes(bytes)),
-        Err(err) => {
-            warn!("Failed to read type image at {path:?}: {err}");
-            None
-        }
-    }
+    fs::read(path)
+        .map_err(anyhow::Error::from)
+        .and_then(|b| decode_rgba(&b))
+        .or_else(|e| {
+            warn!("Failed to load image at {path:?}: {e}, falling back to missingno");
+            load_missingno()
+        })
+        .map(|(handle, ..)| handle)
+        .map_err(|e| warn!("Failed to load {MISSINGNO_IMAGE}: {e}"))
+        .ok()
 }
 
 pub fn resolve_type_images(types: Vec<PokemonType>) -> Vec<Handle> {
@@ -568,6 +596,7 @@ pub fn resolve_type_images(types: Vec<PokemonType>) -> Vec<Handle> {
 
     handles
 }
+
 pub fn get_remaining_space() -> std::result::Result<DiskInfo, String> {
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
     let bin_dir = exe.parent().ok_or("Could not determine binary directory")?;
@@ -578,4 +607,19 @@ pub fn get_remaining_space() -> std::result::Result<DiskInfo, String> {
         used_space: total_bytes.saturating_sub(available_bytes),
         total_space: total_bytes,
     })
+}
+
+pub fn get_form_renders(
+    render_folder: String,
+    pokemon_name: String,
+) -> Result<Handle, anyhow::Error> {
+    get_local_path()
+        .map_err(anyhow::Error::from)
+        .and_then(|p| read_default_png(&p.join(render_folder).join(&pokemon_name), &pokemon_name))
+        .and_then(|bytes| decode_rgba(&bytes))
+        .or_else(|e| {
+            warn!("Falling back to missingno for {pokemon_name}: {e}");
+            load_missingno()
+        })
+        .map(|(handle, ..)| handle)
 }

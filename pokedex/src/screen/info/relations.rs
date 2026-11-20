@@ -102,7 +102,7 @@ enum RelationsState {
 
 #[derive(Debug)]
 pub struct Relations {
-    return_to: Option<Box<Info>>,
+    pub return_to: Option<Box<Info>>,
 
     evo_graph: DiGraph<String, ()>,
 
@@ -144,6 +144,7 @@ pub enum Action {
     None,
     Return(Box<Info>, Task<crate::info::Message>),
     Run(Task<Message>),
+    OpenForms,
 }
 
 struct Layout {
@@ -432,7 +433,7 @@ impl Relations {
                 None => Action::None,
             },
             Message::RelationsBtn => Action::None,
-            Message::FormBtn => Action::None,
+            Message::FormBtn => Action::OpenForms,
             Message::CryBtn => Action::None,
             Message::EvoBtn => {
                 self.state = RelationsState::Evolutions;

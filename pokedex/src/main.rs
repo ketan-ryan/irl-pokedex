@@ -12,7 +12,7 @@ use iced::keyboard::Key;
 use iced::keyboard::key::Named;
 use iced::widget::image::Handle;
 use include_assets::{NamedArchive, include_dir};
-use log::error;
+use log::{debug, error, warn};
 use screen::Screen;
 use screen::home::home;
 
@@ -30,7 +30,7 @@ use crate::enums::{IOAction, PokedexConfig, PokemonEntry};
 use crate::screen::browse_pokedex::browse_pokedex::{self, PokedexBrowser};
 use crate::screen::browse_pokedex::filter_predicate::RangeOriginator;
 use crate::screen::filter::{filter, slider};
-use crate::screen::info::{gallery, info, relations};
+use crate::screen::info::{forms, gallery, info, relations};
 use crate::screen::register::register;
 
 fn main() -> iced::Result {
@@ -197,6 +197,7 @@ enum Message {
     Info(info::Message),
     Gallery(gallery::Message),
     Relations(relations::Message),
+    Forms(forms::Message),
 
     OpenHome,
     OpenRegister(Arc<VideoFrame>),
@@ -207,6 +208,7 @@ enum Message {
     OpenInfoFromRegister(String),
     OpenGallery,
     OpenRelations,
+    OpenForms,
 
     IOInput(IOAction),
     Tick(Instant),
@@ -304,6 +306,13 @@ impl App {
                 let action = relations.update(message);
                 self.handle_relations_action(action)
             }
+            Message::Forms(message) => {
+                let Screen::Forms(forms) = &mut self.screen else {
+                    return Task::none();
+                };
+                let action = forms.update(message);
+                self.handle_forms_action(action)
+            }
             Message::IOInput(action) => match &mut self.screen {
                 Screen::Home(home) => {
                     Self::handle_home_action(home.update(home::Message::IOInput(action)))
@@ -333,6 +342,10 @@ impl App {
                     let action = relations.update(relations::Message::IOInput(action));
                     self.handle_relations_action(action)
                 }
+                Screen::Forms(forms) => {
+                    let action = forms.update(forms::Message::IOInput(action));
+                    self.handle_forms_action(action)
+                }
             },
             Message::OpenRegister(result) => self.open_register(result),
             Message::OpenPokedexBrowser => self.open_browser(),
@@ -342,6 +355,7 @@ impl App {
             Message::OpenInfoFromRegister(name) => self.open_info_from_register(name),
             Message::OpenGallery => self.open_gallery(),
             Message::OpenRelations => self.open_relations(),
+            Message::OpenForms => self.open_forms(),
         }
     }
 
@@ -409,6 +423,7 @@ impl App {
             info::Action::Run(task) => task.map(Message::Info),
             info::Action::OpenGallery => Task::done(Message::OpenGallery),
             info::Action::OpenRelations => Task::done(Message::OpenRelations),
+            info::Action::OpenForms => Task::done(Message::OpenForms),
         }
     }
 
@@ -431,6 +446,19 @@ impl App {
                 task.map(Message::Info)
             }
             relations::Action::Run(task) => task.map(Message::Relations),
+            relations::Action::OpenForms => Task::done(Message::OpenForms),
+        }
+    }
+
+    fn handle_forms_action(&mut self, action: forms::Action) -> Task<Message> {
+        match action {
+            forms::Action::None => Task::none(),
+            forms::Action::Return(info, task) => {
+                self.screen = Screen::Info(*info);
+                task.map(Message::Info)
+            }
+            forms::Action::Run(task) => task.map(Message::Forms),
+            forms::Action::OpenRelations => Task::done(Message::OpenRelations),
         }
     }
 
@@ -548,12 +576,49 @@ impl App {
     }
 
     fn open_relations(&mut self) -> Task<Message> {
-        let Screen::Info(info) = std::mem::replace(&mut self.screen, Screen::Loading) else {
-            return Task::none();
+        let info = match std::mem::replace(&mut self.screen, Screen::Loading) {
+            Screen::Info(info) => Box::new(info),
+            Screen::Forms(mut rel) => match rel.return_to.take() {
+                Some(info) => info,
+                None => {
+                    self.screen = Screen::Forms(rel);
+                    warn!("Failed to get info screen from forms");
+                    return Task::none();
+                }
+            },
+            other => {
+                self.screen = other;
+                warn!("Other screen set");
+                return Task::none();
+            }
         };
-        let (relations, task) = relations::Relations::new(Box::new(info));
+        debug!("Setting screen to relations");
+        let (relations, task) = relations::Relations::new(info);
         self.screen = Screen::Relations(relations);
         task.map(Message::Relations)
+    }
+
+    fn open_forms(&mut self) -> Task<Message> {
+        let info = match std::mem::replace(&mut self.screen, Screen::Loading) {
+            Screen::Info(info) => Box::new(info),
+            Screen::Relations(mut rel) => match rel.return_to.take() {
+                Some(info) => info,
+                None => {
+                    self.screen = Screen::Relations(rel);
+                    warn!("Failed to get info screen from relations");
+                    return Task::none();
+                }
+            },
+            other => {
+                self.screen = other;
+                warn!("Other screen set");
+                return Task::none();
+            }
+        };
+        debug!("Setting screen to forms");
+        let (forms, task) = forms::Forms::new(info);
+        self.screen = Screen::Forms(forms);
+        task.map(Message::Forms)
     }
 
     fn open_info(&mut self, selected: PokemonEntry, list: Vec<PokemonEntry>) -> Task<Message> {
@@ -702,6 +767,7 @@ impl App {
                 Screen::Relations(relations) => {
                     relations.top_view(&self.common).map(Message::Relations)
                 }
+                Screen::Forms(forms) => forms.top_view(&self.common).map(Message::Forms),
             }
         } else {
             iced::widget::container(
@@ -751,6 +817,7 @@ impl App {
                 Screen::Relations(relations) => {
                     relations.bottom_view(&self.common).map(Message::Relations)
                 }
+                Screen::Forms(forms) => forms.bottom_view(&self.common).map(Message::Forms),
                 Screen::PokedexBrowser(browser) => browser
                     .bottom_view(&self.common)
                     .map(Message::PokedexBrowser),
