@@ -616,7 +616,8 @@ impl App {
             }
         };
         debug!("Setting screen to forms");
-        let (forms, task) = forms::Forms::new(info);
+        let form_loc = self.config.as_ref().unwrap().form_location.clone();
+        let (forms, task) = forms::Forms::new(info, form_loc);
         self.screen = Screen::Forms(forms);
         task.map(Message::Forms)
     }

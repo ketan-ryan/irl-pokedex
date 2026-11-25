@@ -205,10 +205,12 @@ impl<'de> Deserialize<'de> for Measurement {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub enum Gender {
     #[serde(rename = "B")]
     Both,
+    #[serde(rename = "D")]
+    Dimorphic,
     #[serde(rename = "M")]
     Male,
     #[serde(rename = "F")]
@@ -376,4 +378,12 @@ fn shorten_count(n: u64) -> String {
         || format!("{n:.0}"),
         |(div, s)| format!("{:.2}{s}", n / div),
     )
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct FormInfo {
+    pub shiny: bool,
+    pub mega: bool,
+    pub gmax: bool,
+    pub gender: Gender,
 }

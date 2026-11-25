@@ -118,7 +118,7 @@
             "Mega Venusaur"
         ],
         "gmax": "Gigantamax Venusaur",
-        "gender": "B"
+        "gender": "D"
     },
     "Mega Venusaur": {
         "number": "0003",
@@ -634,7 +634,7 @@
         ],
         "evolves_into": [],
         "gmax": "Gigantamax Butterfree",
-        "gender": "B"
+        "gender": "D"
     },
     "Gigantamax Butterfree": {
         "number": "0012",
@@ -972,7 +972,7 @@
         "evolves_into": [
             "Raticate"
         ],
-        "gender": "B"
+        "gender": "D"
     },
     "Alolan Rattata": {
         "number": "0019",
@@ -1048,7 +1048,7 @@
             "Rattata"
         ],
         "evolves_into": [],
-        "gender": "B"
+        "gender": "D"
     },
     "Alolan Raticate": {
         "number": "0020",
@@ -1295,7 +1295,7 @@
             "Alolan Raichu"
         ],
         "gmax": "Gigantamax Pikachu",
-        "gender": "B"
+        "gender": "D"
     },
     "Gigantamax Pikachu": {
         "number": "0025",
@@ -1371,7 +1371,7 @@
             "Pikachu"
         ],
         "evolves_into": [],
-        "gender": "B"
+        "gender": "D"
     },
     "Alolan Raichu": {
         "number": "0026",
@@ -2218,7 +2218,7 @@
         "evolves_into": [
             "Golbat"
         ],
-        "gender": "B"
+        "gender": "D"
     },
     "Golbat": {
         "number": "0042",
@@ -2270,7 +2270,7 @@
         "evolves_into": [
             "Crobat"
         ],
-        "gender": "B"
+        "gender": "D"
     },
     "Oddish": {
         "number": "0043",
@@ -2355,7 +2355,7 @@
             "Vileplume",
             "Bellossom"
         ],
-        "gender": "B"
+        "gender": "D"
     },
     "Vileplume": {
         "number": "0045",
@@ -2396,7 +2396,7 @@
             "Gloom"
         ],
         "evolves_into": [],
-        "gender": "B"
+        "gender": "D"
     },
     "Paras": {
         "number": "0046",
@@ -3530,7 +3530,7 @@
         "evolves_into": [
             "Alakazam"
         ],
-        "gender": "B"
+        "gender": "D"
     },
     "Alakazam": {
         "number": "0065",
@@ -3582,7 +3582,7 @@
         "mega": [
             "Mega Alakazam"
         ],
-        "gender": "B"
+        "gender": "D"
     },
     "Mega Alakazam": {
         "number": "0065",
@@ -4781,7 +4781,7 @@
         "evolves_into": [
             "Dodrio"
         ],
-        "gender": "B"
+        "gender": "D"
     },
     "Dodrio": {
         "number": "0085",
@@ -4821,7 +4821,7 @@
             "Doduo"
         ],
         "evolves_into": [],
-        "gender": "B"
+        "gender": "D"
     },
     "Seel": {
         "number": "0086",
@@ -5480,7 +5480,7 @@
             "Drowzee"
         ],
         "evolves_into": [],
-        "gender": "B"
+        "gender": "D"
     },
     "Krabby": {
         "number": "0098",
@@ -6257,7 +6257,7 @@
         "evolves_into": [
             "Rhydon"
         ],
-        "gender": "B"
+        "gender": "D"
     },
     "Rhydon": {
         "number": "0112",
@@ -6303,7 +6303,7 @@
         "evolves_into": [
             "Rhyperior"
         ],
-        "gender": "B"
+        "gender": "D"
     },
     "Chansey": {
         "number": "0113",
@@ -6601,7 +6601,7 @@
         "evolves_into": [
             "Seaking"
         ],
-        "gender": "B"
+        "gender": "D"
     },
     "Seaking": {
         "number": "0119",
@@ -6650,7 +6650,7 @@
             "Goldeen"
         ],
         "evolves_into": [],
-        "gender": "B"
+        "gender": "D"
     },
     "Staryu": {
         "number": "0120",
@@ -6871,7 +6871,7 @@
             "Scizor",
             "Kleavor"
         ],
-        "gender": "B"
+        "gender": "D"
     },
     "Jynx": {
         "number": "0124",
@@ -7258,7 +7258,7 @@
         "evolves_into": [
             "Gyarados"
         ],
-        "gender": "B"
+        "gender": "D"
     },
     "Gyarados": {
         "number": "0130",
@@ -7311,7 +7311,7 @@
         "mega": [
             "Mega Gyarados"
         ],
-        "gender": "B"
+        "gender": "D"
     },
     "Mega Gyarados": {
         "number": "0130",
@@ -7501,7 +7501,7 @@
             "Sylveon"
         ],
         "gmax": "Gigantamax Eevee",
-        "gender": "B"
+        "gender": "D"
     },
     "Gigantamax Eevee": {
         "number": "0133",
@@ -8562,7 +8562,7 @@
             "Bayleef"
         ],
         "evolves_into": [],
-        "gender": "B"
+        "gender": "D"
     },
     "Cyndaquil": {
         "number": "0155",
@@ -8994,7 +8994,7 @@
         "evolves_into": [
             "Ledian"
         ],
-        "gender": "B"
+        "gender": "D"
     },
     "Ledian": {
         "number": "0166",
@@ -9033,7 +9033,7 @@
             "Ledyba"
         ],
         "evolves_into": [],
-        "gender": "B"
+        "gender": "D"
     },
     "Spinarak": {
         "number": "0167",
@@ -9545,7 +9545,7 @@
             "Natu"
         ],
         "evolves_into": [],
-        "gender": "B"
+        "gender": "D"
     },
     "Mareep": {
         "number": "0179",
@@ -9862,7 +9862,7 @@
             "Bonsly"
         ],
         "evolves_into": [],
-        "gender": "B"
+        "gender": "D"
     },
     "Politoed": {
         "number": "0186",
@@ -9903,7 +9903,7 @@
             "Poliwhirl"
         ],
         "evolves_into": [],
-        "gender": "B"
+        "gender": "D"
     },
     "Hoppip": {
         "number": "0187",
@@ -10057,7 +10057,7 @@
         "evolves_into": [
             "Ambipom"
         ],
-        "gender": "B"
+        "gender": "D"
     },
     "Sunkern": {
         "number": "0191",
@@ -10215,7 +10215,7 @@
         "evolves_into": [
             "Quagsire"
         ],
-        "gender": "B"
+        "gender": "D"
     },
     "Paldean Wooper": {
         "number": "0194",
@@ -10281,7 +10281,7 @@
             "Wooper"
         ],
         "evolves_into": [],
-        "gender": "B"
+        "gender": "D"
     },
     "Espeon": {
         "number": "0196",
@@ -10417,7 +10417,7 @@
         "evolves_into": [
             "Honchkrow"
         ],
-        "gender": "B"
+        "gender": "D"
     },
     "Slowking": {
         "number": "0199",
@@ -10606,7 +10606,7 @@
             "Wynaut"
         ],
         "evolves_into": [],
-        "gender": "B"
+        "gender": "D"
     },
     "Girafarig": {
         "number": "0203",
@@ -10648,7 +10648,7 @@
         "evolves_into": [
             "Farigiraf"
         ],
-        "gender": "B"
+        "gender": "D"
     },
     "Pineco": {
         "number": "0204",
@@ -10805,7 +10805,7 @@
         "evolves_into": [
             "Gliscor"
         ],
-        "gender": "B"
+        "gender": "D"
     },
     "Steelix": {
         "number": "0208",
@@ -10849,7 +10849,7 @@
         "mega": [
             "Mega Steelix"
         ],
-        "gender": "B"
+        "gender": "D"
     },
     "Mega Steelix": {
         "number": "0208",
@@ -11059,7 +11059,7 @@
         "mega": [
             "Mega Scizor"
         ],
-        "gender": "B"
+        "gender": "D"
     },
     "Mega Scizor": {
         "number": "0212",
@@ -11165,7 +11165,7 @@
         "mega": [
             "Mega Heracross"
         ],
-        "gender": "B"
+        "gender": "D"
     },
     "Mega Heracross": {
         "number": "0214",
@@ -11237,7 +11237,7 @@
         "evolves_into": [
             "Weavile"
         ],
-        "gender": "B"
+        "gender": "D"
     },
     "Hisuian Sneasel": {
         "number": "0215",
@@ -11262,7 +11262,7 @@
             "Sneasler"
         ],
         "base": false,
-        "gender": "B"
+        "gender": "D"
     },
     "Teddiursa": {
         "number": "0216",
@@ -11340,7 +11340,7 @@
         "evolves_into": [
             "Ursaluna"
         ],
-        "gender": "B"
+        "gender": "D"
     },
     "Slugma": {
         "number": "0218",
@@ -11496,7 +11496,7 @@
         "evolves_into": [
             "Mamoswine"
         ],
-        "gender": "B"
+        "gender": "D"
     },
     "Corsola": {
         "number": "0222",
@@ -11655,7 +11655,7 @@
             "Remoraid"
         ],
         "evolves_into": [],
-        "gender": "B"
+        "gender": "D"
     },
     "Delibird": {
         "number": "0225",
@@ -11865,7 +11865,7 @@
         "mega": [
             "Mega Houndoom"
         ],
-        "gender": "B"
+        "gender": "D"
     },
     "Mega Houndoom": {
         "number": "0229",
@@ -12001,7 +12001,7 @@
             "Phanpy"
         ],
         "evolves_into": [],
-        "gender": "B"
+        "gender": "D"
     },
     "Porygon2": {
         "number": "0233",
@@ -12893,7 +12893,7 @@
         "evolves_into": [
             "Combusken"
         ],
-        "gender": "B"
+        "gender": "D"
     },
     "Combusken": {
         "number": "0256",
@@ -12926,7 +12926,7 @@
         "evolves_into": [
             "Blaziken"
         ],
-        "gender": "B"
+        "gender": "D"
     },
     "Blaziken": {
         "number": "0257",
@@ -12959,7 +12959,7 @@
         "mega": [
             "Mega Blaziken"
         ],
-        "gender": "B"
+        "gender": "D"
     },
     "Mega Blaziken": {
         "number": "0257",
@@ -13393,7 +13393,7 @@
             "Silcoon"
         ],
         "evolves_into": [],
-        "gender": "B"
+        "gender": "D"
     },
     "Cascoon": {
         "number": "0268",
@@ -13464,7 +13464,7 @@
             "Cascoon"
         ],
         "evolves_into": [],
-        "gender": "B"
+        "gender": "D"
     },
     "Lotad": {
         "number": "0270",
@@ -13568,7 +13568,7 @@
             "Lombre"
         ],
         "evolves_into": [],
-        "gender": "B"
+        "gender": "D"
     },
     "Seedot": {
         "number": "0273",
@@ -13638,7 +13638,7 @@
         "evolves_into": [
             "Shiftry"
         ],
-        "gender": "B"
+        "gender": "D"
     },
     "Shiftry": {
         "number": "0275",
@@ -13672,7 +13672,7 @@
             "Nuzleaf"
         ],
         "evolves_into": [],
-        "gender": "B"
+        "gender": "D"
     },
     "Taillow": {
         "number": "0276",
@@ -14906,7 +14906,7 @@
         "evolves_into": [
             "Medicham"
         ],
-        "gender": "B"
+        "gender": "D"
     },
     "Medicham": {
         "number": "0308",
@@ -14944,7 +14944,7 @@
         "mega": [
             "Mega Medicham"
         ],
-        "gender": "B"
+        "gender": "D"
     },
     "Mega Medicham": {
         "number": "0308",
@@ -15215,7 +15215,7 @@
         "evolves_into": [
             "Roserade"
         ],
-        "gender": "B"
+        "gender": "D"
     },
     "Gulpin": {
         "number": "0316",
@@ -15249,7 +15249,7 @@
         "evolves_into": [
             "Swalot"
         ],
-        "gender": "B"
+        "gender": "D"
     },
     "Swalot": {
         "number": "0317",
@@ -15283,7 +15283,7 @@
             "Gulpin"
         ],
         "evolves_into": [],
-        "gender": "B"
+        "gender": "D"
     },
     "Carvanha": {
         "number": "0318",
@@ -15494,7 +15494,7 @@
         "evolves_into": [
             "Camerupt"
         ],
-        "gender": "B"
+        "gender": "D"
     },
     "Camerupt": {
         "number": "0323",
@@ -15531,7 +15531,7 @@
         "mega": [
             "Mega Camerupt"
         ],
-        "gender": "B"
+        "gender": "D"
     },
     "Mega Camerupt": {
         "number": "0323",
@@ -15873,7 +15873,7 @@
             "Cacnea"
         ],
         "evolves_into": [],
-        "gender": "B"
+        "gender": "D"
     },
     "Swablu": {
         "number": "0333",
@@ -16547,7 +16547,7 @@
             "Feebas"
         ],
         "evolves_into": [],
-        "gender": "B"
+        "gender": "D"
     },
     "Castform": {
         "number": "0351",
@@ -17380,7 +17380,7 @@
         "region": "Hoenn",
         "evolves_from": [],
         "evolves_into": [],
-        "gender": "B"
+        "gender": "D"
     },
     "Luvdisc": {
         "number": "0370",
@@ -18458,7 +18458,7 @@
         "evolves_into": [
             "Staravia"
         ],
-        "gender": "B"
+        "gender": "D"
     },
     "Staravia": {
         "number": "0397",
@@ -18491,7 +18491,7 @@
         "evolves_into": [
             "Staraptor"
         ],
-        "gender": "B"
+        "gender": "D"
     },
     "Staraptor": {
         "number": "0398",
@@ -18522,7 +18522,7 @@
             "Staravia"
         ],
         "evolves_into": [],
-        "gender": "B"
+        "gender": "D"
     },
     "Bidoof": {
         "number": "0399",
@@ -18552,7 +18552,7 @@
         "evolves_into": [
             "Bibarel"
         ],
-        "gender": "B"
+        "gender": "D"
     },
     "Bibarel": {
         "number": "0400",
@@ -18582,7 +18582,7 @@
             "Bidoof"
         ],
         "evolves_into": [],
-        "gender": "B"
+        "gender": "D"
     },
     "Kricketot": {
         "number": "0401",
@@ -18613,7 +18613,7 @@
         "evolves_into": [
             "Kricketune"
         ],
-        "gender": "B"
+        "gender": "D"
     },
     "Kricketune": {
         "number": "0402",
@@ -18644,7 +18644,7 @@
             "Kricketot"
         ],
         "evolves_into": [],
-        "gender": "B"
+        "gender": "D"
     },
     "Shinx": {
         "number": "0403",
@@ -18678,7 +18678,7 @@
         "evolves_into": [
             "Luxio"
         ],
-        "gender": "B"
+        "gender": "D"
     },
     "Luxio": {
         "number": "0404",
@@ -18714,7 +18714,7 @@
         "evolves_into": [
             "Luxray"
         ],
-        "gender": "B"
+        "gender": "D"
     },
     "Luxray": {
         "number": "0405",
@@ -18749,7 +18749,7 @@
             "Luxio"
         ],
         "evolves_into": [],
-        "gender": "B"
+        "gender": "D"
     },
     "Budew": {
         "number": "0406",
@@ -18815,7 +18815,7 @@
             "Roselia"
         ],
         "evolves_into": [],
-        "gender": "B"
+        "gender": "D"
     },
     "Cranidos": {
         "number": "0408",
@@ -19185,7 +19185,7 @@
         "evolves_into": [
             "Vespiquen"
         ],
-        "gender": "B"
+        "gender": "D"
     },
     "Vespiquen": {
         "number": "0416",
@@ -19249,7 +19249,7 @@
         "region": "Sinnoh",
         "evolves_from": [],
         "evolves_into": [],
-        "gender": "B"
+        "gender": "D"
     },
     "Buizel": {
         "number": "0418",
@@ -19281,7 +19281,7 @@
         "evolves_into": [
             "Floatzel"
         ],
-        "gender": "B"
+        "gender": "D"
     },
     "Floatzel": {
         "number": "0419",
@@ -19312,7 +19312,7 @@
             "Buizel"
         ],
         "evolves_into": [],
-        "gender": "B"
+        "gender": "D"
     },
     "Cherubi": {
         "number": "0420",
@@ -19571,7 +19571,7 @@
             "Aipom"
         ],
         "evolves_into": [],
-        "gender": "B"
+        "gender": "D"
     },
     "Drifloon": {
         "number": "0425",
@@ -20244,7 +20244,7 @@
         "evolves_into": [
             "Gabite"
         ],
-        "gender": "B"
+        "gender": "D"
     },
     "Gabite": {
         "number": "0444",
@@ -20283,7 +20283,7 @@
         "evolves_into": [
             "Garchomp"
         ],
-        "gender": "B"
+        "gender": "D"
     },
     "Garchomp": {
         "number": "0445",
@@ -20322,7 +20322,7 @@
         "mega": [
             "Mega Garchomp"
         ],
-        "gender": "B"
+        "gender": "D"
     },
     "Mega Garchomp": {
         "number": "0445",
@@ -20516,7 +20516,7 @@
         "evolves_into": [
             "Hippowdon"
         ],
-        "gender": "B"
+        "gender": "D"
     },
     "Hippowdon": {
         "number": "0450",
@@ -20549,7 +20549,7 @@
             "Hippopotas"
         ],
         "evolves_into": [],
-        "gender": "B"
+        "gender": "D"
     },
     "Skorupi": {
         "number": "0451",
@@ -20651,7 +20651,7 @@
         "evolves_into": [
             "Toxicroak"
         ],
-        "gender": "B"
+        "gender": "D"
     },
     "Toxicroak": {
         "number": "0454",
@@ -20686,7 +20686,7 @@
             "Croagunk"
         ],
         "evolves_into": [],
-        "gender": "B"
+        "gender": "D"
     },
     "Carnivine": {
         "number": "0455",
@@ -20749,7 +20749,7 @@
         "evolves_into": [
             "Lumineon"
         ],
-        "gender": "B"
+        "gender": "D"
     },
     "Lumineon": {
         "number": "0457",
@@ -20785,7 +20785,7 @@
             "Finneon"
         ],
         "evolves_into": [],
-        "gender": "B"
+        "gender": "D"
     },
     "Mantyke": {
         "number": "0458",
@@ -20853,7 +20853,7 @@
         "evolves_into": [
             "Abomasnow"
         ],
-        "gender": "B"
+        "gender": "D"
     },
     "Abomasnow": {
         "number": "0460",
@@ -20888,7 +20888,7 @@
         "mega": [
             "Mega Abomasnow"
         ],
-        "gender": "B"
+        "gender": "D"
     },
     "Mega Abomasnow": {
         "number": "0460",
@@ -20944,7 +20944,7 @@
             "Sneasel"
         ],
         "evolves_into": [],
-        "gender": "B"
+        "gender": "D"
     },
     "Magnezone": {
         "number": "0462",
@@ -21045,7 +21045,7 @@
             "Rhydon"
         ],
         "evolves_into": [],
-        "gender": "B"
+        "gender": "D"
     },
     "Tangrowth": {
         "number": "0465",
@@ -21077,7 +21077,7 @@
             "Tangela"
         ],
         "evolves_into": [],
-        "gender": "B"
+        "gender": "D"
     },
     "Electivire": {
         "number": "0466",
@@ -21338,7 +21338,7 @@
             "Piloswine"
         ],
         "evolves_into": [],
-        "gender": "B"
+        "gender": "D"
     },
     "Porygon-z": {
         "number": "0474",
@@ -22914,7 +22914,7 @@
             "Tranquill"
         ],
         "evolves_into": [],
-        "gender": "B"
+        "gender": "D"
     },
     "Blitzle": {
         "number": "0522",
@@ -27538,7 +27538,7 @@
             "Litleo"
         ],
         "evolves_into": [],
-        "gender": "B"
+        "gender": "D"
     },
     "Flabébé": {
         "number": "0669",

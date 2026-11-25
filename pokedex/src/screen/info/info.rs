@@ -213,7 +213,6 @@ impl Info {
         let dex_entry_size =
             shrink_text_to_fit(&dex_entry_text, 22.0, avail.width, 10.0, 3, avail.height);
 
-        debug!("{} {}", dex_entry_size, dex_entry_text);
         let name_size = shrink_text_to_fit(&current_pokemon.display, 16.0, 154.0, 10.0, 1, 28.0);
         let abilities = current_info.abilities.join(", ");
         let abilities_size = shrink_text_to_fit(&abilities, 16.0, 200.0, 10.0, 1, 28.0);

@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::elements::gstreamer_stream::VideoFrame;
-use crate::enums::{DiskInfo, PokedexConfig, PokemonInfo, PokemonType};
+use crate::enums::{DiskInfo, FormInfo, Gender, PokedexConfig, PokemonInfo, PokemonType};
 use crate::{PokedexError, ml};
 
 use iced::widget::image::Handle;
@@ -609,17 +609,43 @@ pub fn get_remaining_space() -> std::result::Result<DiskInfo, String> {
     })
 }
 
-pub fn get_form_renders(
-    render_folder: String,
-    pokemon_name: String,
-) -> Result<Handle, anyhow::Error> {
-    get_local_path()
-        .map_err(anyhow::Error::from)
-        .and_then(|p| read_default_png(&p.join(render_folder).join(&pokemon_name), &pokemon_name))
+fn load_render(path: &Path, pokemon_name: &str) -> Result<Handle, anyhow::Error> {
+    read_default_png(path, pokemon_name)
         .and_then(|bytes| decode_rgba(&bytes))
         .or_else(|e| {
-            warn!("Falling back to missingno for {pokemon_name}: {e}");
+            warn!(
+                "Form render falling back to missingno for {pokemon_name} and path {path:?}: {e}"
+            );
             load_missingno()
         })
         .map(|(handle, ..)| handle)
+}
+
+pub fn get_form_renders(
+    render_folder: String,
+    pokemon_name: String,
+    form_info: FormInfo,
+) -> Result<Vec<Handle>, anyhow::Error> {
+    let base = get_local_path()?
+        .join(render_folder)
+        .join(&pokemon_name)
+        .join(if form_info.shiny { "shiny" } else { "base" });
+
+    let paths: Vec<PathBuf> = if form_info.gmax {
+        vec![base.join("gmax")]
+    } else if form_info.mega {
+        vec![base.join("mega")]
+    } else {
+        match form_info.gender {
+            Gender::Male => vec![base.join("male")],
+            Gender::Female => vec![base.join("female")],
+            Gender::Dimorphic => vec![base.join("female"), base.join("male")],
+            _ => vec![base],
+        }
+    };
+
+    paths
+        .iter()
+        .map(|path| load_render(path, &pokemon_name))
+        .collect()
 }

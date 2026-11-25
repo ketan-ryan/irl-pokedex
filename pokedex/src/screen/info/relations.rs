@@ -32,11 +32,11 @@ use crate::{
     },
 };
 
-const LABEL_H: f32 = 26.0;
+pub const LABEL_H: f32 = 26.0;
 /// Fraction of the viewport height each scroll row occupies.
 /// Below 1.0, the next row peeks out at the bottom.
-const SCROLL_ROW_FRACTION: f32 = 0.8;
-const ROW_SPACING: f32 = 12.0;
+pub const SCROLL_ROW_FRACTION: f32 = 0.8;
+pub const ROW_SPACING: f32 = 12.0;
 
 mod section {
     pub const TOP_BUTTONS: usize = 0;
@@ -215,7 +215,7 @@ fn compute_layout(info: &Info, state: &RelationsState) -> Layout {
     }
 }
 
-fn capitalize(s: &str) -> String {
+pub fn capitalize(s: &str) -> String {
     let mut c = s.chars();
     c.next()
         .map(|f| f.to_uppercase().collect::<String>() + c.as_str())
